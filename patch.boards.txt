@@ -1,0 +1,28 @@
+--- hardware/arduino/boards.txt	2014-01-27 02:11:09.000000000 -0800
++++ hardware/arduino/boards.txt	2013-11-22 15:34:16.000000000 -0800
+@@ -563,6 +563,25 @@
+ robotMotor.build.vid=0x2341
+ robotMotor.build.pid=0x8039
+ robotMotor.build.core=robot
+ robotMotor.build.variant=robot_motor
+ 
++##############################################################
++
++xmega64d4.name=ATXMega64D4
++
++xmega64d4.upload.protocol=arduino
++xmega64d4.upload.maximum_size=65536
++xmega64d4.upload.speed=115200
++#xmega64d4.bootloader.low_fuses=0xff
++#xmega64d4.bootloader.high_fuses=0xde
++#xmega64d4.bootloader.extended_fuses=0x05
++#xmega64d4.bootloader.path=optiboot
++#xmega64d4.bootloader.file=optiboot_atmega328.hex
++#xmega64d4.bootloader.unlock_bits=0x3F
++#xmega64d4.bootloader.lock_bits=0x0F
++xmega64d4.build.mcu=atxmega64d4
++xmega64d4.build.f_cpu=32000000L
++xmega64d4.build.core=xmega
++xmega64d4.build.variant=xmega64d4
++
+ 

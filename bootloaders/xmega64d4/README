@@ -1,0 +1,15 @@
+ATXMega64D4 bootloader
+
+This is a modification of the Arduino bootloader, which is derived from the
+Adafruit bootloader 'as downloaded' that builds on POSIX-compatible systems 
+and uses an AVRISPmkII to program the target.
+
+  make xmega; make flash
+
+
+original source:
+  http://learn.adafruit.com/arduino-tips-tricks-and-techniques/bootloader
+  http://ladyada.net/library/arduino/Adaboot328.zip
+
+
+
