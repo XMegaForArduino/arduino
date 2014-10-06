@@ -87,7 +87,7 @@
 // that maps to 'digitalRead(0)' would be D2 rather than D0.  This also puts 'Serial' on pins 0 and 1
 // exactly like the Arduino UNO.  For any other mapping, create your own 'pins_arduino.h' file.
 //
-//#define DIGITAL_IO_PIN_SHIFT /* UNCOMMENT THIS to shift digital pin assignments for Arduino shield compatibility */
+#define DIGITAL_IO_PIN_SHIFT /* UNCOMMENT THIS to shift digital pin assignments for Arduino shield compatibility */
 
 
 
