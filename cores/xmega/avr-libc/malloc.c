@@ -63,7 +63,7 @@ ATTRIBUTE_CLIB_SECTION
 void *
 malloc(size_t len)
 {
-  struct __freelist *fp1, *fp2, *sfp1, *sfp2;
+  struct __freelist *fp1, *fp2, *sfp1=NULL, *sfp2=NULL; // BBB - added '=NULL' for sfp1, sfp2 as they were warned as being uninitialized
   char *cp;
   size_t s, avail;
 

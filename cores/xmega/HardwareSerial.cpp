@@ -113,7 +113,7 @@ uint8_t oldSREG;
 
 void InitSerialFlowControlInterrupts(void)
 {
-uint8_t oldSREG;
+uint8_t oldSREG=SREG;
 
   cli(); // disable interrupts for a bit
 
@@ -391,13 +391,13 @@ uint16_t temp_get_baud(unsigned long baud, uint8_t use_u2x)
 {
 #ifdef NEW_BAUD_METHOD
 uint16_t i1;
-static unsigned long aBaud[] PROGMEM = // standard baud rates
+static const unsigned long aBaud[] PROGMEM = // standard baud rates
 {
   2400, 4800, 9600, 14400, 19200, 28800, 38400, 57600,
   76800, 115200, 230400, 460800, 921600
 };
 
-static uint16_t a2x[] PROGMEM = // 2x constants for standard baud rates
+static const uint16_t a2x[] PROGMEM = // 2x constants for standard baud rates
 {
   (7 << 12) | 12,   // 2400
   (6 << 12) | 12,   // 4800
@@ -406,29 +406,29 @@ static uint16_t a2x[] PROGMEM = // 2x constants for standard baud rates
   (4 << 12) | 12,   // 19200
   138,              // 28800
   (3 << 12) | 12,   // 38400
-  (-1 << 12) | 137, // 57600
+  (uint16_t)(-1 << 12) | 137, // 57600
   (2 << 12) | 12,   // 76800
-  (-2 << 12) | 135, // 115200
-  (-3 << 12) | 131, // 230400
-  (-4 << 12) | 123, // 460800
-  (-5 << 12) | 107  // 921600
+  (uint16_t)(-2 << 12) | 135, // 115200
+  (uint16_t)(-3 << 12) | 131, // 230400
+  (uint16_t)(-4 << 12) | 123, // 460800
+  (uint16_t)(-5 << 12) | 107  // 921600
 };
 
-static uint16_t a1x[] PROGMEM = // 1x constants for standard baud rates
+static const uint16_t a1x[] PROGMEM = // 1x constants for standard baud rates
 {
   (6 << 12) | 12,   // 2400
   (5 << 12) | 12,   // 4800
   (4 << 12) | 12,   // 9600
   138,              // 14400
   (3 << 12) | 12,   // 19200
-  (-1 << 12) | 137, // 28800
+  (uint16_t)(-1 << 12) | 137, // 28800
   (2 << 12) | 12,   // 38400
-  (-2 << 12) | 135, // 57600
+  (uint16_t)(-2 << 12) | 135, // 57600
   (1 << 12) | 12,   // 76800
-  (-3 << 12) | 131, // 115200
-  (-4 << 12) | 123, // 230400
-  (-5 << 12) | 107, // 460800
-  (-6 << 12) | 75   // 921600
+  (uint16_t)(-3 << 12) | 131, // 115200
+  (uint16_t)(-4 << 12) | 123, // 230400
+  (uint16_t)(-5 << 12) | 107, // 460800
+  (uint16_t)(-6 << 12) | 75   // 921600
 };
 
   // TODO:  binary search is faster, but uses more code

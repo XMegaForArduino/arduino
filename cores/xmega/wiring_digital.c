@@ -38,7 +38,7 @@ void pinMode(uint8_t pin, uint8_t mode)
   uint8_t port = digitalPinToPort(pin);
   uint8_t sense = mode & INPUT_SENSE_MASK;
   uint8_t invert = mode & INPUT_OUTPUT_INVERT;
-  volatile uint8_t *reg, *out, *ctrl;
+  volatile uint8_t *reg, /* *out,*/ *ctrl;
 
   mode &= INPUT_OUTPUT_MASK; // remove 'sense' bits
 
@@ -46,6 +46,8 @@ void pinMode(uint8_t pin, uint8_t mode)
   {
     return;
   }
+
+  reg = portModeRegister(port);   // D manual section 11.12.1
 
   if(sense == INPUT_SENSE_DISABLED && reg != &PORTR_DIR) // 'DISABLED'
   {
@@ -75,8 +77,8 @@ void pinMode(uint8_t pin, uint8_t mode)
 
 
   // JWS: can I let the optimizer do this?
-  reg = portModeRegister(port);   // D manual section 11.12.1
-  out = portOutputRegister(port); // D manual section 11.12.5
+//  reg = portModeRegister(port);   // D manual section 11.12.1 (MOVED upwards, BBB)
+//  out = portOutputRegister(port); // D manual section 11.12.5 (not used - BBB)
   ctrl = pinControlRegister(pin); // D manual section 11.12.15
 
   uint8_t oldSREG = SREG;

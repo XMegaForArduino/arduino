@@ -35,8 +35,8 @@
 
   SPI is assumed to be on PORTC (pins 4-7)
   Serial is implemented on PORTD, Serial2 on PORTC, both using pins 2,3 (no handshaking)
-  PORTR pins 0 and 1 are assumed to be connected to LEDs.  pin 1 is the 'built-in' LED.  pin 0 is optional for 'power'.
-  (these two pins are defined as LED_BUILTIN and LED_POWER, respectively, and are active HIGH)
+  PORTR pin 1 is assumed to be connected to an LED.  Pin 1 is the 'built-in' LED, defined
+  as 'LED_BUILTIN', and is active HIGH.
 
   Your Mileage May Vary, depending on your board layout.  Some boards shift the
   digital pin assignments by 2 so that digital I/O pin 0 is PORTD Rx, pin 13 is PORTC SCK, just
@@ -87,15 +87,21 @@
 // that maps to 'digitalRead(0)' would be D2 rather than D0.  This also puts 'Serial' on pins 0 and 1
 // exactly like the Arduino UNO.  For any other mapping, create your own 'pins_arduino.h' file.
 //
-#define DIGITAL_IO_PIN_SHIFT /* UNCOMMENT THIS to shift digital pin assignments for Arduino shield compatibility */
+#define DIGITAL_IO_PIN_SHIFT /* COMMENT THIS to disable the shifting of digital pin assignments for Arduino shield compatibility */
 
+// TWIE may not work properly.  To make use of TWIC for 2-wire, it needs to be re-mapped
+#define USE_TWIC /* define this to re-map TWIC to digital pins 20 and 21, similar to an Arduino Mega2560.  requires DIGITAL_IO_PIN_SHIFT */
 
 
 #define NUM_DIGITAL_PINS            22
 #define NUM_ANALOG_INPUTS           12
 #define analogInputToDigitalPin(p)  ((p < 12) ? (p) + 22 : -1)
 #ifdef DIGITAL_IO_PIN_SHIFT
+#ifdef USE_TWIC
+#define digitalPinHasPWM(p)         ((p) < 18 || (p) == 20 || (p) == 21) /* PORTC pins 0 and 1 are 20 and 21, respectively */
+#else // USE_TWIC
 #define digitalPinHasPWM(p)         ((p) < 18 || (p) == 20 || (p) == 21) /* PORTD pins 0 and 1 are 20 and 21, respectively */
+#endif // USE_TWIC
 #else // no digital I/O pin shift
 #define digitalPinHasPWM(p)         ((p) < 20) /* port E pin 3 is the highest one that has PWM */
 #endif // DIGITAL_IO_PIN_SHIFT
@@ -127,8 +133,7 @@
 #define EXTERNAL_NUM_INTERRUPTS 12 /* defined here instead of wiring_private.h */
 
 
-
-// xmega has 2 sets of UART and SPI.
+// xmega 'D' series has 2 sets of UART and SPI.
 // The default UART is assigned on Port D, pins PD2-3
 // The default SPI is assigned on Port C, pins PC4-7
 //
@@ -164,17 +169,17 @@
 // For atmega/Arduino shield compatibility, with DIGITAL_IO_PIN_SHIFT defined
 // typical board/pin layout might be like this (for shield pins):
 //
-// NOTE:  TWIE may not be working properly, so SDA and SCL might not be correct
+// NOTE:  this design assumes USE_TWIC is defined, so TWI is on TWIC (port C pins 0/1)
 //
 //               M M
 //             S I O   T R
 //         A   C S S S x x
 //     S S R G K O I S 2 2              T R
-//     D C E N 1 1 1 1                  x x
-//     A L F D 3 2 1 0 9 8  7 6 5 4 3 2 1 0
+//     C D E N 1 1 1 1                  x x
+//     L A F D 3 2 1 0 9 8  7 6 5 4 3 2 1 0
 // ----o-o-o-o-o-o-o-o-o-o--o-o-o-o-o-o-o-o----
 //     P P     P P P P P P  P P P P P P P P
-//     E E     C C C C C C  C C D D D D D D
+//     C C     C C C C C C  C C D D D D D D
 //     1 0     7 6 5 4 3 2  1 0 7 6 5 4 3 2
 //
 //
@@ -192,7 +197,8 @@
 //               F T
 //
 // As with the MEGA2560 and other 'mega' Arduino boards, additional connectors would
-// break out the additional pins, with appropriate labeling.
+// break out the additional pins, with appropriate labeling.  Additionally, there should
+// be an LED on PORTR pin 1 for 'LED_BUILTIN'.
 //
 // This layout is based on the 'Rev C' Arduino.
 //
@@ -225,12 +231,9 @@ static const uint8_t MOSI1 = 3;
 static const uint8_t MISO1 = 4;
 static const uint8_t SCK1  = 5;
 
-// default 2-wire on PE0,PE1 - TWIE  (for TWIC, you're on your own)
-// NOTE:  TWIE appears it may be broken, so switch to TWIC?
-static const uint8_t SDA = 14;
-static const uint8_t SCL = 15;
-
-// TODO:  alternate 2-wire ports
+// default 2-wire on PC0,PC1 - TWIC (TWIE appears to be broken)
+static const uint8_t SDA = 20;
+static const uint8_t SCL = 21;
 
 // keep track of the indices for port R since its control register
 // settings should be slightly different - D manual table 11-6
@@ -259,12 +262,9 @@ static const uint8_t MOSI1 = 5;
 static const uint8_t MISO1 = 6;
 static const uint8_t SCK1  = 7;
 
-// default 2-wire on PE0,PE1 - TWIE  (for TWIC, you're on your own)
-// NOTE:  TWIE appears it may be broken, so switch to TWIC?
-static const uint8_t SDA = 16;
-static const uint8_t SCL = 17;
-
-// TODO:  alternate 2-wire ports
+// default 2-wire on PC0,PC1 - TWIC (TWIE appears to be broken)
+static const uint8_t SDA = 8;
+static const uint8_t SCL = 9;
 
 // keep track of the indices for port R since its control register
 // settings should be slightly different - D manual table 11-6
@@ -276,9 +276,6 @@ static const uint8_t SCL = 17;
 
 // default 'status' LED on PR1
 static const uint8_t LED_BUILTIN = PR1;
-// this xmega design has a 2nd 'power' LED defined on PR0
-static const uint8_t LED_POWER = PR0;
-
 
 static const uint8_t A0 = 22;
 static const uint8_t A1 = 23;
@@ -293,44 +290,9 @@ static const uint8_t A9 = 31;
 static const uint8_t A10 = 32;
 static const uint8_t A11 = 33;
 
-// on the xmega, PA2, PB2, PC2, PD2, and PE2 are asynchronous ints.  Others are 'synchronous' which means
+// on the xmega64d4, PA2, PB2, PC2, PD2, and PE2 are asynchronous ints.  Others are 'synchronous' which means
 // that they must be held in their 'interrupt state' long enough for the system to detect them.  In any case
 // all digital input pins can be use as interrupts, synchronous or otherwise.
-
-
-// this is the megaxxxx code
-//// A majority of the pins are NOT PCINTs, SO BE WARNED (i.e. you cannot use them as receive pins)
-//// Only pins available for RECEIVE (TRANSMIT can be on any pin):
-//// (I've deliberately left out pin mapping to the Hardware USARTs - seems senseless to me)
-//// Pins: 10, 11, 12, 13,  50, 51, 52, 53,  62, 63, 64, 65, 66, 67, 68, 69
-//
-//// NOTE:  these have to be completely re-written to work on the xmega
-//
-
-// TODO:  write this?  for now, leave it out
-
-// old mega code for reference
-#if 0
-#define digitalPinToPCICR(p)    ( (((p) >= 10) && ((p) <= 13)) || \
-                                  (((p) >= 50) && ((p) <= 53)) || \
-                                  (((p) >= 62) && ((p) <= 69)) ? (&PCICR) : ((uint8_t *)0) )
-
-#define digitalPinToPCICRbit(p) ( (((p) >= 10) && ((p) <= 13)) || (((p) >= 50) && ((p) <= 53)) ? 0 : \
-                                ( (((p) >= 62) && ((p) <= 69)) ? 2 : \
-                                0 ) )
-
-#define digitalPinToPCMSK(p)    ( (((p) >= 10) && ((p) <= 13)) || (((p) >= 50) && ((p) <= 53)) ? (&PCMSK0) : \
-                                ( (((p) >= 62) && ((p) <= 69)) ? (&PCMSK2) : \
-                                ((uint8_t *)0) ) )
-
-#define digitalPinToPCMSKbit(p) ( (((p) >= 10) && ((p) <= 13)) ? ((p) - 6) : \
-                                ( ((p) == 50) ? 3 : \
-                                ( ((p) == 51) ? 2 : \
-                                ( ((p) == 52) ? 1 : \
-                                ( ((p) == 53) ? 0 : \
-                                ( (((p) >= 62) && ((p) <= 69)) ? ((p) - 62) : \
-                                0 ) ) ) ) ) )
-#endif // 0
 
 
 
@@ -384,14 +346,20 @@ const uint16_t PROGMEM digital_pin_to_control_PGM[] = {
   (uint16_t) &PORTD_PIN0CTRL,  // PD 0 ** 0 **
   (uint16_t) &PORTD_PIN1CTRL,  // PD 1 ** 1 **
 #endif // DIGITAL_IO_PIN_SHIFT
+// subtract 2 from the digital pin number if DIGITAL_IO_PIN_SHIFT is defined
   (uint16_t) &PORTD_PIN2CTRL,  // PD 2 ** 2 ** USARTD_RX     ASYNC
   (uint16_t) &PORTD_PIN3CTRL,  // PD 3 ** 3 ** USARTD_TX
   (uint16_t) &PORTD_PIN4CTRL,  // PD 4 ** 4 **
   (uint16_t) &PORTD_PIN5CTRL,  // PD 5 ** 5 **
   (uint16_t) &PORTD_PIN6CTRL,  // PD 6 ** 6 **
   (uint16_t) &PORTD_PIN7CTRL,  // PD 7 ** 7 **
-  (uint16_t) &PORTC_PIN0CTRL,  // PC 0 ** 8 **
-  (uint16_t) &PORTC_PIN1CTRL,  // PC 1 ** 9 **
+#if defined(DIGITAL_IO_PIN_SHIFT) && defined(USE_TWIC)
+  (uint16_t) &PORTD_PIN0CTRL,  // PD 0 ** 8 ** map PORTD pins 0/1 here if TWIC is used
+  (uint16_t) &PORTD_PIN1CTRL,  // PD 1 ** 9 **
+#else
+  (uint16_t) &PORTC_PIN0CTRL,  // PC 0 ** 8 ** SDA
+  (uint16_t) &PORTC_PIN1CTRL,  // PC 1 ** 9 ** SCL
+#endif // defined(DIGITAL_IO_PIN_SHIFT) && defined(USE_TWIC)
   (uint16_t) &PORTC_PIN2CTRL,  // PC 2 ** 10 **              ASYNC
   (uint16_t) &PORTC_PIN3CTRL,  // PC 3 ** 11 **
   (uint16_t) &PORTC_PIN4CTRL,  // PC 4 ** 12 ** SPI_SS
@@ -405,8 +373,13 @@ const uint16_t PROGMEM digital_pin_to_control_PGM[] = {
   (uint16_t) &PORTR_PIN0CTRL,  // PR 0 ** 20 **
   (uint16_t) &PORTR_PIN1CTRL,  // PR 1 ** 21 ** default LED
 #ifdef DIGITAL_IO_PIN_SHIFT
+#ifdef USE_TWIC
+  (uint16_t) &PORTC_PIN0CTRL,  // PC 0 ** the new 20 ** SDA
+  (uint16_t) &PORTC_PIN1CTRL,  // PC 1 ** the new 21 ** SCL
+#else
   (uint16_t) &PORTD_PIN0CTRL,  // PD 0 ** the new 20 **
   (uint16_t) &PORTD_PIN1CTRL,  // PD 1 ** the new 21 **
+#endif // USE_TWIC
 #endif // DIGITAL_IO_PIN_SHIFT
   (uint16_t) &PORTA_PIN0CTRL,  // PA 0 ** 22 ** A0
   (uint16_t) &PORTA_PIN1CTRL,  // PA 1 ** 23 ** A1
@@ -416,10 +389,10 @@ const uint16_t PROGMEM digital_pin_to_control_PGM[] = {
   (uint16_t) &PORTA_PIN5CTRL,  // PA 5 ** 27 ** A5
   (uint16_t) &PORTA_PIN6CTRL,  // PA 6 ** 28 ** A6
   (uint16_t) &PORTA_PIN7CTRL,  // PA 7 ** 29 ** A7
-  (uint16_t) &PORTB_PIN0CTRL,  // PA 8 ** 30 ** A8
-  (uint16_t) &PORTB_PIN1CTRL,  // PA 9 ** 31 ** A9
-  (uint16_t) &PORTB_PIN2CTRL,  // PA 10 ** 32 ** A10         ASYNC
-  (uint16_t) &PORTB_PIN3CTRL,  // PA 11 ** 33 ** A11
+  (uint16_t) &PORTB_PIN0CTRL,  // PB 0 ** 30 ** A8
+  (uint16_t) &PORTB_PIN1CTRL,  // PB 1 ** 31 ** A9
+  (uint16_t) &PORTB_PIN2CTRL,  // PB 2 ** 32 ** A10         ASYNC
+  (uint16_t) &PORTB_PIN3CTRL,  // PB 3 ** 33 ** A11
 };
 
 const uint8_t PROGMEM digital_pin_to_port_PGM[] = {
@@ -429,14 +402,20 @@ const uint8_t PROGMEM digital_pin_to_port_PGM[] = {
   _PD,  // PD 0 ** 0 **
   _PD,  // PD 1 ** 1 **
 #endif // DIGITAL_IO_PIN_SHIFT
+// subtract 2 from the digital pin number if DIGITAL_IO_PIN_SHIFT is defined
   _PD,  // PD 2 ** 2 ** USARTD_RX
   _PD,  // PD 3 ** 3 ** USARTD_TX
   _PD,  // PD 4 ** 4 **
   _PD,  // PD 5 ** 5 **
   _PD,  // PD 6 ** 6 **
   _PD,  // PD 7 ** 7 **
-  _PC,  // PC 0 ** 8 **
-  _PC,  // PC 1 ** 9 **
+#if defined(DIGITAL_IO_PIN_SHIFT) && defined(USE_TWIC)
+  _PD,  // PD 0 ** 8 **
+  _PD,  // PD 1 ** 9 **
+#else
+  _PC,  // PC 0 ** 8 ** SDA
+  _PC,  // PC 1 ** 9 ** SCL
+#endif // defined(DIGITAL_IO_PIN_SHIFT) && defined(USE_TWIC)
   _PC,  // PC 2 ** 10 **
   _PC,  // PC 3 ** 11 **
   _PC,  // PC 4 ** 12 ** SPI_SS
@@ -450,8 +429,13 @@ const uint8_t PROGMEM digital_pin_to_port_PGM[] = {
   _PR,  // PR 0 ** 20 **
   _PR,  // PR 1 ** 21 ** default LED
 #ifdef DIGITAL_IO_PIN_SHIFT
+#ifdef USE_TWIC
+  _PC,  // PC 0 ** the new 20 ** SDA
+  _PC,  // PC 1 ** the new 21 ** SCL
+#else
   _PD,  // PD 0 ** the new 20 **
   _PD,  // PD 1 ** the new 21 **
+#endif // USE_TWIC
 #endif // DIGITAL_IO_PIN_SHIFT
   _PA,  // PA 0 ** 22 ** A0
   _PA,  // PA 1 ** 23 ** A1
@@ -461,10 +445,10 @@ const uint8_t PROGMEM digital_pin_to_port_PGM[] = {
   _PA,  // PA 5 ** 27 ** A5
   _PA,  // PA 6 ** 28 ** A6
   _PA,  // PA 7 ** 29 ** A7
-  _PB,  // PA 8 ** 30 ** A8
-  _PB,  // PA 9 ** 31 ** A9
-  _PB,  // PA 10 ** 32 ** A10
-  _PB,  // PA 11 ** 33 ** A11
+  _PB,  // PB 0 ** 30 ** A8
+  _PB,  // PB 1 ** 31 ** A9
+  _PB,  // PB 2 ** 32 ** A10
+  _PB,  // PB 3 ** 33 ** A11
 };
 
 const uint8_t PROGMEM digital_pin_to_bit_mask_PGM[] = {
@@ -474,14 +458,20 @@ const uint8_t PROGMEM digital_pin_to_bit_mask_PGM[] = {
   _BV( 0 ),  // PD 0 ** 0 **
   _BV( 1 ),  // PD 1 ** 1 **
 #endif // DIGITAL_IO_PIN_SHIFT
+// subtract 2 from the digital pin number if DIGITAL_IO_PIN_SHIFT is defined
   _BV( 2 ),  // PD 2 ** 2 ** USARTD_RX
   _BV( 3 ),  // PD 3 ** 3 ** USARTD_TX
   _BV( 4 ),  // PD 4 ** 4 **
   _BV( 5 ),  // PD 5 ** 5 **
   _BV( 6 ),  // PD 6 ** 6 **
   _BV( 7 ),  // PD 7 ** 7 **
-  _BV( 0 ),  // PC 0 ** 8 **
-  _BV( 1 ),  // PC 1 ** 9 **
+#if defined(DIGITAL_IO_PIN_SHIFT) && defined(USE_TWIC)
+  _BV( 0 ),  // PD 0 ** 8 **
+  _BV( 1 ),  // PD 1 ** 9 **
+#else
+  _BV( 0 ),  // PC 0 ** 8 ** SDA
+  _BV( 1 ),  // PC 1 ** 9 ** SCL
+#endif // defined(DIGITAL_IO_PIN_SHIFT) && defined(USE_TWIC)
   _BV( 2 ),  // PC 2 ** 10 **
   _BV( 3 ),  // PC 3 ** 11 **
   _BV( 4 ),  // PC 4 ** 12 ** SPI_SS
@@ -495,8 +485,13 @@ const uint8_t PROGMEM digital_pin_to_bit_mask_PGM[] = {
   _BV( 0 ),  // PR 0 ** 20 **
   _BV( 1 ),  // PR 1 ** 21 ** default LED
 #ifdef DIGITAL_IO_PIN_SHIFT
+#ifdef USE_TWIC
+  _BV( 0 ),  // PC 0 ** the new 20 ** SDA
+  _BV( 1 ),  // PC 1 ** the new 21 ** SCL
+#else
   _BV( 0 ),  // PD 0 ** the new 20 **
   _BV( 1 ),  // PD 1 ** the new 21 **
+#endif // USE_TWIC
 #endif // DIGITAL_IO_PIN_SHIFT
   _BV( 0 ),  // PA 0 ** 22 ** A0
   _BV( 1 ),  // PA 1 ** 23 ** A1
@@ -506,10 +501,10 @@ const uint8_t PROGMEM digital_pin_to_bit_mask_PGM[] = {
   _BV( 5 ),  // PA 5 ** 27 ** A5
   _BV( 6 ),  // PA 6 ** 28 ** A6
   _BV( 7 ),  // PA 7 ** 29 ** A7
-  _BV( 0 ),  // PA 8 ** 30 ** A8
-  _BV( 1 ),  // PA 9 ** 31 ** A9
-  _BV( 2 ),  // PA 10 ** 32 ** A10
-  _BV( 3 ),  // PA 11 ** 33 ** A11
+  _BV( 0 ),  // PB 0 ** 30 ** A8
+  _BV( 1 ),  // PB 1 ** 31 ** A9
+  _BV( 2 ),  // PB 2 ** 32 ** A10
+  _BV( 3 ),  // PB 3 ** 33 ** A11
 };
 
 const uint8_t PROGMEM digital_pin_to_timer_PGM[] = {
@@ -522,20 +517,24 @@ const uint8_t PROGMEM digital_pin_to_timer_PGM[] = {
   // a PWM output.  Must select pin as output, _AND_ enable the 'compare' output
   // for the appropriate pin.  LCMPENx/HCMPENx registers to enable it.
 
-  // TODO:  correctly implement for xmega - PORTC, PORTD, and PORTE are all PWM capable!
-
 #ifndef DIGITAL_IO_PIN_SHIFT
   TIMERD2,       // PD 0 ** 0 **
   TIMERD2,       // PD 1 ** 1 **
 #endif // DIGITAL_IO_PIN_SHIFT
+// subtract 2 from the digital pin number if DIGITAL_IO_PIN_SHIFT is defined
   TIMERD2,       // PD 2 ** 2 ** USARTD_RX
   TIMERD2,       // PD 3 ** 3 ** USARTD_TX
   TIMERD2,       // PD 4 ** 4 **
   TIMERD2,       // PD 5 ** 5 **
   TIMERD2,       // PD 6 ** 6 **
   TIMERD2,       // PD 7 ** 7 **
-  TIMERC2,       // PC 0 ** 8 **
-  TIMERC2,       // PC 1 ** 9 **
+#if defined(DIGITAL_IO_PIN_SHIFT) && defined(USE_TWIC)
+  TIMERD2,       // PD 0 ** 8 **
+  TIMERD2,       // PD 1 ** 9 **
+#else
+  TIMERC2,       // PC 0 ** 8 ** SDA
+  TIMERC2,       // PC 1 ** 9 ** SCL
+#endif // defined(DIGITAL_IO_PIN_SHIFT) && defined(USE_TWIC)
   TIMERC2,       // PC 2 ** 10 **
   TIMERC2,       // PC 3 ** 11 **
   TIMERC2,       // PC 4 ** 12 ** SPI_SS
@@ -549,8 +548,13 @@ const uint8_t PROGMEM digital_pin_to_timer_PGM[] = {
   NOT_ON_TIMER,  // PR 0 ** 20 **
   NOT_ON_TIMER,  // PR 1 ** 21 ** default LED
 #ifdef DIGITAL_IO_PIN_SHIFT
+#ifdef USE_TWIC
+  TIMERC2,       // PC 0 ** the new 20 ** SDA
+  TIMERC2,       // PC 1 ** the new 21 ** SCL
+#else
   TIMERD2,       // PD 0 ** the new 20 **
   TIMERD2,       // PD 1 ** the new 21 **
+#endif // USE_TWIC
 #endif // DIGITAL_IO_PIN_SHIFT
   NOT_ON_TIMER,  // PA 0 ** 22 ** A0
   NOT_ON_TIMER,  // PA 1 ** 23 ** A1
@@ -560,27 +564,10 @@ const uint8_t PROGMEM digital_pin_to_timer_PGM[] = {
   NOT_ON_TIMER,  // PA 5 ** 27 ** A5
   NOT_ON_TIMER,  // PA 6 ** 28 ** A6
   NOT_ON_TIMER,  // PA 7 ** 29 ** A7
-  NOT_ON_TIMER,  // PA 8 ** 30 ** A8
-  NOT_ON_TIMER,  // PA 9 ** 31 ** A9
-  NOT_ON_TIMER,  // PA 10 ** 32 ** A10
-  NOT_ON_TIMER,  // PA 11 ** 33 ** A11
-
-// for reference, entries from the megaxxxx
-//  TIMER3B , // PE 4 ** 2 ** PWM2
-//  TIMER3C , // PE 5 ** 3 ** PWM3
-//  TIMER0B , // PG 5 ** 4 ** PWM4
-//  TIMER3A , // PE 3 ** 5 ** PWM5
-//  TIMER4A , // PH 3 ** 6 ** PWM6
-//  TIMER4B , // PH 4 ** 7 ** PWM7
-//  TIMER4C , // PH 5 ** 8 ** PWM8
-//  TIMER2B , // PH 6 ** 9 ** PWM9
-//  TIMER2A , // PB 4 ** 10 ** PWM10
-//  TIMER1A , // PB 5 ** 11 ** PWM11
-//  TIMER1B , // PB 6 ** 12 ** PWM12
-//  TIMER0A , // PB 7 ** 13 ** PWM13
-//  TIMER5C , // PL 5 ** 44 ** D44
-//  TIMER5B , // PL 4 ** 45 ** D45
-//  TIMER5A , // PL 3 ** 46 ** D46
+  NOT_ON_TIMER,  // PB 0 ** 30 ** A8
+  NOT_ON_TIMER,  // PB 1 ** 31 ** A9
+  NOT_ON_TIMER,  // PB 2 ** 32 ** A10
+  NOT_ON_TIMER,  // PB 3 ** 33 ** A11
 };
 
 #endif

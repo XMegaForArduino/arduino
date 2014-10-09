@@ -35,8 +35,8 @@
 
   SPI is assumed to be on PORTC (pins 4-7)
   Serial is implemented on PORTD, Serial2 on PORTC, both using pins 2,3 (no handshaking)
-  PORTR pins 0 and 1 are assumed to be connected to LEDs.  pin 1 is the 'built-in' LED.  pin 0 is optional for 'power'.
-  (these two pins are defined as LED_BUILTIN and LED_POWER, respectively, and are active HIGH)
+  PORTR pin 1 is assumed to be connected to an LED.  Pin 1 is the 'built-in' LED, defined
+  as 'LED_BUILTIN', and is active HIGH.
 
   Your Mileage May Vary, depending on your board layout.  Some boards shift the
   digital pin assignments by 2 so that digital I/O pin 0 is PORTD Rx, pin 13 is PORTC SCK, just
@@ -91,13 +91,13 @@
 
 
 
-#define NUM_DIGITAL_PINS            22
-#define NUM_ANALOG_INPUTS           12
-#define analogInputToDigitalPin(p)  ((p < 12) ? (p) + 22 : -1)
+#define NUM_DIGITAL_PINS            62
+#define NUM_ANALOG_INPUTS           16
+#define analogInputToDigitalPin(p)  ((p < 16) ? (p) + 62 : -1)
 #ifdef DIGITAL_IO_PIN_SHIFT
-#define digitalPinHasPWM(p)         ((p) < 18 || (p) == 20 || (p) == 21) /* PORTD pins 0 and 1 are 20 and 21, respectively */
+#define digitalPinHasPWM(p)         ((p) < 30 || (p) == 60 || (p) == 61) /* PORTD pins 0 and 1 are 20 and 21, respectively */
 #else // no digital I/O pin shift
-#define digitalPinHasPWM(p)         ((p) < 20) /* port E pin 3 is the highest one that has PWM */
+#define digitalPinHasPWM(p)         ((p) < 32) /* port F pin 7 is the highest one that has PWM */
 #endif // DIGITAL_IO_PIN_SHIFT
 
 
@@ -278,10 +278,11 @@ static const uint8_t SCK1  = 7;
 
 // default 2-wire on PE0,PE1 - TWIE  (for TWIC, you're on your own)
 // NOTE:  TWIE appears it may be broken, so switch to TWIC?
+// NOTE:  this does NOT correspond to the mega2560, which uses 20 and 21 (need more remap work)
 static const uint8_t SDA = 16;
 static const uint8_t SCL = 17;
 
-// TODO:  alternate 2-wire ports
+// TODO:  alternate 2-wire ports TWIC?
 
 // keep track of the indices for port R since its control register
 // settings should be slightly different - D manual table 11-6
@@ -615,16 +616,16 @@ const uint8_t PROGMEM digital_pin_to_bit_mask_PGM[] = {
   _BV( 5 ),  // PD 5 ** 5 **
   _BV( 6 ),  // PD 6 ** 6 **
   _BV( 7 ),  // PD 7 ** 7 **
-  _BV( 0 ),  // PC 0 ** 8 **
-  _BV( 1 ),  // PC 1 ** 9 **
-  _BV( 2 ),  // PC 2 ** 10 **
-  _BV( 3 ),  // PC 3 ** 11 **
+  _BV( 0 ),  // PC 0 ** 8 ** SDA TWIC
+  _BV( 1 ),  // PC 1 ** 9 ** SCL TWIC
+  _BV( 2 ),  // PC 2 ** 10 ** USARTC_RX
+  _BV( 3 ),  // PC 3 ** 11 ** USARTC_TX
   _BV( 4 ),  // PC 4 ** 12 ** SPI_SS
   _BV( 5 ),  // PC 5 ** 13 ** SPI_MOSI
   _BV( 6 ),  // PC 6 ** 14 ** SPI_MISO
   _BV( 7 ),  // PC 7 ** 15 ** SPI_SCK
-  _BV( 0 ),  // PE 0 ** 16 ** SDA
-  _BV( 1 ),  // PE 1 ** 17 ** SCL
+  _BV( 0 ),  // PE 0 ** 16 ** SDA TWIE
+  _BV( 1 ),  // PE 1 ** 17 ** SCL TWIE
   _BV( 2 ),  // PE 2 ** 18 **
   _BV( 3 ),  // PE 3 ** 19 **
   _BV( 4 ),  // PE 4 ** 20 **
@@ -719,17 +720,16 @@ const uint8_t PROGMEM digital_pin_to_timer_PGM[] = {
   TIMERD2,       // PD 5 ** 5 **
   TIMERD2,       // PD 6 ** 6 **
   TIMERD2,       // PD 7 ** 7 **
-  TIMERC2,       // PC 0 ** 8 **
-  TIMERC2,       // PC 1 ** 9 **
-  TIMERC2,       // PC 2 ** 10 **
-  TIMERC2,       // PC 3 ** 11 **
+  TIMERC2,       // PC 0 ** 8 ** SDA TWIC
+  TIMERC2,       // PC 1 ** 9 ** SCL TWIC
+  TIMERC2,       // PC 2 ** 10 ** USARTD_RX
+  TIMERC2,       // PC 3 ** 11 ** USARTD_TX
   TIMERC2,       // PC 4 ** 12 ** SPI_SS
   TIMERC2,       // PC 5 ** 13 ** SPI_MOSI
   TIMERC2,       // PC 6 ** 14 ** SPI_MISO
   TIMERC2,       // PC 7 ** 15 ** SPI_SCK
-
-  TIMERE2,       // PE 0 ** 16 ** SDA
-  TIMERE2,       // PE 1 ** 17 ** SCL
+  TIMERE2,       // PE 0 ** 16 ** SDA TWIE
+  TIMERE2,       // PE 1 ** 17 ** SCL TWIE
   TIMERE2,       // PE 2 ** 18 **
   TIMERE2,       // PE 3 ** 19 **
   TIMERE2,       // PE 4 ** 20 **
@@ -746,37 +746,37 @@ const uint8_t PROGMEM digital_pin_to_timer_PGM[] = {
   TIMERF2,       // PF 6 ** 30 **
   TIMERF2,       // PF 7 ** 31 **
 
-  TIMERH2,       // PH 0 ** 32 **
-  TIMERH2,       // PH 1 ** 33 **
-  TIMERH2,       // PH 2 ** 34 **
-  TIMERH2,       // PH 3 ** 35 **
-  TIMERH2,       // PH 4 ** 36 **
-  TIMERH2,       // PH 5 ** 37 **
-  TIMERH2,       // PH 6 ** 38 **
-  TIMERH2,       // PH 7 ** 39 **
+  NOT_ON_TIMER,  // PH 0 ** 32 **
+  NOT_ON_TIMER,  // PH 1 ** 33 **
+  NOT_ON_TIMER,  // PH 2 ** 34 **
+  NOT_ON_TIMER,  // PH 3 ** 35 **
+  NOT_ON_TIMER,  // PH 4 ** 36 **
+  NOT_ON_TIMER,  // PH 5 ** 37 **
+  NOT_ON_TIMER,  // PH 6 ** 38 **
+  NOT_ON_TIMER,  // PH 7 ** 39 **
 
-  TIMERJ2,       // PJ 0 ** 40 **
-  TIMERJ2,       // PJ 1 ** 41 **
-  TIMERJ2,       // PJ 2 ** 42 **
-  TIMERJ2,       // PJ 3 ** 43 **
-  TIMERJ2,       // PJ 4 ** 44 **
-  TIMERJ2,       // PJ 5 ** 45 **
-  TIMERJ2,       // PJ 6 ** 46 **
-  TIMERJ2,       // PJ 7 ** 47 **
+  NOT_ON_TIMER,  // PJ 0 ** 40 **
+  NOT_ON_TIMER,  // PJ 1 ** 41 **
+  NOT_ON_TIMER,  // PJ 2 ** 42 **
+  NOT_ON_TIMER,  // PJ 3 ** 43 **
+  NOT_ON_TIMER,  // PJ 4 ** 44 **
+  NOT_ON_TIMER,  // PJ 5 ** 45 **
+  NOT_ON_TIMER,  // PJ 6 ** 46 **
+  NOT_ON_TIMER,  // PJ 7 ** 47 **
 
-  TIMERK2,       // PK 0 ** 48 **
-  TIMERK2,       // PK 1 ** 49 **
-  TIMERK2,       // PK 2 ** 50 **
-  TIMERK2,       // PK 3 ** 51 **
-  TIMERK2,       // PK 4 ** 52 **
-  TIMERK2,       // PK 5 ** 53 **
-  TIMERK2,       // PK 6 ** 54 **
-  TIMERK2,       // PK 7 ** 55 **
+  NOT_ON_TIMER,  // PK 0 ** 48 **
+  NOT_ON_TIMER,  // PK 1 ** 49 **
+  NOT_ON_TIMER,  // PK 2 ** 50 **
+  NOT_ON_TIMER,  // PK 3 ** 51 **
+  NOT_ON_TIMER,  // PK 4 ** 52 **
+  NOT_ON_TIMER,  // PK 5 ** 53 **
+  NOT_ON_TIMER,  // PK 6 ** 54 **
+  NOT_ON_TIMER,  // PK 7 ** 55 **
 
-  TIMERQ0,       // PQ 0 ** 56 **
-  TIMERQ0,       // PQ 1 ** 57 **
-  TIMERQ0,       // PQ 2 ** 58 **
-  TIMERQ0,       // PQ 3 ** 59 **
+  NOT_ON_TIMER,  // PQ 0 ** 56 **
+  NOT_ON_TIMER,  // PQ 1 ** 57 **
+  NOT_ON_TIMER,  // PQ 2 ** 58 **
+  NOT_ON_TIMER,  // PQ 3 ** 59 **
 
   NOT_ON_TIMER,  // PR 0 ** 60 **
   NOT_ON_TIMER,  // PR 1 ** 61 ** default LED

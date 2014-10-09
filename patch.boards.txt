@@ -1,6 +1,6 @@
---- hardware/arduino/boards.txt	2014-01-27 02:11:09.000000000 -0800
-+++ hardware/arduino/boards.txt	2013-11-22 15:34:16.000000000 -0800
-@@ -563,6 +563,25 @@
+--- hardware/arduino/boards.txt.orig	2013-05-17 12:48:38.000000000 -0700
++++ hardware/arduino/boards.txt	2014-10-08 14:15:18.000000000 -0700
+@@ -563,5 +563,63 @@
  robotMotor.build.vid=0x2341
  robotMotor.build.pid=0x8039
  robotMotor.build.core=robot
@@ -16,8 +16,8 @@
 +#xmega64d4.bootloader.low_fuses=0xff
 +#xmega64d4.bootloader.high_fuses=0xde
 +#xmega64d4.bootloader.extended_fuses=0x05
-+#xmega64d4.bootloader.path=optiboot
-+#xmega64d4.bootloader.file=optiboot_atmega328.hex
++#xmega64d4.bootloader.path=xmega64d4
++#xmega64d4.bootloader.file=xmegaBOOT_xmega0.hex
 +#xmega64d4.bootloader.unlock_bits=0x3F
 +#xmega64d4.bootloader.lock_bits=0x0F
 +xmega64d4.build.mcu=atxmega64d4
@@ -25,4 +25,42 @@
 +xmega64d4.build.core=xmega
 +xmega64d4.build.variant=xmega64d4
 +
- 
++##############################################################
++
++xmega32e5.name=ATXMega32E5
++
++xmega32e5.upload.protocol=arduino
++xmega32e5.upload.maximum_size=32768
++xmega32e5.upload.speed=115200
++#xmega32e5.bootloader.low_fuses=0xff
++#xmega32e5.bootloader.high_fuses=0xde
++#xmega32e5.bootloader.extended_fuses=0x05
++#xmega32e5.bootloader.path=xmega32e5
++#xmega32e5.bootloader.file=xmegaBOOT_xmega0.hex
++#xmega32e5.bootloader.unlock_bits=0x3F
++#xmega32e5.bootloader.lock_bits=0x0F
++xmega32e5.build.mcu=atxmega32e5
++xmega32e5.build.f_cpu=32000000L
++xmega32e5.build.core=xmega
++xmega32e5.build.variant=xmega32e5
++
++##############################################################
++
++xmega128a1.name=ATXMega128A1
++
++xmega128a1.upload.protocol=arduino
++xmega128a1.upload.maximum_size=131072
++xmega128a1.upload.speed=115200
++#xmega128a1.bootloader.low_fuses=0xff
++#xmega128a1.bootloader.high_fuses=0xde
++#xmega128a1.bootloader.extended_fuses=0x05
++#xmega128a1.bootloader.path=xmega128a1
++#xmega128a1.bootloader.file=xmegaBOOT_xmega0.hex
++#xmega128a1.bootloader.unlock_bits=0x3F
++#xmega128a1.bootloader.lock_bits=0x0F
++xmega128a1.build.mcu=atxmega128a1
++xmega128a1.build.f_cpu=32000000L
++xmega128a1.build.core=xmega
++xmega128a1.build.variant=xmega128a1
++
++

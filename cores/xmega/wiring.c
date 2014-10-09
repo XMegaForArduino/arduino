@@ -522,9 +522,9 @@ void init()
 
   // Added code to pre-set input pins also - note PIN0CTRL through PIN7CTRL are like an array
   // also, 'PORT_ISC_BOTHEDGES_gc | PORT_OPC_TOTEM_gc' evaluates to '0' and is the normal default
-  memset(&(PORTC.PIN0CTRL), PORT_ISC_BOTHEDGES_gc | PORT_OPC_TOTEM_gc, 8);
-  memset(&(PORTD.PIN0CTRL), PORT_ISC_BOTHEDGES_gc | PORT_OPC_TOTEM_gc, 8);
-  memset(&(PORTE.PIN0CTRL), PORT_ISC_BOTHEDGES_gc | PORT_OPC_TOTEM_gc, 4);
+  memset((void *)&(PORTC.PIN0CTRL), PORT_ISC_BOTHEDGES_gc | PORT_OPC_TOTEM_gc, 8);
+  memset((void *)&(PORTD.PIN0CTRL), PORT_ISC_BOTHEDGES_gc | PORT_OPC_TOTEM_gc, 8);
+  memset((void *)&(PORTE.PIN0CTRL), PORT_ISC_BOTHEDGES_gc | PORT_OPC_TOTEM_gc, 4);
 
   // ---------------------------------------------------
   // ANALOG INPUT PINS - 'INPUT_DISABLED' (recommended)
@@ -535,8 +535,12 @@ void init()
 
 #if 1
   // all analog pins set up for 'INPUT_DISABLED' which is recommended for analog read
-  memset(&(PORTA.PIN0CTRL), PORT_ISC_INPUT_DISABLE_gc | PORT_OPC_TOTEM_gc, 8);
-  memset(&(PORTB.PIN0CTRL), PORT_ISC_INPUT_DISABLE_gc | PORT_OPC_TOTEM_gc, 4);
+  memset((void *)&(PORTA.PIN0CTRL), PORT_ISC_INPUT_DISABLE_gc | PORT_OPC_TOTEM_gc, 8);
+#if NUM_ANALOG_INPUTS > 12
+  memset((void *)&(PORTB.PIN0CTRL), PORT_ISC_INPUT_DISABLE_gc | PORT_OPC_TOTEM_gc, 8);
+#elif NUM_ANALOG_INPUTS > 8
+  memset((void *)&(PORTB.PIN0CTRL), PORT_ISC_INPUT_DISABLE_gc | PORT_OPC_TOTEM_gc, 4);
+#endif // NUM_ANALOG_INPUTS > 8, 12
 #else // 1
   // older code (for reference, modified to use constants and not '_BV(2) | _BV(1) | _BV(0)'
   PORTA_PIN0CTRL = PORT_ISC_INPUT_DISABLE_gc | PORT_OPC_TOTEM_gc;
@@ -548,10 +552,18 @@ void init()
   PORTA_PIN6CTRL = PORT_ISC_INPUT_DISABLE_gc | PORT_OPC_TOTEM_gc;
   PORTA_PIN7CTRL = PORT_ISC_INPUT_DISABLE_gc | PORT_OPC_TOTEM_gc;
 
+#if NUM_ANALOG_INPUTS > 8
   PORTB_PIN0CTRL = PORT_ISC_INPUT_DISABLE_gc | PORT_OPC_TOTEM_gc;
   PORTB_PIN1CTRL = PORT_ISC_INPUT_DISABLE_gc | PORT_OPC_TOTEM_gc;
   PORTB_PIN2CTRL = PORT_ISC_INPUT_DISABLE_gc | PORT_OPC_TOTEM_gc;
   PORTB_PIN3CTRL = PORT_ISC_INPUT_DISABLE_gc | PORT_OPC_TOTEM_gc;
+#if NUM_ANALOG_INPUTS > 12
+  PORTB_PIN4CTRL = PORT_ISC_INPUT_DISABLE_gc | PORT_OPC_TOTEM_gc;
+  PORTB_PIN5CTRL = PORT_ISC_INPUT_DISABLE_gc | PORT_OPC_TOTEM_gc;
+  PORTB_PIN6CTRL = PORT_ISC_INPUT_DISABLE_gc | PORT_OPC_TOTEM_gc;
+  PORTB_PIN7CTRL = PORT_ISC_INPUT_DISABLE_gc | PORT_OPC_TOTEM_gc;
+#endif // NUM_ANALOG_INPUTS > 12
+#endif // NUM_ANALOG_INPUTS > 8
 #endif // 1
 
 

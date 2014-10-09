@@ -65,8 +65,8 @@ extern "C"{
 #define INPUT_SENSE_BOTH     0x30 /* rising AND falling */
 #define INPUT_SENSE_LEVEL    0x40 /* high level (or low if I invert it) */
 #define INPUT_SENSE_DISABLED 0x50 /* buffered input disabled (most pins won't be able to use 'IN' if you do this) */
-#define INPUT_SENSE_MASK     0xf0 /* mask for 'input sense' bits */
-#define INPUT_OUTPUT_INVERT 0x100 /* bit for 'inverted' I/O - note that digitalRead and digitalWrite will re-invert to maintain consistency */
+#define INPUT_SENSE_MASK     0x70 /* mask for 'input sense' bits */
+#define INPUT_OUTPUT_INVERT  0x80 /* bit for 'inverted' I/O - note that digitalRead and digitalWrite will re-invert to maintain consistency */
 
 // NOTE:  'INPUT_OUTPUT_INVER' is primarily there to support LOW LEVEL interrupts.  if you specify this flag for normal
 //        digital I/O, there will be no 'visible effect' since digitalRead and digitalWrite will "re-invert" the bit value
@@ -267,18 +267,18 @@ extern const uint8_t PROGMEM digital_pin_to_timer_PGM[];
 #define NOT_A_PORT 0
 
 #ifdef ARDUINO_MAIN
-// use of '_' prefix to prevent collisions with files like iox64d#.h, iox128a#.h and for consistency
+// use of '_' prefix to prevent collisions with iox64d#.h and for consistency
 #define _PA 1
 #define _PB 2
 #define _PC 3
 #define _PD 4
 #define _PE 5
-#define _PR 6
-#define _PF 7 /* definitions for A series processor */
-#define _PH 8
-#define _PJ 9
-#define _PK 10
-#define _PQ 11
+#define _PR 6 /* was PF */
+//#define PG 7
+//#define PH 8
+//#define PJ 10
+//#define PK 11
+//#define PL 12
 #endif
 
 // modified timer definitions for xmega
@@ -289,12 +289,6 @@ extern const uint8_t PROGMEM digital_pin_to_timer_PGM[];
 #define TIMERD2 1
 #define TIMERC2 2
 #define TIMERE0 3
-#define TIMERQ0 4
-#define TIMERF2 5
-#define TIMERH2 6
-#define TIMERJ2 7
-#define TIMERK2 8
-
 // not using TCD0,1 nor TCC0,1
 // The first 16 IO pins (PD0-PD7, PC0-PC7) will be PWM capable, as are PE0-PE3
 
@@ -338,7 +332,6 @@ long map(long, long, long, long, long);
 
 
 // added support for hardware serial flow control - spans multiple files
-// this only applies to Serial0 and Serial1, for now [later may make it 'soft' ?]
 
 #if defined(SERIAL_0_RTS_PORT_NAME) && defined(SERIAL_0_RTS_PIN_INDEX)
 #define SERIAL_0_RTS_ENABLED

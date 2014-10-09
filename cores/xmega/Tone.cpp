@@ -75,7 +75,7 @@ void tone(uint8_t _pin, unsigned int frequency, unsigned long duration)
 register int8_t b1;
 unsigned short per, w2;
 unsigned long ulTemp;
-static uint16_t aPreScaler[] PROGMEM = {1,2,4,8,64,256,1024}; // pre-scaler
+static const uint16_t aPreScaler[] PROGMEM = {1,2,4,8,64,256,1024}; // pre-scaler
 
   // frequency 
 
