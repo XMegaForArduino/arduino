@@ -1,4 +1,4 @@
---- hardware/arduino/boards.txt.orig	2013-05-17 12:48:38.000000000 -0700
+--- hardware/arduino/boards.txt	2013-05-17 12:48:38.000000000 -0700
 +++ hardware/arduino/boards.txt	2014-10-08 14:15:18.000000000 -0700
 @@ -563,5 +563,63 @@
  robotMotor.build.vid=0x2341
