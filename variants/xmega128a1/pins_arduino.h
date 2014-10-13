@@ -175,11 +175,62 @@
 //
 // See 'D' manual chapter 13 for more on this
 
+// --------------------------------------------
+// DEFINITIONS FOR SERIAL PORTS AND DEFAULT TWI
+// --------------------------------------------
+
+
+#define DEFAULT_TWI TWIC /* for now, later maybe TWIE? */
+
+// serial port 0
+#define SERIAL_0_PORT_NAME PORTD
+#define SERIAL_0_USART_NAME USARTD0
+#define SERIAL_0_USART_DATA USARTD0_DATA
+#define SERIAL_0_RXC_ISR ISR(USARTD0_RXC_vect)
+#define SERIAL_0_DRE_ISR ISR(USARTD0_DRE_vect)
+//#define SERIAL_0_REMAP PORTD_REMAP /* define THIS to re-map the pins from 0-3 to 4-7 on serial port 0 */
+#define SERIAL_0_REMAP_BIT 4    /* the bit needed to remap the port if SERIAL_0_REMAP is defined */
+#define SERIAL_0_RX_PIN_INDEX 2 /* the pin number on the port, not the mapped digital pin number */
+#define SERIAL_0_TX_PIN_INDEX 3 /* the pin number on the port, not the mapped digital pin number */
+
+// serial port 1
+#define SERIAL_1_PORT_NAME PORTC
+#define SERIAL_1_USART_NAME USARTC0
+#define SERIAL_1_USART_DATA USARTC0_DATA
+#define SERIAL_1_RXC_ISR ISR(USARTC0_RXC_vect)
+#define SERIAL_1_DRE_ISR ISR(USARTC0_DRE_vect)
+//#define SERIAL_1_REMAP PORTC_REMAP /* define THIS to re-map the pins from 0-3 to 4-7 on serial port 1 */
+#define SERIAL_1_REMAP_BIT 4    /* the bit needed to remap the port if SERIAL_1_REMAP is defined */
+#define SERIAL_1_RX_PIN_INDEX 2 /* the pin number on the port, not the mapped digital pin number */
+#define SERIAL_1_TX_PIN_INDEX 3 /* the pin number on the port, not the mapped digital pin number */
+
+// serial port 2
+#define SERIAL_2_PORT_NAME PORTE
+#define SERIAL_2_USART_NAME USARTE0
+#define SERIAL_2_USART_DATA USARTE0_DATA
+#define SERIAL_2_RXC_ISR ISR(USARTE0_RXC_vect)
+#define SERIAL_2_DRE_ISR ISR(USARTE0_DRE_vect)
+//#define SERIAL_2_REMAP PORTE_REMAP /* define THIS to re-map the pins from 0-3 to 4-7 on serial port 2 */
+#define SERIAL_2_REMAP_BIT 4    /* the bit needed to remap the port if SERIAL_1_REMAP is defined */
+#define SERIAL_2_RX_PIN_INDEX 2 /* the pin number on the port, not the mapped digital pin number */
+#define SERIAL_2_TX_PIN_INDEX 3 /* the pin number on the port, not the mapped digital pin number */
+
+// serial port 3
+#define SERIAL_3_PORT_NAME PORTF
+#define SERIAL_3_USART_NAME USARTF0
+#define SERIAL_3_USART_DATA USARTF0_DATA
+#define SERIAL_3_RXC_ISR ISR(USARTF0_RXC_vect)
+#define SERIAL_3_DRE_ISR ISR(USARTF0_DRE_vect)
+//#define SERIAL_3_REMAP PORTF_REMAP /* define THIS to re-map the pins from 0-3 to 4-7 on serial port 3 */
+#define SERIAL_3_REMAP_BIT 4    /* the bit needed to remap the port if SERIAL_1_REMAP is defined */
+#define SERIAL_3_RX_PIN_INDEX 2 /* the pin number on the port, not the mapped digital pin number */
+#define SERIAL_3_TX_PIN_INDEX 3 /* the pin number on the port, not the mapped digital pin number */
+
+
 
 // For atmega/Arduino shield compatibility, with DIGITAL_IO_PIN_SHIFT defined
 // typical board/pin layout might be like this (for shield pins):
 //
-// NOTE:  TWIE may not be working properly, so SDA and SCL might not be correct
 
 // NOTE:  re-do this ASCII art for the MEGA2560 layout
 
@@ -357,14 +408,14 @@ static const uint8_t A15 = 77;
 #ifdef ARDUINO_MAIN
 
 const uint16_t PROGMEM port_to_mode_PGM[] = {
-  NOT_A_PORT,             // 0
+  NOT_A_PORT,                  // 0
   (uint16_t) &PORTA_DIR,       // PA
   (uint16_t) &PORTB_DIR,       // PB
   (uint16_t) &PORTC_DIR,       // PC
   (uint16_t) &PORTD_DIR,       // PD
   (uint16_t) &PORTE_DIR,       // PE
   (uint16_t) &PORTR_DIR,       // PR
-  (uint16_t) &PORTF_DIR,       // PG
+  (uint16_t) &PORTF_DIR,       // PF
   (uint16_t) &PORTH_DIR,       // PH
   (uint16_t) &PORTJ_DIR,       // PJ
   (uint16_t) &PORTK_DIR,       // PK
@@ -372,14 +423,14 @@ const uint16_t PROGMEM port_to_mode_PGM[] = {
 };
 
 const uint16_t PROGMEM port_to_output_PGM[] = {
-  NOT_A_PORT,              // 0
+  NOT_A_PORT,                  // 0
   (uint16_t) &PORTA_OUT,       // PA
   (uint16_t) &PORTB_OUT,       // PB
   (uint16_t) &PORTC_OUT,       // PC
   (uint16_t) &PORTD_OUT,       // PD
   (uint16_t) &PORTE_OUT,       // PE
   (uint16_t) &PORTR_OUT,       // PR
-  (uint16_t) &PORTF_OUT,       // PG
+  (uint16_t) &PORTF_OUT,       // PF
   (uint16_t) &PORTH_OUT,       // PH
   (uint16_t) &PORTJ_OUT,       // PJ
   (uint16_t) &PORTK_OUT,       // PK
@@ -387,14 +438,14 @@ const uint16_t PROGMEM port_to_output_PGM[] = {
 };
 
 const uint16_t PROGMEM port_to_input_PGM[] = {
-  NOT_A_PORT,             // 0
+  NOT_A_PORT,                 // 0
   (uint16_t) &PORTA_IN,       // PA
   (uint16_t) &PORTB_IN,       // PB
   (uint16_t) &PORTC_IN,       // PC
   (uint16_t) &PORTD_IN,       // PD
   (uint16_t) &PORTE_IN,       // PE
   (uint16_t) &PORTR_IN,       // PR
-  (uint16_t) &PORTF_IN,       // PG
+  (uint16_t) &PORTF_IN,       // PF
   (uint16_t) &PORTH_IN,       // PH
   (uint16_t) &PORTJ_IN,       // PJ
   (uint16_t) &PORTK_IN,       // PK

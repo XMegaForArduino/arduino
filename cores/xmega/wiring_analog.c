@@ -74,8 +74,16 @@ void adc_setup(void)
   ADCA_CH0_SCAN = 0;       // disable scan
   ADCA_CH0_INTCTRL = 0;    // no interrupts, flag on complete sect 22.15.3
 
+  // NOTE:  the E5 has a significant difference in how it handles 'DIFF WITH GAIN'
+  //        ADC_CH_INPUTMODE_DIFFWGAINL_gc uses A0-A3, GND, and internal GND (not same as D and earlier)
+  //        ADC_CH_INPUTMODE_DIFFWGAINH_gc uses A4-A7 and GND (see E manual table 24-16,17 pg 366-7) (similar to D and earlier)
+#if defined (__AVR_ATxmega16E5__) || defined (__AVR_ATxmega32E5__)
+  ADCA_CH0_CTRL = ADC_CH_INPUTMODE_DIFFWGAINH_gc | // so MUXNEG 111b aka '7' still picks "GND" for 'diff with gain'
+                  ADC_CH_GAIN_DIV2_gc; // (see 24.15.1 in E manual - they differ)
+#else // everything else not an 'E' series
   ADCA_CH0_CTRL = ADC_CH_INPUTMODE_DIFFWGAIN_gc |
-                  ADC_CH_GAIN_DIV2_gc; // (see 22.15.1)
+                  ADC_CH_GAIN_DIV2_gc; // (see 22.15.1 in D manual - they differ)
+#endif
 
   // clear interrupt flag (probably not needed)
   ADCA_INTFLAGS = _BV(ADC_CH0IF_bp); // write a 1 to the interrupt bit (which clears it - 22.14.6)
@@ -114,7 +122,13 @@ int analogRead(uint8_t pin)
 
   if(pin >= A0)
   {
+#if NUM_ANALOG_PINS <= 8
+    if(pin > A7)
+#elif NUM_ANALOG_PINS <= 12
     if(pin > A11)
+#else // NUM_ANALOG_PINS <= 16
+    if(pin > A15)
+#endif // NUM_ANALOG_PINS
     {
       return 0;
     }
@@ -125,19 +139,37 @@ int analogRead(uint8_t pin)
 
   ADCA_CH0_SCAN = 0; // disable scan
   ADCA_CH0_MUXCTRL = (pin << ADC_CH_MUXPOS_gp) // sect 22.15.2
-                   | 7; // GND is the 'other input'
+                   | 7; // GND is the 'other input' (NOTE:  this is MUXNEG)
 
   ADCA_CH0_INTCTRL = 0;    // no interrupts, flag on complete sect 22.15.3
 
+#ifdef ADC_CH_IF_bm /* iox16e5.h and iox32e5.h - probably the ATMel Studio version */
+  ADCA_CH0_INTFLAGS = ADC_CH_IF_bm; // write a 1 to the interrupt bit (which clears it - 22.15.4)
+#else // everyone else
   ADCA_CH0_INTFLAGS = ADC_CH_CHIF_bm; // write a 1 to the interrupt bit (which clears it - 22.15.4)
+#endif // ADC_CH_IF_bm
 
+// old code, for reference
 //  ADCA_CH0_CTRL = ADC_CH_START_bm       // conversion start
 //                | ADC_CH_INPUTMODE0_bm; // zero gain and input mode '01' (see 22.15.1)
+
+// AS NOTED ABOVE, the E series is quite a bit different here with respect to how it handles
+// differential inputs.  it's actually better, but incompatible (hence the need for '#if' block)
+#if defined (__AVR_ATxmega16E5__) || defined (__AVR_ATxmega32E5__)
+  ADCA_CH0_CTRL = ADC_CH_START_bm |       // conversion start
+                  ADC_CH_INPUTMODE_DIFFWGAINH_gc | // so MUXNEG 111b aka '7' still picks "GND" for 'diff with gain'
+                  ADC_CH_GAIN_DIV2_gc; // (see 24.15.1 in E manual - they differ)
+#else // everything else not an 'E' series
   ADCA_CH0_CTRL = ADC_CH_START_bm |       // conversion start
                   ADC_CH_INPUTMODE_DIFFWGAIN_gc |
-                  ADC_CH_GAIN_DIV2_gc; // (see 22.15.1)
+                  ADC_CH_GAIN_DIV2_gc; // (see 22.15.1 in D manual - they differ)
+#endif
 
+#ifdef ADC_CH_IF_bm /* iox16e5.h and iox32e5.h - probably the ATMel Studio version */
+  while(!(ADCA_CH0_INTFLAGS & ADC_CH_IF_bm)) { }
+#else // everyone else
   while(!(ADCA_CH0_INTFLAGS & ADC_CH_CHIF_bm)) { }
+#endif // ADC_CH_IF_bm
 
   iRval = ADCA_CH0_RES;
 
@@ -162,7 +194,9 @@ void analogWrite(uint8_t pin, int val)
   // call for the analog output pins.
 
   // NOTE:  period registers all contain zeros, which is the MAXIMUM period of 0-255
-
+#ifdef TCC4 /* 'E' series and later that have TCC4 */
+  uint8_t mode;
+#endif // TCC4
   uint8_t bit = digitalPinToBitMask(pin);
 
   pinMode(pin, OUTPUT); // forces 'totem pole' - TODO allow for something different?
@@ -181,7 +215,153 @@ void analogWrite(uint8_t pin, int val)
   {
     switch(digitalPinToTimer(pin))
     {
+#ifdef TCC4 /* 'E' series and later that have TCC4 */
+
+      case TIMERC4:
+
+        if(bit == 1)
+        {
+          ((uint8_t *)&(TCC4_CCA))[0] = val; // NOTE:  these are 16-bit registers and low/high byte access is needed
+          mode = (TCC4_CTRLE & ~TC4_LCCAMODE_gm) | TC4_LCCAMODE1_bm;
+        }
+        else if(bit == 2)
+        {
+          ((uint8_t *)&(TCC4_CCA))[1] = val;
+          mode = (TCC4_CTRLE & ~TC4_LCCBMODE_gm) | TC4_LCCBMODE1_bm;
+        }
+        else if(bit == 4)
+        {
+          ((uint8_t *)&(TCC4_CCB))[0] = val;
+          mode = (TCC4_CTRLE & ~TC4_LCCCMODE_gm) | TC4_LCCCMODE1_bm;
+        }
+        else if(bit == 8)
+        {
+          ((uint8_t *)&(TCC4_CCB))[1] = val;
+          mode = (TCC4_CTRLE & ~TC4_LCCDMODE_gm) | TC4_LCCDMODE1_bm;
+        }
+        else if(bit == 16)
+        {
+          ((uint8_t *)&(TCC4_CCC))[0] = val;
+          mode = (TCC4_CTRLF & ~TC4_HCCAMODE_gm) | TC4_HCCAMODE1_bm;
+        }
+        else if(bit == 32)
+        {
+          ((uint8_t *)&(TCC4_CCC))[1] = val;
+          mode = (TCC4_CTRLF & ~TC4_HCCBMODE_gm) | TC4_HCCBMODE1_bm;
+        }
+        else if(bit == 64)
+        {
+          ((uint8_t *)&(TCC4_CCD))[0] = val;
+          mode = (TCC4_CTRLF & ~TC4_HCCCMODE_gm) | TC4_HCCAMODE1_bm;
+        }
+        else if(bit == 128)
+        {
+          ((uint8_t *)&(TCC4_CCD))[1] = val;
+          mode = (TCC4_CTRLF & ~TC4_HCCDMODE_gm) | TC4_HCCDMODE1_bm;
+        }
+        else
+        {
+          break;
+        }
+
+// this is a reminder that the low nybble should be assigned the correct value for single-slope PWM mode
+//        TCC4_CTRLB = TC45_WGMODE_SINGLESLOPE_gc;
+        if(bit <= 8)
+        {
+          TCC4_CTRLE = mode;
+        }
+        else
+        {
+          TCC4_CTRLF = mode;
+        }
+
+        break;
+
+      case TIMERD5:
+
+        if(bit == 1 || bit == 16)
+        {
+          ((uint8_t *)&(TCD5_CCA))[0] = val; // NOTE:  these are 16-bit registers and low/high byte access is needed
+          mode = (TCD5_CTRLE & ~TC5_LCCAMODE_gm) | TC5_LCCAMODE1_bm;
+        }
+        else if(bit == 2 || bit == 32)
+        {
+          ((uint8_t *)&(TCD5_CCA))[1] = val;
+          mode = (TCD5_CTRLE & ~TC5_LCCBMODE_gm) | TC5_LCCBMODE1_bm;
+        }
+        else if(bit == 4 || bit == 64)
+        {
+          ((uint8_t *)&(TCD5_CCB))[0] = val;
+          mode = (TCD5_CTRLF & ~TC5_HCCAMODE_gm) | TC5_HCCAMODE1_bm;
+        }
+        else if(bit == 8 || bit == 128)
+        {
+          ((uint8_t *)&(TCD5_CCB))[1] = val;
+          mode = (TCD5_CTRLF & ~TC5_HCCBMODE_gm) | TC5_HCCBMODE1_bm;
+        }
+        else
+        {
+          break;
+        }
+
+// this is a reminder that the low nybble should be assigned the correct value for single-slope PWM mode
+//        TCD5_CTRLB = TC45_WGMODE_SINGLESLOPE_gc;
+
+        if(bit == 1 || bit == 2 ||  bit == 16 || bit == 32)
+        {
+          TCD5_CTRLE = mode;
+        }
+        else
+        {
+          TCD5_CTRLF = mode;
+        }
+
+        break;
+#else // everything else
       case TIMERD2:
+
+#ifndef TCD2
+
+        // NOTE:  timers C2 and D2 count DOWN, always.  However, the output starts at zero
+        //        and flips to 1 when CTR reaches the CMP value.  So a value of 255 would be
+        //        '1' and 0 would be '0', as is expected.  See 'D' manual 13.6.2
+        if(bit == 1)
+        {
+          ((uint8_t *)&(TCD0_CCA))[0] = val;
+        }
+        else if(bit == 2)
+        {
+          ((uint8_t *)&(TCD0_CCB))[0] = val;
+        }
+        else if(bit == 4)
+        {
+          ((uint8_t *)&(TCD0_CCC))[0] = val;
+        }
+        else if(bit == 8)
+        {
+          ((uint8_t *)&(TCD0_CCD))[0] = val;
+        }
+        else if(bit == 16)
+        {
+          ((uint8_t *)&(TCD0_CCA))[1] = val;
+        }
+        else if(bit == 32)
+        {
+          ((uint8_t *)&(TCD0_CCB))[1] = val;
+        }
+        else if(bit == 64)
+        {
+          ((uint8_t *)&(TCD0_CCC))[1] = val;
+        }
+        else if(bit == 128)
+        {
+          ((uint8_t *)&(TCD0_CCD))[1] = val;
+        }
+
+        TCD0_CTRLB |= bit; // enables output
+
+#else // TCD2 defined
+
         // NOTE:  timers C2 and D2 count DOWN, always.  However, the output starts at zero
         //        and flips to 1 when CTR reaches the CMP value.  So a value of 255 would be
         //        '1' and 0 would be '0', as is expected.  See 'D' manual 13.6.2
@@ -219,9 +399,52 @@ void analogWrite(uint8_t pin, int val)
         }
 
         TCD2_CTRLB |= bit; // enables output
+#endif // TCD2 defined
         break;
 
       case TIMERC2:
+
+#ifndef TCC2
+
+        // NOTE:  timers C2 and D2 count DOWN, always.  However, the output starts at zero
+        //        and flips to 1 when CTR reaches the CMP value.  So a value of 255 would be
+        //        '1' and 0 would be '0', as is expected.  See 'D' manual 13.6.2
+        if(bit == 1)
+        {
+          ((uint8_t *)&(TCC0_CCA))[0] = val;
+        }
+        else if(bit == 2)
+        {
+          ((uint8_t *)&(TCC0_CCB))[0] = val;
+        }
+        else if(bit == 4)
+        {
+          ((uint8_t *)&(TCC0_CCC))[0] = val;
+        }
+        else if(bit == 8)
+        {
+          ((uint8_t *)&(TCC0_CCD))[0] = val;
+        }
+        else if(bit == 16)
+        {
+          ((uint8_t *)&(TCC0_CCA))[1] = val;
+        }
+        else if(bit == 32)
+        {
+          ((uint8_t *)&(TCC0_CCB))[1] = val;
+        }
+        else if(bit == 64)
+        {
+          ((uint8_t *)&(TCC0_CCC))[1] = val;
+        }
+        else if(bit == 128)
+        {
+          ((uint8_t *)&(TCC0_CCD))[1] = val;
+        }
+
+        TCC0_CTRLB |= bit; // enables output
+
+#else // TCC2 defined
         // NOTE:  timers C2 and D2 count DOWN, always.  However, the output starts at zero
         //        and flips to 1 when CTR reaches the CMP value.  So a value of 255 would be
         //        '1' and 0 would be '0', as is expected.  See 'D' manual 13.6.2
@@ -259,7 +482,11 @@ void analogWrite(uint8_t pin, int val)
         }
 
         TCC2_CTRLB |= bit; // enables output
+
+#endif // TCC2 defined
         break;
+
+#if NUM_DIGITAL_PINS > 18 /* meaning there is a PORT E available */
 
       case TIMERE0:
         // timer E0 counts UP, but a value of 0 would still generate a '0' output because
@@ -288,6 +515,10 @@ void analogWrite(uint8_t pin, int val)
         TCE0_CTRLB |= (bit << 4); // enables output (0-3 only, but that's all PORT E has anyway)
                                   // note that the 'enable' bits are in CTRLB and in upper nybble
         break;
+
+#endif // NUM_DIGITAL_PINS > 18
+
+#endif // TCC4 check
 
       case NOT_ON_TIMER:
       default:

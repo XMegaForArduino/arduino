@@ -213,6 +213,7 @@ PORT_t *port;
       iNum = 1;
     }
   }
+#if NUM_ANALOG_PINS > 8 /* which means we have PORT B */
   else if(interruptNum == PORTB_INT0 || interruptNum == PORTB_INT1)
   {
     port = &PORTB;
@@ -221,6 +222,7 @@ PORT_t *port;
       iNum = 1;
     }
   }
+#endif // NUM_ANALOG_PINS > 8
   else if(interruptNum == PORTC_INT0 || interruptNum == PORTC_INT1)
   {
     port = &PORTC;
@@ -237,6 +239,7 @@ PORT_t *port;
       iNum = 1;
     }
   }
+#if NUM_DIGITAL_PINS > 18 /* which means we have PORT E */
   else if(interruptNum == PORTE_INT0 || interruptNum == PORTE_INT1)
   {
     port = &PORTE;
@@ -245,6 +248,7 @@ PORT_t *port;
       iNum = 1;
     }
   }
+#endif // NUM_DIGITAL_PINS > 18
   else if(interruptNum == PORTR_INT0 || interruptNum == PORTR_INT1)
   {
     port = &PORTR;
@@ -258,6 +262,18 @@ PORT_t *port;
     return; // do nothing
   }
 
+  // On certain processors there's only one interrupt, so it's called 'INTMASK'
+  // we test for this here
+
+#ifndef PORTC_INT0MASK /* meaning there's only one int vector and not two */
+  if(!iNum)
+  {
+    // set interrupt mask for PORT A, int 0 vector
+    port->INTMASK |= iPinBits; // enable int zero for these pins
+    port->INTCTRL = (port->INTCTRL & ~(PORT_INTLVL_gm))
+                  | (iPriBits & 3);
+  }
+#else // INT0MASK and INT1MASK supported
   if(!iNum)
   {
     // set interrupt mask for PORT A, int 0 vector
@@ -271,6 +287,7 @@ PORT_t *port;
     port->INTCTRL = (port->INTCTRL & ~(PORT_INT1LVL_gm))
                   | ((iPriBits & 3) << PORT_INT1LVL_gp);
   }
+#endif // INT0MASK and INT1MASK supported
 
   for(iNum=0, iMask = 1; iNum < 8; iNum++, iMask <<= 1)
   {
@@ -331,6 +348,7 @@ PORT_t *port;
       iNum = 1;
     }
   }
+#if NUM_ANALOG_PINS > 8 /* which means we have PORT B */
   else if(interruptNum == PORTB_INT0 || interruptNum == PORTB_INT1)
   {
     port = &PORTB;
@@ -339,6 +357,7 @@ PORT_t *port;
       iNum = 1;
     }
   }
+#endif // NUM_ANALOG_PINS > 8
   else if(interruptNum == PORTC_INT0 || interruptNum == PORTC_INT1)
   {
     port = &PORTC;
@@ -355,6 +374,7 @@ PORT_t *port;
       iNum = 1;
     }
   }
+#if NUM_DIGITAL_PINS > 18 /* which means we have PORT E */
   else if(interruptNum == PORTE_INT0 || interruptNum == PORTE_INT1)
   {
     port = &PORTE;
@@ -363,6 +383,7 @@ PORT_t *port;
       iNum = 1;
     }
   }
+#endif // NUM_DIGITAL_PINS > 18
   else if(interruptNum == PORTR_INT0 || interruptNum == PORTR_INT1)
   {
     port = &PORTR;
@@ -376,6 +397,18 @@ PORT_t *port;
     return; // do nothing
   }
 
+  // On certain processors there's only one interrupt, so it's called 'INTMASK'
+  // we test for this here
+
+#ifndef PORTC_INT0MASK /* meaning there's only one int vector and not two */
+  if(!iNum)
+  {
+    // set interrupt mask for PORT A, int 0 vector
+    port->INTMASK = 0;                  // disable interrupts - TODO, read this instead of 'iPinBits' ?
+    port->INTCTRL &= ~(PORT_INTLVL_gm); // set interrupt control to 'OFF'
+    port->INTFLAGS = _BV(0);            // clear the int flag
+
+#else // INT0MASK and INT1MASK supported
   if(!iNum)
   {
     // set interrupt mask for PORT A, int 0 vector
@@ -385,10 +418,23 @@ PORT_t *port;
   }
   else // if(iNum == 1)
   {
+#endif // INT0MASK and INT1MASK supported
     // if this matches a CTS port, I do _NOT_ want to disable interrupts
 #if defined(SERIAL_0_CTS_ENABLED) && defined(SERIAL_1_CTS_ENABLED)
     if(SERIAL_0_CTS_PORT == port)
     {
+#ifndef PORTC_INT0MASK /* meaning there's only one int vector and not two */
+      if(SERIAL_1_CTS_PORT == port)
+      {
+        port->INTMASK = SERIAL_0_CTS_PIN | SERIAL_1_CTS_PIN;   // disable interrupts but leave BOTH enabled
+      }
+      else
+      {
+        port->INTMASK = SERIAL_0_CTS_PIN;    // disable interrupts but leave THIS one enabled
+      }
+
+      port->INTCTRL |= PORT_INTLVL_gm; // max priority when I do this
+#else // INT0MASK and INT1MASK supported
       if(SERIAL_1_CTS_PORT == port)
       {
         port->INT1MASK = SERIAL_0_CTS_PIN | SERIAL_1_CTS_PIN;   // disable interrupts but leave BOTH enabled
@@ -399,26 +445,45 @@ PORT_t *port;
       }
 
       port->INTCTRL |= PORT_INT1LVL_gm; // max priority when I do this
+#endif // INT0MASK and INT1MASK supported
     }
     else if(SERIAL_1_CTS_PORT == port)
     {
+#ifndef PORTC_INT0MASK /* meaning there's only one int vector and not two */
+      port->INTMASK = SERIAL_1_CTS_PIN;    // disable interrupts but leave THIS one enabled
+
+      port->INTCTRL |= PORT_INTLVL_gm; // max priority when I do this
+#else // INT0MASK and INT1MASK supported
       port->INT1MASK = SERIAL_1_CTS_PIN;    // disable interrupts but leave THIS one enabled
 
       port->INTCTRL |= PORT_INT1LVL_gm; // max priority when I do this
+#endif // INT0MASK and INT1MASK supported
     }
 #elif defined(SERIAL_0_CTS_ENABLED)
     if(SERIAL_0_CTS_PORT == port)
     {
+#ifndef PORTC_INT0MASK /* meaning there's only one int vector and not two */
+      port->INTMASK = SERIAL_0_CTS_PIN;    // disable interrupts but leave THIS one enabled
+
+      port->INTCTRL |= PORT_INTLVL_gm; // max priority when I do this
+#else // INT0MASK and INT1MASK supported
       port->INT1MASK = SERIAL_0_CTS_PIN;    // disable interrupts but leave THIS one enabled
 
       port->INTCTRL |= PORT_INT1LVL_gm; // max priority when I do this
+#endif // INT0MASK and INT1MASK supported
     }
 #elif defined(SERIAL_1_CTS_ENABLED)
     if(SERIAL_1_CTS_PORT == port)
     {
+#ifndef PORTC_INT0MASK /* meaning there's only one int vector and not two */
+      port->INTMASK = SERIAL_1_CTS_PIN;    // disable interrupts but leave THIS one enabled
+
+      port->INTCTRL |= PORT_INTLVL_gm; // max priority when I do this
+#else // INT0MASK and INT1MASK supported
       port->INT1MASK = SERIAL_1_CTS_PIN;    // disable interrupts but leave THIS one enabled
 
       port->INTCTRL |= PORT_INT1LVL_gm; // max priority when I do this
+#endif // INT0MASK and INT1MASK supported
     }
 #endif // SERIAL_0/1_CTS_ENABLED
 
@@ -427,11 +492,20 @@ PORT_t *port;
 #endif // SERIAL_0/1_CTS_ENABLED
 
     {
+#ifndef PORTC_INT0MASK /* meaning there's only one int vector and not two */
+      port->INTMASK = 0;                  // disable interrupts - TODO, read this instead of 'iPinBits' ?
+      port->INTCTRL &= ~(PORT_INTLVL_gm); // set interrupt control to 'OFF'
+#else // INT0MASK and INT1MASK supported
       port->INT1MASK = 0;                  // disable interrupts - TODO, read this instead of 'iPinBits' ?
       port->INTCTRL &= ~(PORT_INT1LVL_gm); // set interrupt control to 'OFF'
+#endif // INT0MASK and INT1MASK supported
     }
 
+#ifndef PORTC_INT0MASK /* meaning there's only one int vector and not two */
+    port->INTFLAGS = _BV(0);             // clear the int 0 flag
+#else // INT0MASK and INT1MASK supported
     port->INTFLAGS = _BV(1);             // clear the int 1 flag
+#endif // INT0MASK and INT1MASK supported
   }
 
   for(iNum=0, iMask = 1; iNum < 8; iNum++, iMask <<= 1)
@@ -451,16 +525,23 @@ PORT_t *port;
 }
 
 
+#ifndef PORTC_INT0MASK /* meaning there's only one int vector and not two */
+ISR(PORTA_INT_vect)
+#else // INT0MASK and INT1MASK supported
 ISR(PORTA_INT0_vect)
+#endif // INT0MASK and INT1MASK supported
 {
   if(intFunc[PORTA_INT0])
     intFunc[PORTA_INT0]();
+
+#ifdef PORTC_INT0MASK // INT0MASK and INT1MASK supported
 }
 
 ISR(PORTA_INT1_vect)
 {
   if(intFunc[PORTA_INT1])
     intFunc[PORTA_INT1]();
+#endif // INT0MASK and INT1MASK supported
 
 #if defined(SERIAL_0_CTS_ENABLED)
   if(SERIAL_0_CTS_PORT == &(PORTA)) // this should compile as a constant expression
@@ -477,6 +558,7 @@ ISR(PORTA_INT1_vect)
 #endif // SERIAL_1_CTS_ENABLED
 }
 
+#if NUM_ANALOG_PINS > 8 /* which means we have PORT B */
 ISR(PORTB_INT0_vect)
 {
   if(intFunc[PORTB_INT0])
@@ -502,17 +584,24 @@ ISR(PORTB_INT1_vect)
   }
 #endif // SERIAL_1_CTS_ENABLED
 }
+#endif // NUM_ANALOG_PINS > 8
 
+#ifndef PORTC_INT0MASK /* meaning there's only one int vector and not two */
+ISR(PORTC_INT_vect)
+#else // INT0MASK and INT1MASK supported
 ISR(PORTC_INT0_vect)
+#endif // INT0MASK and INT1MASK supported
 {
   if(intFunc[PORTC_INT0])
     intFunc[PORTC_INT0]();
+#ifdef PORTC_INT0MASK // INT0MASK and INT1MASK supported
 }
 
 ISR(PORTC_INT1_vect)
 {
   if(intFunc[PORTC_INT1])
     intFunc[PORTC_INT1]();
+#endif // INT0MASK and INT1MASK supported
 
 #if defined(SERIAL_0_CTS_ENABLED)
   if(SERIAL_0_CTS_PORT == &(PORTC)) // this should compile as a constant expression
@@ -529,16 +618,22 @@ ISR(PORTC_INT1_vect)
 #endif // SERIAL_1_CTS_ENABLED
 }
 
+#ifndef PORTC_INT0MASK /* meaning there's only one int vector and not two */
+ISR(PORTD_INT_vect)
+#else // INT0MASK and INT1MASK supported
 ISR(PORTD_INT0_vect)
+#endif // INT0MASK and INT1MASK supported
 {
   if(intFunc[PORTD_INT0])
     intFunc[PORTD_INT0]();
+#ifdef PORTC_INT0MASK // INT0MASK and INT1MASK supported
 }
 
 ISR(PORTD_INT1_vect)
 {
   if(intFunc[PORTD_INT1])
     intFunc[PORTD_INT1]();
+#endif // INT0MASK and INT1MASK supported
 
 #if defined(SERIAL_0_CTS_ENABLED)
   if(SERIAL_0_CTS_PORT == &(PORTD)) // this should compile as a constant expression
@@ -555,6 +650,8 @@ ISR(PORTD_INT1_vect)
 #endif // SERIAL_1_CTS_ENABLED
 }
 
+
+#if NUM_DIGITAL_PINS > 18 /* which means we have PORT E */
 ISR(PORTE_INT0_vect)
 {
   if(intFunc[PORTE_INT0])
@@ -580,17 +677,26 @@ ISR(PORTE_INT1_vect)
   }
 #endif // SERIAL_1_CTS_ENABLED
 }
+#endif // NUM_DIGITAL_PINS > 18
 
+// TODO:  ISRs for PORTF, PORTH, PORTJ, PORTK, PORTQ
+
+#ifndef PORTC_INT0MASK /* meaning there's only one int vector and not two */
+ISR(PORTR_INT_vect)
+#else // INT0MASK and INT1MASK supported
 ISR(PORTR_INT0_vect)
+#endif // INT0MASK and INT1MASK supported
 {
   if(intFunc[PORTR_INT0])
     intFunc[PORTR_INT0]();
+#ifdef PORTC_INT0MASK // INT0MASK and INT1MASK supported
 }
 
 ISR(PORTR_INT1_vect)
 {
   if(intFunc[PORTR_INT1])
     intFunc[PORTR_INT1]();
+#endif // INT0MASK and INT1MASK supported
 
 #if defined(SERIAL_0_CTS_ENABLED)
   if(SERIAL_0_CTS_PORT == &(PORTR)) // this should compile as a constant expression

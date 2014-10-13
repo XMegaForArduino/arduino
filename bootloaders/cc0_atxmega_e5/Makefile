@@ -21,6 +21,7 @@ ISPCONF = ./avrdude.conf
 
 # TODO:  have multiple CPU-based targets that build the 'xmega' target but for a specific CPU
 MCU_TARGET = atxmega32e5
+BUILD_MCU_TARGET = atxmega32e5
 
 # xmega32 bootloader starts at 8000H
 LDSECTION  = --section-start=.text=0x8000
@@ -100,7 +101,7 @@ CC         = avr-gcc
 OBJCOPY        = avr-objcopy
 OBJDUMP        = avr-objdump
 
-CFLAGS        = -g -Wall $(OPTIMIZE) -mmcu=$(MCU_TARGET) -DF_CPU=$(AVR_FREQ) $(DEFS)
+CFLAGS        = -g -Wall $(OPTIMIZE) -mmcu=$(BUILD_MCU_TARGET) -DF_CPU=$(AVR_FREQ) $(DEFS)
 LDFLAGS       = -Wl,$(LDSECTION)
 # Override is only needed by avr-lib build system.
 #override LDFLAGS       = -Wl,-Map,$(PROGRAM).map,$(LDSECTION)

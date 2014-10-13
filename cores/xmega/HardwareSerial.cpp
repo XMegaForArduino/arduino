@@ -32,10 +32,41 @@
 #include <string.h>
 #include <inttypes.h>
 #include "Arduino.h"
+#include "pins_arduino.h"
 #include "wiring_private.h"
 #include "HardwareSerial.h"
 
+#ifndef SERIAL_0_PORT_NAME
+#define SERIAL_0_PORT_NAME PORTD
+#define SERIAL_0_USART_NAME USARTD0
+#define SERIAL_0_USART_DATA USARTD0_DATA
+#define SERIAL_0_RXC_ISR ISR(USARTD0_RXC_vect)
+#define SERIAL_0_DRE_ISR ISR(USARTD0_DRE_vect)
+#define SERIAL_0_RX_PIN_INDEX 2
+#define SERIAL_0_TX_PIN_INDEX 3
+#endif // SERIAL_0_PORT_NAME
 
+#ifndef SERIAL_1_PORT_NAME
+#define SERIAL_1_PORT_NAME PORTC
+#define SERIAL_1_USART_NAME USARTC0
+#define SERIAL_1_USART_DATA USARTC0_DATA
+#define SERIAL_1_RXC_ISR ISR(USARTC0_RXC_vect)
+#define SERIAL_1_DRE_ISR ISR(USARTC0_DRE_vect)
+#define SERIAL_1_RX_PIN_INDEX 2
+#define SERIAL_1_TX_PIN_INDEX 3
+#endif // SERIAL_0_PORT_NAME
+
+#if defined (__AVR_ATxmega32D4__) /* temporary fix for E5 */
+#undef USARTC0
+#undef USARTD0
+#define USARTC0    (*(USART_t *) 0x08A0)  /* Universal Asynchronous Receiver-Transmitter C0 */
+#define USARTD0    (*(USART_t *) 0x09C0)  /* Universal Synchronous/Asynchronous Receiver/Transmitter */
+
+#undef USARTC0_DATA
+#undef USARTD0_DATA
+#define USARTC0_DATA  _SFR_MEM8(0x08A0)
+#define USARTD0_DATA  _SFR_MEM8(0x09C0)
+#endif // __AVR_ATxmega32D4__
 
 // Define constants and variables for buffering incoming serial data.  We're
 // using a ring buffer, in which 'head' is the index of the location to
@@ -43,6 +74,7 @@
 // location from which to read.
 
 #define SERIAL_BUFFER_SIZE /*64*/128
+
 
 struct ring_buffer
 {
@@ -52,10 +84,26 @@ struct ring_buffer
 };
 
 // ring buffers for serial ports 1 and 2 (must zero them out on startup)
+// NOTE:  there are ALWAYS at LEAST 2 serial ports.
+
 ring_buffer rx_buffer  =  { { 0 }, 0, 0 };
 ring_buffer tx_buffer  =  { { 0 }, 0, 0 };
 ring_buffer rx_buffer2  =  { { 0 }, 0, 0 };
 ring_buffer tx_buffer2  =  { { 0 }, 0, 0 };
+
+#ifdef SERIAL_2_PORT_NAME
+ring_buffer rx_buffer3  =  { { 0 }, 0, 0 };
+ring_buffer tx_buffer3  =  { { 0 }, 0, 0 };
+#endif // SERIAL_2_PORT_NAME
+
+#ifdef SERIAL_3_PORT_NAME
+ring_buffer rx_buffer4  =  { { 0 }, 0, 0 };
+ring_buffer tx_buffer4  =  { { 0 }, 0, 0 };
+#endif // SERIAL_3_PORT_NAME
+
+// TODO:  serial 4 through 7 for 128A1[U] using UART[C/D/E/F]1
+
+// TODO:  _SOFT_ flow control enabling, arbitrary pin assignments for CTS/DTR
 
 
 #if defined(SERIAL_0_CTS_ENABLED)
@@ -157,7 +205,8 @@ inline char set_not_rts(ring_buffer *buffer)
   return i1 == buffer->tail || i2 == buffer->tail || i3 == buffer->tail;
 }
 
-ISR(USARTD0_RXC_vect)
+
+SERIAL_0_RXC_ISR // ISR(USARTD0_RXC_vect)
 {
 unsigned char c;
 
@@ -169,18 +218,18 @@ unsigned char c;
   }
 #endif // SERIAL_0_RTS_ENABLED
 
-  if(USARTD0_STATUS & _BV(USART_RXCIF_bp)) // if there is data available
+  if((&(SERIAL_0_USART_NAME))->STATUS /*USARTD0_STATUS*/ & _BV(USART_RXCIF_bp)) // if there is data available
   {
-    c = USARTD0_DATA;
+    c = SERIAL_0_USART_DATA; //USARTD0_DATA;
     store_char(c, &rx_buffer);
   }
   else // I got an interrupt for some reason, just eat data from data reg
   {
-    c = USARTD0_DATA;
+    c = SERIAL_0_USART_DATA; //USARTD0_DATA;
   }
 }
 
-ISR(USARTC0_RXC_vect)
+SERIAL_1_RXC_ISR // ISR(USARTC0_RXC_vect)
 {
 unsigned char c;
 
@@ -192,17 +241,50 @@ unsigned char c;
   }
 #endif // SERIAL_0_RTS_ENABLED
 
-  if(USARTC0_STATUS & _BV(USART_RXCIF_bp)) // if there is data available
+  if((&(SERIAL_1_USART_NAME))->STATUS /*USARTC0_STATUS*/ & _BV(USART_RXCIF_bp)) // if there is data available
   {
-    c = USARTC0_DATA;
+    c = SERIAL_1_USART_DATA; //USARTC0_DATA;
     store_char(c, &rx_buffer2);
   }
   else // I got an interrupt for some reason, just eat data from data reg
   {
-    c = USARTC0_DATA;
+    c = SERIAL_1_USART_DATA; //USARTC0_DATA;
   }
 }
 
+#ifdef SERIAL_2_PORT_NAME
+SERIAL_2_RXC_ISR // ISR(USARTE0_RXC_vect)
+{
+unsigned char c;
+
+  if((&(SERIAL_2_USART_NAME))->STATUS /*USARTE0_STATUS*/ & _BV(USART_RXCIF_bp)) // if there is data available
+  {
+    c = SERIAL_2_USART_DATA; //USARTE0_DATA;
+    store_char(c, &rx_buffer3);
+  }
+  else // I got an interrupt for some reason, just eat data from data reg
+  {
+    c = SERIAL_2_USART_DATA; //USARTE0_DATA;
+  }
+}
+#endif // SERIAL_2_PORT_NAME
+
+#ifdef SERIAL_3_PORT_NAME
+SERIAL_3_RXC_ISR // ISR(USARTF0_RXC_vect)
+{
+unsigned char c;
+
+  if((&(SERIAL_3_USART_NAME))->STATUS /*USARTF0_STATUS*/ & _BV(USART_RXCIF_bp)) // if there is data available
+  {
+    c = SERIAL_3_USART_DATA; //USARTF0_DATA;
+    store_char(c, &rx_buffer4);
+  }
+  else // I got an interrupt for some reason, just eat data from data reg
+  {
+    c = SERIAL_3_USART_DATA; //USARTF0_DATA;
+  }
+}
+#endif // SERIAL_3_PORT_NAME
 
 void serialEvent() __attribute__((weak));
 void serialEvent() {}
@@ -232,7 +314,7 @@ static char bWasCTS0;
 static char bWasCTS1;
 #endif // SERIAL_1_CTS_ENABLED
 
-ISR(USARTD0_DRE_vect)
+SERIAL_0_DRE_ISR // ISR(USARTD0_DRE_vect)
 {
 #ifdef SERIAL_0_CTS_ENABLED
 uint8_t oldSREG;
@@ -264,7 +346,8 @@ char bCTS = SERIAL_0_CTS_PORT->IN & SERIAL_0_CTS_PIN;
 
     // Buffer empty, so disable interrupts
     // section 19.14.3 - the CTRLA register (interrupt stuff)
-    USARTD0_CTRLA = _BV(USART_RXCINTLVL1_bp) | _BV(USART_RXCINTLVL0_bp); // only set these 2 (the DRE int is now OFF)
+    (&(SERIAL_0_USART_NAME))->CTRLA /*USARTD0_CTRLA*/
+      = _BV(USART_RXCINTLVL1_bp) | _BV(USART_RXCINTLVL0_bp); // only set these 2 (the DRE int is now OFF)
   }
   else
   {
@@ -272,11 +355,11 @@ char bCTS = SERIAL_0_CTS_PORT->IN & SERIAL_0_CTS_PIN;
     register unsigned char c = tx_buffer.buffer[tx_buffer.tail];
     tx_buffer.tail = (tx_buffer.tail + 1) % SERIAL_BUFFER_SIZE;
 
-    USARTD0_DATA = c;
+    SERIAL_0_USART_DATA = c; //USARTD0_DATA = c;
   }
 }
 
-ISR(USARTC0_DRE_vect)
+SERIAL_1_DRE_ISR // ISR(USARTC0_DRE_vect)
 {
 #ifdef SERIAL_1_CTS_ENABLED
 uint8_t oldSREG;
@@ -307,7 +390,8 @@ char bCTS = SERIAL_1_CTS_PORT->IN & SERIAL_1_CTS_PIN;
 
     // Buffer empty, so disable interrupts
     // section 19.14.3 - the CTRLA register (interrupt stuff)
-    USARTC0_CTRLA = _BV(USART_RXCINTLVL1_bp) | _BV(USART_RXCINTLVL0_bp); // only set these 2 (the DRE int is now OFF)
+    (&(SERIAL_1_USART_NAME))->CTRLA /*USARTC0_CTRLA*/
+      = _BV(USART_RXCINTLVL1_bp) | _BV(USART_RXCINTLVL0_bp); // only set these 2 (the DRE int is now OFF)
   }
   else
   {
@@ -315,9 +399,52 @@ char bCTS = SERIAL_1_CTS_PORT->IN & SERIAL_1_CTS_PIN;
     register unsigned char c = tx_buffer2.buffer[tx_buffer2.tail];
     tx_buffer2.tail = (tx_buffer2.tail + 1) % SERIAL_BUFFER_SIZE;
 
-    USARTC0_DATA = c;
+    SERIAL_1_USART_DATA = c; //USARTC0_DATA = c;
   }
 }
+
+#ifdef SERIAL_2_PORT_NAME
+SERIAL_2_DRE_ISR // ISR(USARTE0_DRE_vect)
+{
+  if (tx_buffer3.head == tx_buffer3.tail)
+  {
+    // Buffer empty, so disable interrupts
+    // section 19.14.3 - the CTRLA register (interrupt stuff)
+    (&(SERIAL_2_USART_NAME))->CTRLA /*USARTE0_CTRLA*/
+      = _BV(USART_RXCINTLVL1_bp) | _BV(USART_RXCINTLVL0_bp); // only set these 2 (the DRE int is now OFF)
+  }
+  else
+  {
+    // There is more data in the output buffer. Send the next byte
+    register unsigned char c = tx_buffer3.buffer[tx_buffer3.tail];
+    tx_buffer3.tail = (tx_buffer3.tail + 1) % SERIAL_BUFFER_SIZE;
+
+    SERIAL_2_USART_DATA = c; //USARTE0_DATA = c;
+  }
+}
+#endif // SERIAL_2_PORT_NAME
+
+#ifdef SERIAL_3_PORT_NAME
+SERIAL_3_DRE_ISR // ISR(USARTF0_DRE_vect)
+{
+  if (tx_buffer4.head == tx_buffer4.tail)
+  {
+    // Buffer empty, so disable interrupts
+    // section 19.14.3 - the CTRLA register (interrupt stuff)
+    (&(SERIAL_3_USART_NAME))->CTRLA /*USARTF0_CTRLA*/
+      = _BV(USART_RXCINTLVL1_bp) | _BV(USART_RXCINTLVL0_bp); // only set these 2 (the DRE int is now OFF)
+  }
+  else
+  {
+    // There is more data in the output buffer. Send the next byte
+    register unsigned char c = tx_buffer4.buffer[tx_buffer4.tail];
+    tx_buffer4.tail = (tx_buffer4.tail + 1) % SERIAL_BUFFER_SIZE;
+
+    SERIAL_3_USART_DATA = c; //USARTE0_DATA = c;
+  }
+}
+#endif // SERIAL_3_PORT_NAME
+
 
 // helpers for hardware flow control
 // these will send the 'next character' _NOW_ if one is available by
@@ -346,8 +473,9 @@ char bCTS = SERIAL_0_CTS_PORT->IN & SERIAL_0_CTS_PIN;
     // re-enable the DRE interrupt - this will cause transmission to
     // occur again without code duplication.  see HardwareSerial::write()
 
-    USARTD0_CTRLA = _BV(USART_RXCINTLVL1_bp) | _BV(USART_RXCINTLVL0_bp)
-                  | _BV(USART_DREINTLVL1_bp) | _BV(USART_DREINTLVL0_bp); // set int bits for rx and dre (sect 19.14.3)
+    (&(SERIAL_0_USART_NAME))->CTRLA /*USARTD0_CTRLA*/
+      = _BV(USART_RXCINTLVL1_bp) | _BV(USART_RXCINTLVL0_bp)
+      | _BV(USART_DREINTLVL1_bp) | _BV(USART_DREINTLVL0_bp); // set int bits for rx and dre (sect 19.14.3)
   }
 
   SREG=oldSREG; // interrupts re-enabled
@@ -665,6 +793,7 @@ void HardwareSerial::begin(unsigned long baud)
 {
   uint16_t baud_setting;
   uint8_t use_u2x;
+  uint8_t bit, bitTX=3, bitRX=2; // defaults
 
 
   if (baud <= 57600)
@@ -679,66 +808,164 @@ void HardwareSerial::begin(unsigned long baud)
   uint8_t oldSREG = SREG;
   cli(); // clear interrupt flag until I'm done assigning pin stuff
 
+
+  // pin re-mapping register
+
+  if(_usart == &SERIAL_0_USART_NAME)
+  {
+    bitTX = (SERIAL_0_TX_PIN_INDEX);
+    bitRX = (SERIAL_0_RX_PIN_INDEX);
+#ifdef SERIAL_0_REMAP
+    SERIAL_0_REMAP |= SERIAL_0_REMAP_BIT; // enable re-mapping for this port
+#endif // SERIAL_0_REMAP
+  }
+  if(_usart == &SERIAL_1_USART_NAME)
+  {
+    bitTX = (SERIAL_1_TX_PIN_INDEX);
+    bitRX = (SERIAL_1_RX_PIN_INDEX);
+#ifdef SERIAL_1_REMAP
+    SERIAL_1_REMAP |= SERIAL_1_REMAP_BIT; // enable re-mapping for this port
+#endif // SERIAL_0_REMAP
+  }
+#ifdef SERIAL_2_PORT_NAME
+  if(_usart == &SERIAL_2_USART_NAME)
+  {
+    bitTX = (SERIAL_2_TX_PIN_INDEX);
+    bitRX = (SERIAL_2_RX_PIN_INDEX);
+#ifdef SERIAL_2_REMAP
+    SERIAL_2_REMAP |= SERIAL_2_REMAP_BIT; // enable re-mapping for this port
+#endif // SERIAL_2_REMAP
+  }
+#endif // SERIAL_2_PORT_NAME
+#ifdef SERIAL_3_PORT_NAME
+  if(_usart == &SERIAL_3_USART_NAME)
+  {
+    bitTX = (SERIAL_3_TX_PIN_INDEX);
+    bitRX = (SERIAL_3_RX_PIN_INDEX);
+#ifdef SERIAL_3_REMAP
+    SERIAL_3_REMAP |= SERIAL_3_REMAP_BIT; // enable re-mapping for this port
+#endif // SERIAL_3_REMAP
+  }
+#endif // SERIAL_3_PORT_NAME
+
+  // USART setup
+
   if(_usart == &USARTD0)
   {
-    uint8_t bit = _BV(3); // TX on PD3
     volatile uint8_t *reg = &PORTD_DIR;
     volatile uint8_t *out = &PORTD_OUT;
-    volatile uint8_t *ctrl = &PORTD_PIN3CTRL;
+    volatile uint8_t *ctrl = &PORTD_PIN0CTRL + bitTX;
 
-    *ctrl = _BV(2) | _BV(1) | _BV(0); // 'INTPUT_DISABLED' (sic) with 'totem pole' (the default)
+    bit = 1 << bitTX;
+    *ctrl = 0; // trigger on BOTH, totem, no pullup   //_BV(2) | _BV(1) | _BV(0); // 'INTPUT_DISABLED' (sic) with 'totem pole' (the default)
     *out |= bit;  // set to 'HIGH'
     *reg |= bit;  // set as output
 
-    bit = _BV(2); // RX on PD2
-    ctrl = &PORTD_PIN2CTRL;
+    bit = 1 << bitRX;
+    ctrl = &PORTD_PIN0CTRL + bitRX;
 
     *ctrl = 0; //_BV(2) | _BV(1) | _BV(0);  experimentation shows I need a zero here
     *out &= ~bit; // low
     *reg &= ~bit; // set as an input
+  }
+  else if(_usart == &USARTC0)
+  {
+    volatile uint8_t *reg = &PORTC_DIR;
+    volatile uint8_t *out = &PORTC_OUT;
+    volatile uint8_t *ctrl = &PORTC_PIN0CTRL + bitTX;
+
+    bit = 1 << bitTX;
+    *ctrl = 0; // trigger on BOTH, totem, no pullup   //_BV(2) | _BV(1) | _BV(0); // 'INTPUT_DISABLED' (sic) with 'totem pole' (the default)
+    *out |= bit;  // set to 'HIGH'
+    *reg |= bit;  // set as output
+
+    bit = 1 << bitRX;
+    ctrl = &PORTC_PIN0CTRL + bitRX;
+
+    *ctrl = 0; // _BV(2) | _BV(1) | _BV(0);  experimentation shows I need a zero here
+    *out &= ~bit; // low
+    *reg &= ~bit; // set as an input
+  }
+#ifdef USARTE0
+  else if(_usart == &USARTE0)
+  {
+    volatile uint8_t *reg = &PORTE_DIR;
+    volatile uint8_t *out = &PORTE_OUT;
+    volatile uint8_t *ctrl = &PORTE_PIN0CTRL + bitTX;
+
+    bit = 1 << bitTX;
+    *ctrl = 0; // trigger on BOTH, totem, no pullup    //_BV(2) | _BV(1) | _BV(0); // 'INTPUT_DISABLED' (sic) with 'totem pole' (the default)
+    *out |= bit;  // set to 'HIGH'
+    *reg |= bit;  // set as output
+
+    bit = 1 << bitRX;
+    ctrl = &PORTE_PIN0CTRL + bitRX;
+
+    *ctrl = 0; // triger on BOTH, no pullup
+    *out &= ~bit; // off
+    *reg &= ~bit; // set as input
+  }
+#endif // USARTE0
+#ifdef USARTF0
+  else if(_usart == &USARTF0)
+  {
+    volatile uint8_t *reg = &PORTF_DIR;
+    volatile uint8_t *out = &PORTF_OUT;
+    volatile uint8_t *ctrl = &PORTF_PIN0CTRL + bitTX;
+
+    bit = 1 << bitTX;
+    *ctrl = 0; // trigger on BOTH, totem, no pullup    //_BV(2) | _BV(1) | _BV(0); // 'INTPUT_DISABLED' (sic) with 'totem pole' (the default)
+    *out |= bit;  // set to 'HIGH'
+    *reg |= bit;  // set as output
+
+    bit = 1 << bitRX;
+    ctrl = &PORTF_PIN0CTRL + bitRX;
+
+    *ctrl = 0; // triger on BOTH, no pullup
+    *out &= ~bit; // off
+    *reg &= ~bit; // set as input
+  }
+#endif // USARTF0
+
+
+  // hardware flow control implementation
 
 #ifdef SERIAL_0_RTS_ENABLED
+  if(_usart == &SERIAL_0_USART_NAME)
+  {
     ctrl = &(SERIAL_0_RTS_PORT->PIN0CTRL) + SERIAL_0_RTS_PIN_INDEX;
 
     *ctrl = PORT_OPC_TOTEM_gc | PORT_ISC_BOTHEDGES_gc;
     SERIAL_0_RTS_PORT->OUT &= ~SERIAL_0_RTS_PIN; // set to '0'
     SERIAL_0_RTS_PORT->DIR |= SERIAL_0_RTS_PIN; // make sure it's an output
+  }
 #endif // SERIAL_0_RTS_ENABLED
 
 #ifdef SERIAL_0_CTS_ENABLED
-    InitSerialFlowControlInterrupt0();
-#endif // SERIAL_0_CTS_ENABLED
-  }
-  else if(_usart == &USARTC0)
+  if(_usart == &SERIAL_0_USART_NAME)
   {
-    uint8_t bit = _BV(3); // TX on PC3
-    volatile uint8_t *reg = &PORTC_DIR;
-    volatile uint8_t *out = &PORTC_OUT;
-    volatile uint8_t *ctrl = &PORTC_PIN3CTRL;
-
-    *ctrl = _BV(2) | _BV(1) | _BV(0); // 'INTPUT_DISABLED' (sic) with 'totem pole' (the default)
-    *out |= bit;  // set to 'HIGH'
-    *reg |= bit;  // set as output
-
-    bit = _BV(2); // RX on PC2
-    ctrl = &PORTC_PIN2CTRL;
-
-    *ctrl = 0; // _BV(2) | _BV(1) | _BV(0);  experimentation shows I need a zero here
-    *out &= ~bit; // low
-    *reg &= ~bit; // set as an input
+    InitSerialFlowControlInterrupt0();
+  }
+#endif // SERIAL_0_CTS_ENABLED
 
 #ifdef SERIAL_1_RTS_ENABLED
-    ctrl = &(SERIAL_0_RTS_PORT->PIN0CTRL) + SERIAL_1_RTS_PIN_INDEX;
+  if(_usart == &SERIAL_1_USART_NAME)
+  {
+    ctrl = &(SERIAL_1_RTS_PORT->PIN0CTRL) + SERIAL_1_RTS_PIN_INDEX;
 
     SERIAL_1_RTS_PORT->CTRL = PORT_OPC_TOTEM_gc | PORT_ISC_BOTHEDGES_gc;
     SERIAL_1_RTS_PORT->OUT &= ~SERIAL_1_RTS_PIN; // set to '0'
     SERIAL_1_RTS_PORT->DIR |= SERIAL_1_RTS_PIN; // make sure it's an output
+  }
 #endif // SERIAL_1_RTS_ENABLED
 
 #ifdef SERIAL_1_CTS_ENABLED
+  if(_usart == &SERIAL_1_USART_NAME)
+  {
     InitSerialFlowControlInterrupt1();
-#endif // SERIAL_1_CTS_ENABLED
   }
+#endif // SERIAL_1_CTS_ENABLED
+
 
   SREG = oldSREG;
 
@@ -755,6 +982,9 @@ void HardwareSerial::begin(unsigned long baud)
   // section 19.14.5 - USART mode, parity, bits
   // CMODE 7:6 = 00 [async]  PMODE 5:4 = 00 [none]  SBMODE 3 = 0 [1 bit]   CHSIZE 2:0 = 3 (8-bit)
   _usart->CTRLC = SERIAL_8N1;
+#ifdef USARTD0_CTRLD
+  _usart->CTRLD = 0;  // E5 has this register, must assign to zero
+#endif // USARTD0_CTRLD  
 
   _usart->BAUDCTRLA = (uint8_t)(baud_setting & 0xff);
   _usart->BAUDCTRLB = (uint8_t)(baud_setting >> 8);
@@ -772,6 +1002,7 @@ void HardwareSerial::begin(unsigned long baud, byte config)
 {
   uint16_t baud_setting;
   uint8_t use_u2x;
+  uint8_t bit, bitTX=3, bitRX=2; // defaults
 
 
   if (baud <= 57600)
@@ -787,19 +1018,62 @@ void HardwareSerial::begin(unsigned long baud, byte config)
   uint8_t oldSREG = SREG;
   cli(); // clear interrupt flag until I'm done assigning pin stuff
 
+
+  // pin re-mapping register and port/pin assignments
+
+  if(_usart == &SERIAL_0_USART_NAME)
+  {
+    bitTX = (SERIAL_0_TX_PIN_INDEX);
+    bitRX = (SERIAL_0_RX_PIN_INDEX);
+#ifdef SERIAL_0_REMAP
+    SERIAL_0_REMAP |= SERIAL_0_REMAP_BIT; // enable re-mapping for this port
+#endif // SERIAL_0_REMAP
+  }
+  if(_usart == &SERIAL_1_USART_NAME)
+  {
+    bitTX = (SERIAL_1_TX_PIN_INDEX);
+    bitRX = (SERIAL_1_RX_PIN_INDEX);
+#ifdef SERIAL_1_REMAP
+    SERIAL_1_REMAP |= SERIAL_1_REMAP_BIT; // enable re-mapping for this port
+#endif // SERIAL_0_REMAP
+  }
+#ifdef SERIAL_2_PORT_NAME
+  if(_usart == &SERIAL_2_USART_NAME)
+  {
+    bitTX = (SERIAL_2_TX_PIN_INDEX);
+    bitRX = (SERIAL_2_RX_PIN_INDEX);
+#ifdef SERIAL_2_REMAP
+    SERIAL_2_REMAP |= SERIAL_2_REMAP_BIT; // enable re-mapping for this port
+#endif // SERIAL_2_REMAP
+  }
+#endif // SERIAL_2_PORT_NAME
+#ifdef SERIAL_3_PORT_NAME
+  if(_usart == &SERIAL_3_USART_NAME)
+  {
+    bitTX = (SERIAL_3_TX_PIN_INDEX);
+    bitRX = (SERIAL_3_RX_PIN_INDEX);
+#ifdef SERIAL_3_REMAP
+    SERIAL_3_REMAP |= SERIAL_3_REMAP_BIT; // enable re-mapping for this port
+#endif // SERIAL_3_REMAP
+  }
+#endif // SERIAL_3_PORT_NAME
+
+
+  // USART setup
+
   if(_usart == &USARTD0)
   {
-    uint8_t bit = _BV(3); // TX on PD3
     volatile uint8_t *reg = &PORTD_DIR;
     volatile uint8_t *out = &PORTD_OUT;
-    volatile uint8_t *ctrl = &PORTD_PIN3CTRL;
+    volatile uint8_t *ctrl = &PORTD_PIN0CTRL + bitTX;
 
+    bit = 1 << bitTX;
     *ctrl = 0; // trigger on BOTH, totem, no pullup   //_BV(2) | _BV(1) | _BV(0); // 'INTPUT_DISABLED' (sic) with 'totem pole' (the default)
     *out |= bit;  // set to 'HIGH'
     *reg |= bit;  // set as output
 
-    bit = _BV(2); // RX on PD2
-    ctrl = &PORTD_PIN2CTRL;
+    bit = 1 << bitRX;
+    ctrl = &PORTD_PIN0CTRL + bitRX;
 
     *ctrl = 0; // triger on BOTH, no pullup
     *out &= ~bit; // off
@@ -807,22 +1081,62 @@ void HardwareSerial::begin(unsigned long baud, byte config)
   }
   else if(_usart == &USARTC0)
   {
-    uint8_t bit = _BV(3); // TX on PC3
     volatile uint8_t *reg = &PORTC_DIR;
     volatile uint8_t *out = &PORTC_OUT;
-    volatile uint8_t *ctrl = &PORTC_PIN3CTRL;
+    volatile uint8_t *ctrl = &PORTC_PIN0CTRL + bitTX;
 
+    bit = 1 << bitTX;
     *ctrl = 0; // trigger on BOTH, totem, no pullup    //_BV(2) | _BV(1) | _BV(0); // 'INTPUT_DISABLED' (sic) with 'totem pole' (the default)
     *out |= bit;  // set to 'HIGH'
     *reg |= bit;  // set as output
 
-    bit = _BV(2); // RX on PC2
-    ctrl = &PORTC_PIN2CTRL;
+    bit = 1 << bitRX;
+    ctrl = &PORTC_PIN0CTRL + bitRX;
 
     *ctrl = 0; // triger on BOTH, no pullup
     *out &= ~bit; // off
     *reg &= ~bit; // set as input
   }
+#ifdef USARTE0
+  else if(_usart == &USARTE0)
+  {
+    volatile uint8_t *reg = &PORTE_DIR;
+    volatile uint8_t *out = &PORTE_OUT;
+    volatile uint8_t *ctrl = &PORTE_PIN0CTRL + bitTX;
+
+    bit = 1 << bitTX;
+    *ctrl = 0; // trigger on BOTH, totem, no pullup    //_BV(2) | _BV(1) | _BV(0); // 'INTPUT_DISABLED' (sic) with 'totem pole' (the default)
+    *out |= bit;  // set to 'HIGH'
+    *reg |= bit;  // set as output
+
+    bit = 1 << bitRX;
+    ctrl = &PORTE_PIN0CTRL + bitRX;
+
+    *ctrl = 0; // triger on BOTH, no pullup
+    *out &= ~bit; // off
+    *reg &= ~bit; // set as input
+  }
+#endif // USARTE0
+#ifdef USARTF0
+  else if(_usart == &USARTF0)
+  {
+    volatile uint8_t *reg = &PORTF_DIR;
+    volatile uint8_t *out = &PORTF_OUT;
+    volatile uint8_t *ctrl = &PORTF_PIN0CTRL + bitTX;
+
+    bit = 1 << bitTX;
+    *ctrl = 0; // trigger on BOTH, totem, no pullup    //_BV(2) | _BV(1) | _BV(0); // 'INTPUT_DISABLED' (sic) with 'totem pole' (the default)
+    *out |= bit;  // set to 'HIGH'
+    *reg |= bit;  // set as output
+
+    bit = 1 << bitRX;
+    ctrl = &PORTF_PIN0CTRL + bitRX;
+
+    *ctrl = 0; // triger on BOTH, no pullup
+    *out &= ~bit; // off
+    *reg &= ~bit; // set as input
+  }
+#endif // USARTF0
 
   SREG = oldSREG;
 
@@ -842,6 +1156,9 @@ void HardwareSerial::begin(unsigned long baud, byte config)
   // SBMODE 3    0=1 stop  1=2 stop
   // CHSIZE 2:0  000=5 bit 001=6 bit  010=7 bit  011=8 bit  111=9 bit
   _usart->CTRLC = config & ~(_BV(USART_CMODE1_bp)|_BV(USART_CMODE0_bp)); // make sure bits 6 and 7 are cleared
+#ifdef USARTD0_CTRLD
+  _usart->CTRLD = 0;  // E5 has this register, must assign to zero
+#endif // USARTD0_CTRLD  
 
   // assign the baud_setting, a.k.a. ubbr (USART Baud Rate Register)
 
@@ -914,7 +1231,7 @@ int HardwareSerial::read(void)
 
   cli(); // clear interrupt flag until I'm done assigning pin stuff
 
-  if(_rx_buffer == &rx_buffer2 && // it's serial #0
+  if(_rx_buffer == &rx_buffer2 && // it's serial #1
      !set_not_rts(&rx_buffer2))   // do I need to turn off RTS ?
   {
     SERIAL_1_RTS_PORT->OUT &= ~SERIAL_1_RTS_PIN; // set to '0'
@@ -1010,10 +1327,14 @@ HardwareSerial::operator bool()
 
 // Preinstantiate Objects //////////////////////////////////////////////////////
 
-HardwareSerial Serial(&rx_buffer, &tx_buffer, (uint16_t)&USARTD0);
-HardwareSerial Serial2(&rx_buffer2, &tx_buffer2, (uint16_t)&USARTC0);
+HardwareSerial Serial(&rx_buffer, &tx_buffer, (uint16_t)&(SERIAL_0_USART_NAME));
+HardwareSerial Serial2(&rx_buffer2, &tx_buffer2, (uint16_t)&(SERIAL_1_USART_NAME));
 
+#ifdef SERIAL_2_PORT_NAME
+HardwareSerial Serial3(&rx_buffer3, &tx_buffer3, (uint16_t)&(SERIAL_2_USART_NAME));
+#endif // SERIAL_2_PORT_NAME
 
-
-
+#ifdef SERIAL_3_PORT_NAME
+HardwareSerial Serial4(&rx_buffer2, &tx_buffer2, (uint16_t)&(SERIAL_3_USART_NAME));
+#endif // SERIAL_3_PORT_NAME
 

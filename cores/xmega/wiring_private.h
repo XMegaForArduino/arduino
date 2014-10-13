@@ -32,6 +32,32 @@
 
 #include "Arduino.h"
 
+// things that need to be defined in order for the code to compile
+
+#ifndef PRODSIGNATURES_ADCACAL0 /* A1 headers don't define this properly */
+#define PRODSIGNATURES_ADCACAL0  _SFR_MEM8(0x0020)
+#endif // PRODSIGNATURES_ADCACAL0
+
+#ifndef PRODSIGNATURES_ADCACAL1 /* A1 headers don't define this properly */
+#define PRODSIGNATURES_ADCACAL1  _SFR_MEM8(0x0021)
+#endif // PRODSIGNATURES_ADCACAL1
+
+#ifndef ADCA_CH0_SCAN           /* A1 headers don't define this properly */
+#define ADCA_CH0_SCAN  _SFR_MEM8(0x0226)
+#define ADC_REFSEL_INTVCC2_gc (0x04<<4)
+#define ADC_CH_GAIN_DIV2_gc (0x07<<2)
+#endif // ADCA_CH0_SCAN
+
+#ifndef ADC_REFSEL2_bm          /* A1 headers don't define this properly, but A1U headers do [and others] */
+#define ADC_REFSEL2_bm  (1<<6)  /* Reference Selection bit 2 mask. */
+#define ADC_REFSEL2_bp  6       /* Reference Selection bit 2 position. */
+#endif // ADC_REFSEL2_bm
+
+#ifndef PORT_USART0_bm
+#define PORT_USART0_bm  0x10  /* Usart0 bit mask for port remap register. */
+#endif // PORT_USART0_bm
+
+
 #ifdef __cplusplus
 extern "C"{
 #endif
@@ -52,3 +78,5 @@ typedef void (*voidFuncPtr)(void);
 #endif
 
 #endif
+
+

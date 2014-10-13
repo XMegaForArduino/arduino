@@ -1,6 +1,6 @@
 --- hardware/arduino/boards.txt	2013-05-17 12:48:38.000000000 -0700
-+++ hardware/arduino/boards.txt	2014-10-08 14:15:18.000000000 -0700
-@@ -563,5 +563,63 @@
++++ hardware/arduino/boards.txt	2014-10-11 19:55:41.000000000 -0700
+@@ -563,5 +563,76 @@
  robotMotor.build.vid=0x2341
  robotMotor.build.pid=0x8039
  robotMotor.build.core=robot
@@ -62,5 +62,18 @@
 +xmega128a1.build.f_cpu=32000000L
 +xmega128a1.build.core=xmega
 +xmega128a1.build.variant=xmega128a1
++
++
++##############################################################
++
++cc0x32e5.name=CC0 ATXMega32E5 breakout
++
++cc0x32e5.upload.protocol=arduino
++cc0x32e5.upload.maximum_size=32768
++cc0x32e5.upload.speed=115200
++cc0x32e5.build.mcu=atxmega32e5
++cc0x32e5.build.f_cpu=32000000L
++cc0x32e5.build.core=xmega
++cc0x32e5.build.variant=cc0_atxmega_e5
 +
 +

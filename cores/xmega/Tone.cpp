@@ -32,16 +32,38 @@ Version Modified By Date     Comments
 0008    S Kanemoto  12/06/22 Fixed for Leonardo by @maris_HY
 *************************************************/
 
-// re-write for ATxmega64D4 by Bob Frazier, S.F.T. Inc. - http://mrp3.com/
+// COMPLETE re-write for ATXMega by Bob Frazier, S.F.T. Inc. - http://mrp3.com/
 
-#define TONE_SUPPORTED
+// NOTE:  this still only supports one tone output.  However, xmega can do more than one
+//        due to the way the timers are.  In fact, 'E' series can probably do a LOT more
+//        than one.  If you want to implement that, it's a public project, so get it working
+//        reliably and submit the changes, thanks.
 
-#ifdef TONE_SUPPORTED
+
 
 #include <avr/interrupt.h>
 #include <avr/pgmspace.h>
 #include "Arduino.h"
 #include "pins_arduino.h"
+
+#if defined(TCC4) || !defined(TCC2)
+
+// in these cases this file isn't ready for prime time, so disable it for now
+
+#ifdef TONE_SUPPORTED
+#undef TONE_SUPPORTED
+#endif // TONE_SUPPORTED
+
+#else // !TCC4 && TCC2
+
+#ifndef TONE_SUPPORTED
+#define TONE_SUPPORTED // for now turn it off for 'E"
+#endif // TONE_SUPPORTED
+
+#endif // TCC4 || !TCC2
+
+
+#ifdef TONE_SUPPORTED
 
 static PORT_t *pTonePort = NULL; // must assign at startup due to ISR
 static uint8_t bToneMask = 0; // bitmask for tone pin
@@ -56,6 +78,8 @@ static void toneBegin(uint8_t _pin, uint8_t _div, uint16_t _per)
   // Set the pinMode as OUTPUT
   pinMode(_pin, OUTPUT);
 
+#if NUM_DIGITAL_PINS > 18 /* meaning there is a PORT E available */
+
   TCE0_INTCTRLA = 0;  // temporarily disable overflow interrupt
   TCE0_INTCTRLB = 0;  // disable other interrupts
   TCE0_CTRLA = _div;  // divisor for pre-scaler  
@@ -64,6 +88,30 @@ static void toneBegin(uint8_t _pin, uint8_t _div, uint16_t _per)
   TCE0_CTRLE = 0;     // 16-bit mode
   TCE0_PER = _per;    // period (16-bit value)
   TCE0_INTCTRLA = 3;  // overflow int level 3 (enables interrupt)
+
+#elif defined(TCC4) // E series and anything else with 'TCC4'
+
+  TCC4_INTCTRLA = 0;  // temporarily disable overflow interrupt
+  TCC4_INTCTRLB = 0;  // disable other interrupts
+  TCC4_CTRLA = _div;  // divisor for pre-scaler  
+  TCC4_CTRLB = TC45_WGMODE_NORMAL_gc; // 'normal' mode (interrupt on 'overflow')
+  TCC4_CTRLD = 0; // not an event timer, 16-bit mode (12.11.4)
+  TCC4_CTRLE = 0;     // 16-bit mode
+  TCC4_PER = _per;    // period (16-bit value)
+  TCC4_INTCTRLA = 3;  // overflow int level 3 (enables interrupt)
+
+#else // other stuff not yet explored by me
+
+  TCC0_INTCTRLA = 0;  // temporarily disable overflow interrupt
+  TCC0_INTCTRLB = 0;  // disable other interrupts
+  TCC0_CTRLA = _div;  // divisor for pre-scaler  
+  TCC0_CTRLB = TC_WGMODE_NORMAL_gc; // 'normal' mode (interrupt on 'overflow')
+  TCC0_CTRLD = 0; // not an event timer, 16-bit mode (12.11.4)
+  TCC0_CTRLE = 0;     // 16-bit mode
+  TCC0_PER = _per;    // period (16-bit value)
+  TCC0_INTCTRLA = 3;  // overflow int level 3 (enables interrupt)
+
+#endif // NUM_DIGITAL_PINS > 18
 
   // tone starts now, shuts off when the 'toggle_count' hits zero
 }
@@ -134,6 +182,8 @@ void disableTimer(uint8_t _timer)
 {
 // parameter is ignored
 
+#if NUM_DIGITAL_PINS > 18 /* meaning there is a PORT E available */
+
   // disable under/overflow and comparison interrupts FIRST
   TCE0_INTCTRLA = 0;   // no underflow interrupts
   TCE0_INTCTRLB = 0;   // no comparison interrupts
@@ -141,6 +191,35 @@ void disableTimer(uint8_t _timer)
   pTonePort = NULL; // make sure
 
   // re-assign TCE0 defaults.  see 'wiring.c'
+
+#if NUM_DIGITAL_PINS > 22 /* meaning PORTE has 8 pins */
+
+  TCE2_CTRLA = 5; // b0101 - divide by 64 - D manual 13.9.1
+  TCE2_CTRLB = 0; // compare outputs disabled on all 8 bits (13.9.2)
+//  TCE2_CTRLC = 0; // when timer not running, sets compare (13.9.3)
+  TCE2_CTRLE = 0x2; // b10 - 'split' mode - D manual 13.9.4
+  TCE2_CTRLF = 0;   // not resetting or anything (13.9.7)
+
+  TCE2_LPER = 255; // count 255 to 0 (total period = 256)
+  TCE2_HPER = 255;
+
+  // pre-assign comparison registers to 'zero' (for PWM out) which is actually 255
+  // 'timer 2' counts DOWN.  This, however, would generate a '1' output.
+
+  TCE2_LCMPA = 255;
+  TCE2_LCMPB = 255;
+  TCE2_LCMPC = 255;
+  TCE2_LCMPD = 255;
+
+  TCE2_HCMPA = 255;
+  TCE2_HCMPB = 255;
+  TCE2_HCMPC = 255;
+  TCE2_HCMPD = 255;
+
+  TCE2_INTCTRLA = 0;   // no underflow interrupts
+  TCE2_INTCTRLB = 0;   // no comparison interrupts
+
+#else // 16-bit timer on TCE0
 
   TCE0_CTRLA = 5; // b0101 - divide by 64 - D manual 12.11.1
   TCE0_CTRLB = TC_WGMODE_SS_gc; // single-slope PWM.  NOTE:  this counts UP, whereas the other timers count DOWN
@@ -160,6 +239,72 @@ void disableTimer(uint8_t _timer)
   TCE0_CCB = 255;
   TCE0_CCC = 255;
   TCE0_CCD = 255;
+
+#endif // 8/16 bit timer on E
+
+#elif defined(TCC4) // E series and anything else with 'TCC4'
+
+  // disable under/overflow and comparison interrupts FIRST
+  TCC4_INTCTRLA = 0;   // no underflow interrupts
+  TCC4_INTCTRLB = 0;   // no comparison interrupts
+
+  pTonePort = NULL; // make sure
+
+  // re-assign TCC0 defaults.  see 'wiring.c'
+
+  TCC4_CTRLA = 5; // b0101 - divide by 64 - E manual 13.13.1
+  TCC4_CTRLB = TC45_BYTEM_BYTEMODE_gc | TC45_WGMODE_SINGLESLOPE_gc; // byte mode, single slope
+//  TCC5_CTRLC = 0; // when timer not running, sets compare (13.9.3)
+  TCC4_CTRLD = 0; // events off
+  TCC4_CTRLE = 0; // no output on L pins
+  TCC4_CTRLF = 0; // no output on H pins
+
+  TCC4_PER = 255; // 255 for period limit
+
+  // pre-assign comparison registers to 'zero' (for PWM out) which is actually 255
+  // 'timer 2' counts DOWN.
+
+  TCC4_CCA = 65535;
+  TCC4_CCB = 65535;
+  TCC4_CCC = 65535;
+  TCC4_CCD = 65535;
+
+#else // other stuff not yet explored by me
+
+  // disable under/overflow and comparison interrupts FIRST
+  TCC0_INTCTRLA = 0;   // no underflow interrupts
+  TCC0_INTCTRLB = 0;   // no comparison interrupts
+
+  pTonePort = NULL; // make sure
+
+  // re-assign TCC0 defaults.  see 'wiring.c'
+
+  TCC2_CTRLA = 5; // b0101 - divide by 64 - D manual 13.9.1
+  TCC2_CTRLB = 0; // compare outputs disabled on all 8 bits (13.9.2)
+//  TCC2_CTRLC = 0; // when timer not running, sets compare (13.9.3)
+  TCC2_CTRLE = 0x2; // b10 - 'split' mode - D manual 13.9.4
+  TCC2_CTRLF = 0;   // not resetting or anything (13.9.7)
+
+  TCC2_LPER = 255; // count 255 to 0 (total period = 256)
+  TCC2_HPER = 255;
+
+  // pre-assign comparison registers to 'zero' (for PWM out) which is actually 255
+  // 'timer 2' counts DOWN.  This, however, would generate a '1' output.
+
+  TCC2_LCMPA = 255;
+  TCC2_LCMPB = 255;
+  TCC2_LCMPC = 255;
+  TCC2_LCMPD = 255;
+
+  TCC2_HCMPA = 255;
+  TCC2_HCMPB = 255;
+  TCC2_HCMPC = 255;
+  TCC2_HCMPD = 255;
+
+  TCC2_INTCTRLA = 0;   // no underflow interrupts
+  TCC2_INTCTRLB = 0;   // no comparison interrupts
+
+#endif // NUM_DIGITAL_PINS > 18
 }
 
 void noTone(uint8_t _pin)
@@ -169,13 +314,25 @@ void noTone(uint8_t _pin)
   digitalWrite(_pin, 0);
 }
 
+#if NUM_DIGITAL_PINS > 18 /* meaning PORTE exists */
 ISR(TCE0_OVF_vect) // the 'overflow' vector on timer E0
+#elif defined(TCC4) // E series and anything else with 'TCC4'
+ISR(TCC4_OVF_vect) // the 'overflow' vector on timer C4
+#else // everything else
+ISR(TCC0_OVF_vect) // the 'overflow' vector on timer C0
+#endif // PORTE exist check
 {
   if(!toggle_count || !pTonePort || !bToneMask
 #if 1 /* this section in for bullet-proofing, consider removing */
-     || (pTonePort != &PORTA && pTonePort != &PORTB &&
+     || (pTonePort != &PORTA &&
+#if NUM_ANALOG_PINS > 8
+         pTonePort != &PORTB &&
+#endif // NUM_ANALOG_PINS > 8
          pTonePort != &PORTC && pTonePort != &PORTD &&
-         pTonePort != &PORTE && pTonePort != &PORTR)
+#if NUM_DIGITAL_PINS > 18
+         pTonePort != &PORTE &&
+#endif // PORTE exist check
+         pTonePort != &PORTR)
 #endif // 1
     )
   {
@@ -189,6 +346,8 @@ ISR(TCE0_OVF_vect) // the 'overflow' vector on timer E0
   pTonePort->OUTTGL = bToneMask; // toggle that bit
   toggle_count--;
 }
+
+
 
 #if 0 // OLD CODE for reference only
 

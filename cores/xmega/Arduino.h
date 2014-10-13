@@ -274,23 +274,29 @@ extern const uint8_t PROGMEM digital_pin_to_timer_PGM[];
 #define _PD 4
 #define _PE 5
 #define _PR 6 /* was PF */
-//#define PG 7
-//#define PH 8
-//#define PJ 10
-//#define PK 11
-//#define PL 12
+#define _PF 7
+#define _PH 8
+#define _PJ 9
+#define _PK 10
+#define _PQ 11
 #endif
 
 // modified timer definitions for xmega
 // TCD2 --> TIMERD2
 // TCC2 --> TIMERC2
-// TCE0 --> TIMERE0
+// TCE0 --> TIMERE0 - 'D' series which has only 4 pins on PORTE */
+// TCE2 --> TIMERE2 - A series and others that use all 8 pins for port E
+// TCF2 --> TIMERF2 - A series and others that have PORT F
 #define NOT_ON_TIMER 0
 #define TIMERD2 1
 #define TIMERC2 2
 #define TIMERE0 3
+#define TIMERE2 4
+#define TIMERF2 5
+#define TIMERC4 6
+#define TIMERD5 7
 // not using TCD0,1 nor TCC0,1
-// The first 16 IO pins (PD0-PD7, PC0-PC7) will be PWM capable, as are PE0-PE3
+// The first 16 IO pins (PD0-PD7, PC0-PC7) will be PWM capable, as are PE0-PE3 (or PE0-PE7) and PF0-PF7 (when there)
 
 
 #ifdef __cplusplus

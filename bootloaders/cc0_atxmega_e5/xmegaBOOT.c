@@ -32,6 +32,8 @@
 // - serial port on PORTD (pins 2,3) only for flash
 // - XMEGA-specific NVRAM write functions
 
+// THIS file is 'special' since it maps PD6/7 to the serial port using PORTD_REMAP
+
 //----------------------------------------------------------
 // ORIGINAL COMMENT BLOCK FROM Arduino bootloader
 // this is being retained for licensing reasons
@@ -225,6 +227,27 @@ void soft_boot(void);
 void smart_delay_ms(uint16_t ms);
 void flash_led(uint8_t);
 
+// TEMPORARY - until I have proper defintions for E5 I need this to make serial work
+
+#ifndef __AVR_ATxmega32E5__
+
+typedef struct E5USART_struct
+{
+    register8_t DATA;  /* Data Register */
+    register8_t STATUS;  /* Status Register */
+    register8_t CTRLA;  /* Control Register A */
+    register8_t CTRLB;  /* Control Register B */
+    register8_t CTRLC;  /* Control Register C */
+    register8_t CTRLD;  /* Control Register D */
+    register8_t BAUDCTRLA;  /* Baud Rate Control Register A */
+    register8_t BAUDCTRLB;  /* Baud Rate Control Register B */
+} E5USART_t;
+
+#undef USARTD0
+#define USARTD0    (*(E5USART_t *) 0x09C0)  /* Universal Synchronous/Asynchronous Receiver/Transmitter */
+
+#endif // __AVR_ATxmega32E5__
+
 
 /* some variables */
 volatile union address_union
@@ -333,10 +356,10 @@ int main(void)
 
 #endif // WATCHDOG_MODS
 
-  if(bod)
-  {
-    goto skip_clock; // if I did the B.O.D. skip the clock stuff
-  }
+//  if(bod)
+//  {
+//    goto skip_clock; // if I did the B.O.D. skip the clock stuff
+//  }
 
   // -------------------------------------------------
   // The CLOCK section (all xmegas need this, really)
@@ -453,19 +476,44 @@ skip_clock:  // go here if clock cannot be assigned for some reason or is alread
     // TODO:  handle differently if programmed?
   }
 
-  //---------------
-  // UARTD0 config
-  //---------------
+  //------------------------------
+  // UARTD0 config using HIGH pins
+  //------------------------------
+
+  // make sure that the HIGH pins are configured for the USART
+#ifndef PORTD_REMAP // some headers may not have it
+#define PORTD_REMAP  _SFR_MEM8(0x066E)
+#endif // PORTD_REMAP
+
+#if 1 // REMAP
+  PORTD_REMAP = _BV(4); // see 12.13.13 in 'E' manual
+
+  // PD6 (GPIO 6) must have input pullup resistor (for serial I/O)
+  PORTD_PIN6CTRL = PINCTRL_INPUT_PULLUP;
+  PORTD_OUT |= _BV(6);
+  PORTD_DIR &= ~_BV(6);
+
+  // PD7 (GPIO 7) must be configured as an output
+  PORTD_PIN7CTRL = PINCTRL_DEFAULT;
+  PORTD_OUT |= _BV(7);
+  PORTD_DIR |= _BV(7);
+
+#else  // REMAP
+
+  PORTD_REMAP = 0; // see 12.13.13 in 'E' manual
 
   // PD2 (GPIO 2) must have input pullup resistor (for serial I/O)
   PORTD_PIN2CTRL = PINCTRL_INPUT_PULLUP;
   PORTD_OUT |= _BV(2);
   PORTD_DIR &= ~_BV(2);
 
-  // PD3 (GPIO 3) must be configured as an output
+  // PD7 (GPIO 7) must be configured as an output
   PORTD_PIN3CTRL = PINCTRL_DEFAULT;
   PORTD_OUT |= _BV(3);
   PORTD_DIR |= _BV(3);
+
+#endif // REMAP
+
 
 // set the CORRECT baud rate NOW.
 
@@ -475,10 +523,10 @@ skip_clock:  // go here if clock cannot be assigned for some reason or is alread
 #ifdef DOUBLE_SPEED
 #define BAUD_SETTING  ((-2 << 12) | 135)
   // section 19.4.4
-  USARTD0_CTRLB = _BV(2); // enable clock 2x (everything else disabled)
+  (&USARTD0)->CTRLB = _BV(2); // enable clock 2x (everything else disabled)
 #else // DOUBLE_SPEED
 #define BAUD_SETTING ((-3 << 12) | 131)
-  USARTD0_CTRLB = 0; // DISable clock 2x
+  (&USARTD0)->CTRLB = 0; // DISable clock 2x
 #endif // DOUBLE_SPEED
 
 
@@ -487,9 +535,9 @@ skip_clock:  // go here if clock cannot be assigned for some reason or is alread
   // section 19.4.4 - 'double speed' flag
 #ifdef DOUBLE_SPEED
   // section 19.4.4
-  USARTD0_CTRLB = _BV(2); // enable clock 2x (everything else disabled)
+  (&USARTD0)->CTRLB = _BV(2); // enable clock 2x (everything else disabled)
 #else   // DOUBLE_SPEED
-  USARTD0_CTRLB = 0; // DISable clock 2x
+  (&USARTD0)->CTRLB = 0; // DISable clock 2x
 #endif  // DOUBLE_SPEED
 
 
@@ -502,20 +550,21 @@ skip_clock:  // go here if clock cannot be assigned for some reason or is alread
 
   // section 19.14.5 - USART mode, parity, bits
   // CMODE 7:6 = 00 [async]  PMODE 5:4 = 00 [none]  SBMODE 3 = 0 [1 bit]   CHSIZE 2:0 = 3 (8-bit)
-  USARTD0_CTRLC = 0x03; // SERIAL_8N1 - see HardwareSerial.h
+  (&USARTD0)->CTRLC = 0x03; // SERIAL_8N1 - see HardwareSerial.h
+  (&USARTD0)->CTRLD = 0; // always set to zero (E5 special)
 
   // assign the baud_setting, a.k.a. ubbr (USART Baud Rate Register)
 
-  USARTD0_BAUDCTRLA = ((uint8_t)BAUD_SETTING) & 0xff;
-  USARTD0_BAUDCTRLB = (uint8_t)(BAUD_SETTING >> 8);
+  (&USARTD0)->BAUDCTRLA = ((uint8_t)BAUD_SETTING) & 0xff;
+  (&USARTD0)->BAUDCTRLB = (uint8_t)(BAUD_SETTING >> 8);
 
   // section 19.4.4
 #ifdef DOUBLE_SPEED
-  USARTD0_CTRLB = _BV(2) | _BV(4) | _BV(3); // enable double-speed, RX, TX, and disable other stuff
+  (&USARTD0)->CTRLB = _BV(2) | _BV(4) | _BV(3); // enable double-speed, RX, TX, and disable other stuff
 #else   // DOUBLE_SPEED
-  USARTD0_CTRLB = _BV(4) | _BV(3); // enable RX, TX, disable other stuff
+  (&USARTD0)->CTRLB = _BV(4) | _BV(3); // enable RX, TX, disable other stuff
 #endif  // DOUBLE_SPEED
-  USARTD0_CTRLA = 0; // NO! SERIAL! PORT! INTERRUPTS!
+  (&USARTD0)->CTRLA = 0; // NO! SERIAL! PORT! INTERRUPTS!
 
 
   sei();  // ok to enable global interrupts now
@@ -539,6 +588,7 @@ skip_clock:  // go here if clock cannot be assigned for some reason or is alread
     LED_PORT &= ~_BV(LED);
     smart_delay_ms(100);
   }
+
 
   /* 20050803: by DojoCorp, this is one of the parts provoking the
      system to stop listening, cancelled from the original */
@@ -946,10 +996,10 @@ void puthex(char ch)
 void putch(char ch)
 {
 
-  while (!(USARTD0_STATUS & _BV(5))) // bit 5 is the DRE bit (6 is the 'transmitted' bit)
+  while (!((&USARTD0)->STATUS & _BV(5))) // bit 5 is the DRE bit (6 is the 'transmitted' bit)
   { } // wait for DRE flag
 
-  USARTD0_DATA = ch;
+  (&USARTD0)->DATA = ch;
 }
 
 
@@ -959,7 +1009,7 @@ char getch(void)
 
   LED_PORT &= ~_BV(LED);          // turn off the LED to indicate receiving data
 
-  while(!(USARTD0_STATUS & _BV(7))) // wait for RX data
+  while(!((&USARTD0)->STATUS & _BV(7))) // wait for RX data
   {
     /* 20060803 DojoCorp:: Addon coming from the previous Bootloader*/
     /* HACKME:: here is a good place to count times*/
@@ -974,7 +1024,7 @@ char getch(void)
 
   LED_PORT |= _BV(LED);          // turn on the LED to indicate receiving data
 
-  return USARTD0_DATA;
+  return (&USARTD0)->DATA;
 }
 
 

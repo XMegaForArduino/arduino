@@ -99,6 +99,12 @@ class HardwareSerial : public Stream
 
 extern HardwareSerial Serial;
 extern HardwareSerial Serial2;
+#ifdef SERIAL_2_PORT_NAME
+extern HardwareSerial Serial3;
+#endif // SERIAL_2_PORT_NAME
+#ifdef SERIAL_3_PORT_NAME
+extern HardwareSerial Serial4;
+#endif // SERIAL_3_PORT_NAME
 
 extern void serialEventRun(void) __attribute__((weak));
 

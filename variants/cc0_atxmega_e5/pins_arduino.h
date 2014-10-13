@@ -77,6 +77,10 @@
 
 */
 
+// THIS IS A SPECIAL FILE FOR THE 'CC0' ATXMEGA E5 BREAKOUT v1 - it remaps PORTD SERIAL to PD6/PD7
+// https://www.tindie.com/products/andete/atxmega32e5-breakout-board/
+
+
 #ifndef Pins_Arduino_h
 #define Pins_Arduino_h
 
@@ -86,24 +90,18 @@
 // to accomodate a useful "compatibility" shield design, these pins can be shifted so that the pin
 // that maps to 'digitalRead(0)' would be D2 rather than D0.  This also puts 'Serial' on pins 0 and 1
 // exactly like the Arduino UNO.  For any other mapping, create your own 'pins_arduino.h' file.
-//
-#define DIGITAL_IO_PIN_SHIFT /* COMMENT THIS to disable the shifting of digital pin assignments for Arduino shield compatibility */
 
-// TWIE may not work properly.  To make use of TWIC for 2-wire, it needs to be re-mapped
-#define USE_TWIC /* define this to re-map TWIC to digital pins 20 and 21, similar to an Arduino Mega2560.  requires DIGITAL_IO_PIN_SHIFT */
+#define DIGITAL_IO_PIN_SHIFT /* UNCOMMENT THIS to shift digital pin assignments for Arduino shield compatibility */
 
 
-#define NUM_DIGITAL_PINS            22
-#define NUM_ANALOG_INPUTS           12
-#define analogInputToDigitalPin(p)  ((p < 12) ? (p) + 22 : -1)
+
+#define NUM_DIGITAL_PINS            18
+#define NUM_ANALOG_INPUTS           8
+#define analogInputToDigitalPin(p)  ((p < 8) ? (p) + 18 : -1)
 #ifdef DIGITAL_IO_PIN_SHIFT
-#ifdef USE_TWIC
-#define digitalPinHasPWM(p)         ((p) < 18 || (p) == 20 || (p) == 21) /* PORTC pins 0 and 1 are 20 and 21, respectively */
-#else // USE_TWIC
-#define digitalPinHasPWM(p)         ((p) < 18 || (p) == 20 || (p) == 21) /* PORTD pins 0 and 1 are 20 and 21, respectively */
-#endif // USE_TWIC
+#define digitalPinHasPWM(p)         ((p) < 14 || (p) == 20 || (p) == 21) /* PORTD pins 0 and 1 are 20 and 21, respectively */
 #else // no digital I/O pin shift
-#define digitalPinHasPWM(p)         ((p) < 20) /* port E pin 3 is the highest one that has PWM */
+#define digitalPinHasPWM(p)         ((p) < 16) /* port E pin 3 is the highest one that has PWM */
 #endif // DIGITAL_IO_PIN_SHIFT
 
 
@@ -121,47 +119,46 @@
 #define PORTD_INT1  1
 #define PORTC_INT0  2
 #define PORTC_INT1  3
-#define PORTE_INT0  4
-#define PORTE_INT1  5
+//#define PORTE_INT0  4 - not on E series
+//#define PORTE_INT1  5 - not on E series
 #define PORTA_INT0  6
 #define PORTA_INT1  7
-#define PORTB_INT0  8
-#define PORTB_INT1  9
+//#define PORTB_INT0  8 - not on E series
+//#define PORTB_INT1  9 - not on E series
 #define PORTR_INT0  10
 #define PORTR_INT1  11
 
 #define EXTERNAL_NUM_INTERRUPTS 12 /* defined here instead of wiring_private.h */
 
 
-// xmega 'D' series has 2 sets of UART and SPI.
+
+// xmega 'E' series has 2 sets of UART and SPI.
 // The default UART is assigned on Port D, pins PD2-3
 // The default SPI is assigned on Port C, pins PC4-7
 //
-// Also there are multiple 2-wire ports, the default being assigned to PE0-1
-// TODO:  assign to PC0-1 (TWIC) since TWIE appears to be broke-dick
+// There is only ONE TWI on the 'E' series, on port C pins 0,1
 //
-// Standard GPIO pins are assigned as follows:
+// Standard (un-shifted) GPIO pins are assigned as follows:
 // PD0-7 Digital 0-7
 // PC0-7 Digital 8-15
-// PE0-3 digital 16-19
-// PR0-1 digital 20-21
+// PR0-1 digital 16-17
 // PA0-7 analog A0-A7
-// PB0-3 analog A8-A11
 //
-// '#define'ing DIGITAL_IO_PIN_SHIFT shifts this down by 2, and places PD0-1 on 20-21
-// This is for Arduino 'atmega' compatibility with respect to existing shields, so that
-// you don't have to re-map pin numbers with #defines in existing software that hard-codes them
-// or makes assumptions about pin numbers vs functionality [except TWI won't ever match up]
+// '#define'ing DIGITAL_IO_PIN_SHIFT shifts this down by 2, and places PC0-1 on 16-17
+// and PD0-1 on 6-7. This is for Arduino 'atmega' compatibility with respect to existing shields,
+// so that you don't have to re-map pin numbers with #defines in existing software that hard-codes
+// them or makes assumptions about pin numbers vs functionality.  On Rev 'C' you can map TWI to
+// the additional 2 SDA/SCL pins (see below), though they won't map to A4 and A5 like the Uno.
 //
-// ALL PORT REMAP registers must be assigned to 0 (default mappings for pins)
-// this puts PWM output on pins 0-3 for PORT E (the timers are split for C and D)
+// ALL PORT REMAP registers must be assigned to 0 (default mappings for pins) except when explicitly
+// remapping something (like the serial ports, see below).
 // Additionally, CLKOUT should be 0 (no clock outputs on any port/pin).
 //
 // TIMERS
 // Timer 0 should be configured as 'Tx2' (for 8 PWM outputs) by default, essentially
 // as a dual 8-bit timer, more or less compatible with the Arduino's 3 timers and
 // supporting all 8 pins on ports C and D for PWM output.  Port C's timer supports
-// the system clock.
+// the system clock, so don't use it for 'Tone'.
 //
 // See 'D' manual chapter 13 for more on this
 
@@ -178,10 +175,10 @@
 #define SERIAL_0_USART_DATA USARTD0_DATA
 #define SERIAL_0_RXC_ISR ISR(USARTD0_RXC_vect)
 #define SERIAL_0_DRE_ISR ISR(USARTD0_DRE_vect)
-//#define SERIAL_0_REMAP PORTD_REMAP /* define THIS to re-map the pins from 0-3 to 4-7 on serial port 0 */
-#define SERIAL_0_REMAP_BIT 4    /* the bit needed to remap the port if SERIAL_0_REMAP is defined */
-#define SERIAL_0_RX_PIN_INDEX 2 /* the pin number on the port, not the mapped digital pin number */
-#define SERIAL_0_TX_PIN_INDEX 3 /* the pin number on the port, not the mapped digital pin number */
+#define SERIAL_0_REMAP PORTD_REMAP         /* define THIS to re-map the pins from 0-3 to 4-7 on serial port 0 */
+#define SERIAL_0_REMAP_BIT PORT_USART0_bm  /* the bitmask needed to remap the port if SERIAL_0_REMAP is defined */
+#define SERIAL_0_RX_PIN_INDEX 6 /* the pin number on the port, not the mapped digital pin number */
+#define SERIAL_0_TX_PIN_INDEX 7 /* the pin number on the port, not the mapped digital pin number */
 
 // serial port 1
 #define SERIAL_1_PORT_NAME PORTC
@@ -189,42 +186,47 @@
 #define SERIAL_1_USART_DATA USARTC0_DATA
 #define SERIAL_1_RXC_ISR ISR(USARTC0_RXC_vect)
 #define SERIAL_1_DRE_ISR ISR(USARTC0_DRE_vect)
-//#define SERIAL_1_REMAP PORTC_REMAP /* define THIS to re-map the pins from 0-3 to 4-7 on serial port 1 */
-#define SERIAL_1_REMAP_BIT 4    /* the bit needed to remap the port if SERIAL_1_REMAP is defined */
+//#define SERIAL_1_REMAP PORTC_REMAP        /* define THIS to re-map the pins from 0-3 to 4-7 on serial port 1 */
+//#define SERIAL_1_REMAP_BIT PORT_USART0_bm /* the bit needed to remap the port if SERIAL_1_REMAP is defined */
 #define SERIAL_1_RX_PIN_INDEX 2 /* the pin number on the port, not the mapped digital pin number */
 #define SERIAL_1_TX_PIN_INDEX 3 /* the pin number on the port, not the mapped digital pin number */
 
 
+#ifdef DIGITAL_IO_PIN_SHIFT
+#define TCD5_PIN_SHIFT 0x0 /* 0000b PD0 PD1 PD2 PD3 */
+#else // DIGITAL_IO_PIN_SHIFT
+#define TCD5_PIN_SHIFT 0xc /* 1100b PD0 PD1 PD6 PD7 */
+#endif // DIGITAL_IO_PIN_SHIFT
 
-// For atmega/Arduino shield compatibility, with DIGITAL_IO_PIN_SHIFT defined
-// typical board/pin layout might be like this (for shield pins):
+
+// TWI is on TWIC (port C pins 0/1)
+
+// This layout describes the 'cc0 atxmega32e5 breakout board'
+// https://www.tindie.com/products/andete/atxmega32e5-breakout-board/
+// 
+//     
+//     
+//                     V G             R T V G
+//     A A A A A A A A C N             X X C N
+//     0 1 2 3 4 5 6 7 C D             D D C D
+//   --o-o-o-o-o-o-o-o-o-o-o-o-o-o-o-o-o-o-o-o-
+//     P P P P P P P P     P P P P P P P P
+//     A A A A A A A A     D D D D D D D D
+//     0 1 2 3 4 5 6 7     0 1 2 3 4 5 6 7
+//                                           o - GND
+//               T O P   V I E W             o - CTS
+//                                           o - VCC
+//         P P P P P P P P  G P P R P V      o - TXO (PD7)
+//         C C C C C C C C  N R R S D C      o - RXI (PD6)
+//         7 6 5 4 3 2 1 0  D 1 0 T I C      o - DTR
+//   --o-o-o-o-o-o-o-o-o-o--o-o-o-o-o-o--------
+//     G V S M M S T R S S
+//     N C C I O S X X C D
+//     D C K S S   C C L A
+//           O I
 //
-// NOTE:  this design assumes USE_TWIC is defined, so TWI is on TWIC (port C pins 0/1)
-//
-//               M M
-//             S I O   T R
-//         A   C S S S x x
-//     S S R G K O I S 2 2              T R
-//     C D E N 1 1 1 1                  x x
-//     L A F D 3 2 1 0 9 8  7 6 5 4 3 2 1 0
-// ----o-o-o-o-o-o-o-o-o-o--o-o-o-o-o-o-o-o----
-//     P P     P P P P P P  P P P P P P P P
-//     C C     C C C C C C  C C D D D D D D
-//     1 0     7 6 5 4 3 2  1 0 7 6 5 4 3 2
-//
-//
-//               T O P   V I E W
-//
-//
-//                              P P P P P P
-//                              A A A A A A
-//                              5 4 3 2 1 0
-// ------------o-o-o-o-o-o-o-o--o-o-o-o-o-o----
-//             G I R 3 5 G G V  A A A A A A
-//             N O E . V N N i  5 4 3 2 1 0
-//             D R S 3   D D n
-//               E E V
-//               F T
+// with shifted pin assignments, digital 0 through 17 are as follows:
+// PD6, PD7, PD4, PD5, PD2, PD3, PD0, PD1, PC2, PC3, PC4, PC5, PC6, PC7, PR0, PR1, PC0, PC1
 //
 // As with the MEGA2560 and other 'mega' Arduino boards, additional connectors would
 // break out the additional pins, with appropriate labeling.  Additionally, there should
@@ -236,10 +238,11 @@
 // it DOES! NOT! WORK! THE! SAME! as it does on the ATmegaXXX and so you would need to
 // (literally) steal one of the additional analog input pins to implement it. It's not
 // impossible, or even THAT difficult.  I'm just not doing it here.
+//
 
 
 
-#ifdef DIGITAL_IO_PIN_SHIFT // aka digital I/O pin 0 is PORTD pin 2
+#ifdef DIGITAL_IO_PIN_SHIFT /* aka digital I/O pin 0 is PORTD pin 2, and PORTD 0-1 and PORTC 0-1 are re-mapped for Arduino shield compatibility */
 
 // SHIFTED I/O pins (atmega compatibility) - see xmega mod description in comment at top
 
@@ -261,14 +264,14 @@ static const uint8_t MOSI1 = 3;
 static const uint8_t MISO1 = 4;
 static const uint8_t SCK1  = 5;
 
-// default 2-wire on PC0,PC1 - TWIC (TWIE appears to be broken)
-static const uint8_t SDA = 20;
-static const uint8_t SCL = 21;
+// default 2-wire on PC0,PC1 - TWIC
+static const uint8_t SDA = 16;
+static const uint8_t SCL = 17;
 
 // keep track of the indices for port R since its control register
-// settings should be slightly different - D manual table 11-6
-#define PR0 18
-#define PR1 19
+// settings should be slightly different - D manual table 11-6 etc.
+#define PR0 14
+#define PR1 15
 
 #else // no digital I/O pin shifting, PORTD pin 0 is digital I/O pin 0 (as it should be)
 
@@ -292,14 +295,14 @@ static const uint8_t MOSI1 = 5;
 static const uint8_t MISO1 = 6;
 static const uint8_t SCK1  = 7;
 
-// default 2-wire on PC0,PC1 - TWIC (TWIE appears to be broken)
+// default 2-wire on PC0,PC1 - TWIC
 static const uint8_t SDA = 8;
 static const uint8_t SCL = 9;
 
 // keep track of the indices for port R since its control register
-// settings should be slightly different - D manual table 11-6
-#define PR0 20
-#define PR1 21
+// settings should be slightly different - D manual table 11-6 etc.
+#define PR0 16
+#define PR1 17
 
 #endif // DIGITAL_IO_PIN_SHIFT
 
@@ -307,56 +310,52 @@ static const uint8_t SCL = 9;
 // default 'status' LED on PR1
 static const uint8_t LED_BUILTIN = PR1;
 
-static const uint8_t A0 = 22;
-static const uint8_t A1 = 23;
-static const uint8_t A2 = 24;
-static const uint8_t A3 = 25;
-static const uint8_t A4 = 26;
-static const uint8_t A5 = 27;
-static const uint8_t A6 = 28;
-static const uint8_t A7 = 29;
-static const uint8_t A8 = 30;
-static const uint8_t A9 = 31;
-static const uint8_t A10 = 32;
-static const uint8_t A11 = 33;
+static const uint8_t A0 = 18;
+static const uint8_t A1 = 19;
+static const uint8_t A2 = 20;
+static const uint8_t A3 = 21;
+static const uint8_t A4 = 22;
+static const uint8_t A5 = 23;
+static const uint8_t A6 = 24;
+static const uint8_t A7 = 25;
 
-// on the xmega64d4, PA2, PB2, PC2, PD2, and PE2 are asynchronous ints.  Others are 'synchronous' which means
+// on the xmega 'E' series, PA2, PC2, and PD2 are asynchronous ints.  Others are 'synchronous' which means
 // that they must be held in their 'interrupt state' long enough for the system to detect them.  In any case
 // all digital input pins can be use as interrupts, synchronous or otherwise.
 
 
-
 #ifdef ARDUINO_MAIN
 
+// TODO:  modify 'core' code to have different indices for E series?  For now it's ok as-is
 
 const uint16_t PROGMEM port_to_mode_PGM[] = {
-  NOT_A_PORT,             // 0
+  NOT_A_PORT,                  // 0
   (uint16_t) &PORTA_DIR,       // PA
-  (uint16_t) &PORTB_DIR,       // PB
+  NOT_A_PORT,                  // 2  [E series has no 'port B'
   (uint16_t) &PORTC_DIR,       // PC
   (uint16_t) &PORTD_DIR,       // PD
-  (uint16_t) &PORTE_DIR,       // PE
+  NOT_A_PORT,                  // 5  [E series has no 'port E'
   (uint16_t) &PORTR_DIR,       // PR
 };
 
 const uint16_t PROGMEM port_to_output_PGM[] = {
-  NOT_A_PORT,              // 0
+  NOT_A_PORT,                  // 0
   (uint16_t) &PORTA_OUT,       // PA
-  (uint16_t) &PORTB_OUT,       // PB
+  NOT_A_PORT,                  // 2  [E series has no 'port B'
   (uint16_t) &PORTC_OUT,       // PC
   (uint16_t) &PORTD_OUT,       // PD
-  (uint16_t) &PORTE_OUT,       // PE
+  NOT_A_PORT,                  // 5  [E series has no 'port E'
   (uint16_t) &PORTR_OUT,       // PR
 };
 
 const uint16_t PROGMEM port_to_input_PGM[] = {
-  NOT_A_PORT,             // 0
-  (uint16_t) &PORTA_IN,       // PA
-  (uint16_t) &PORTB_IN,       // PB
-  (uint16_t) &PORTC_IN,       // PC
-  (uint16_t) &PORTD_IN,       // PD
-  (uint16_t) &PORTE_IN,       // PE
-  (uint16_t) &PORTR_IN,       // PR
+  NOT_A_PORT,                  // 0
+  (uint16_t) &PORTA_IN,        // PA
+  NOT_A_PORT,                  // 2  [E series has no 'port B'
+  (uint16_t) &PORTC_IN,        // PC
+  (uint16_t) &PORTD_IN,        // PD
+  NOT_A_PORT,                  // 5  [E series has no 'port E'
+  (uint16_t) &PORTR_IN,        // PR
 };
 
 // xmega has a per-pin config register as well.  Normally these will be 00000111 for analog, 00000000 for digital 'totem pole'
@@ -376,40 +375,45 @@ const uint16_t PROGMEM digital_pin_to_control_PGM[] = {
   (uint16_t) &PORTD_PIN0CTRL,  // PD 0 ** 0 **
   (uint16_t) &PORTD_PIN1CTRL,  // PD 1 ** 1 **
 #endif // DIGITAL_IO_PIN_SHIFT
+
 // subtract 2 from the digital pin number if DIGITAL_IO_PIN_SHIFT is defined
-  (uint16_t) &PORTD_PIN2CTRL,  // PD 2 ** 2 ** USARTD_RX     ASYNC
+#ifdef DIGITAL_IO_PIN_SHIFT
+  (uint16_t) &PORTD_PIN6CTRL,  // PD 6 ** 2 ** USARTD_RX
+  (uint16_t) &PORTD_PIN7CTRL,  // PD 7 ** 3 ** USARTD_TX
+#else // no pin shifting
+  (uint16_t) &PORTD_PIN2CTRL,  // PD 2 ** 2 ** USARTD_RX ASYNC
   (uint16_t) &PORTD_PIN3CTRL,  // PD 3 ** 3 ** USARTD_TX
+#endif // DIGITAL_IO_PIN_SHIFT
+
   (uint16_t) &PORTD_PIN4CTRL,  // PD 4 ** 4 **
   (uint16_t) &PORTD_PIN5CTRL,  // PD 5 ** 5 **
+
+#ifdef DIGITAL_IO_PIN_SHIFT
+  (uint16_t) &PORTD_PIN2CTRL,  // PD 2 ** 6 ** ASYNC
+  (uint16_t) &PORTD_PIN3CTRL,  // PD 3 ** 7 **
+#else // no pin shifting
   (uint16_t) &PORTD_PIN6CTRL,  // PD 6 ** 6 **
   (uint16_t) &PORTD_PIN7CTRL,  // PD 7 ** 7 **
-#if defined(DIGITAL_IO_PIN_SHIFT) && defined(USE_TWIC)
-  (uint16_t) &PORTD_PIN0CTRL,  // PD 0 ** 8 ** map PORTD pins 0/1 here if TWIC is used
+#endif // DIGITAL_IO_PIN_SHIFT
+
+#ifdef DIGITAL_IO_PIN_SHIFT
+  (uint16_t) &PORTD_PIN0CTRL,  // PD 0 ** 8 ** must do this to reserve PC 0 and 1 for SDA/SCL
   (uint16_t) &PORTD_PIN1CTRL,  // PD 1 ** 9 **
-#else
+#else // no pin shifting
   (uint16_t) &PORTC_PIN0CTRL,  // PC 0 ** 8 ** SDA
   (uint16_t) &PORTC_PIN1CTRL,  // PC 1 ** 9 ** SCL
-#endif // defined(DIGITAL_IO_PIN_SHIFT) && defined(USE_TWIC)
+#endif // DIGITAL_IO_PIN_SHIFT
   (uint16_t) &PORTC_PIN2CTRL,  // PC 2 ** 10 **              ASYNC
   (uint16_t) &PORTC_PIN3CTRL,  // PC 3 ** 11 **
   (uint16_t) &PORTC_PIN4CTRL,  // PC 4 ** 12 ** SPI_SS
   (uint16_t) &PORTC_PIN5CTRL,  // PC 5 ** 13 ** SPI_MOSI
   (uint16_t) &PORTC_PIN6CTRL,  // PC 6 ** 14 ** SPI_MISO
   (uint16_t) &PORTC_PIN7CTRL,  // PC 7 ** 15 ** SPI_SCK
-  (uint16_t) &PORTE_PIN0CTRL,  // PE 0 ** 16 ** SDA
-  (uint16_t) &PORTE_PIN1CTRL,  // PE 1 ** 17 ** SCL
-  (uint16_t) &PORTE_PIN2CTRL,  // PE 2 ** 18 **              ASYNC
-  (uint16_t) &PORTE_PIN3CTRL,  // PE 3 ** 19 **
-  (uint16_t) &PORTR_PIN0CTRL,  // PR 0 ** 20 **
-  (uint16_t) &PORTR_PIN1CTRL,  // PR 1 ** 21 ** default LED
+  (uint16_t) &PORTR_PIN0CTRL,  // PR 0 ** 16 **
+  (uint16_t) &PORTR_PIN1CTRL,  // PR 1 ** 17 ** default LED
 #ifdef DIGITAL_IO_PIN_SHIFT
-#ifdef USE_TWIC
-  (uint16_t) &PORTC_PIN0CTRL,  // PC 0 ** the new 20 ** SDA
-  (uint16_t) &PORTC_PIN1CTRL,  // PC 1 ** the new 21 ** SCL
-#else
-  (uint16_t) &PORTD_PIN0CTRL,  // PD 0 ** the new 20 **
-  (uint16_t) &PORTD_PIN1CTRL,  // PD 1 ** the new 21 **
-#endif // USE_TWIC
+  (uint16_t) &PORTC_PIN0CTRL,  // PC 0 ** the new 16 ** SDA
+  (uint16_t) &PORTC_PIN1CTRL,  // PC 1 ** the new 17 ** SCL
 #endif // DIGITAL_IO_PIN_SHIFT
   (uint16_t) &PORTA_PIN0CTRL,  // PA 0 ** 22 ** A0
   (uint16_t) &PORTA_PIN1CTRL,  // PA 1 ** 23 ** A1
@@ -419,10 +423,6 @@ const uint16_t PROGMEM digital_pin_to_control_PGM[] = {
   (uint16_t) &PORTA_PIN5CTRL,  // PA 5 ** 27 ** A5
   (uint16_t) &PORTA_PIN6CTRL,  // PA 6 ** 28 ** A6
   (uint16_t) &PORTA_PIN7CTRL,  // PA 7 ** 29 ** A7
-  (uint16_t) &PORTB_PIN0CTRL,  // PB 0 ** 30 ** A8
-  (uint16_t) &PORTB_PIN1CTRL,  // PB 1 ** 31 ** A9
-  (uint16_t) &PORTB_PIN2CTRL,  // PB 2 ** 32 ** A10         ASYNC
-  (uint16_t) &PORTB_PIN3CTRL,  // PB 3 ** 33 ** A11
 };
 
 const uint8_t PROGMEM digital_pin_to_port_PGM[] = {
@@ -432,40 +432,45 @@ const uint8_t PROGMEM digital_pin_to_port_PGM[] = {
   _PD,  // PD 0 ** 0 **
   _PD,  // PD 1 ** 1 **
 #endif // DIGITAL_IO_PIN_SHIFT
+
 // subtract 2 from the digital pin number if DIGITAL_IO_PIN_SHIFT is defined
-  _PD,  // PD 2 ** 2 ** USARTD_RX
+#ifdef DIGITAL_IO_PIN_SHIFT
+  _PD,  // PD 6 ** 2 ** USARTD_RX
+  _PD,  // PD 7 ** 3 ** USARTD_TX
+#else // no pin shifting
+  _PD,  // PD 2 ** 2 ** USARTD_RX ASYNC
   _PD,  // PD 3 ** 3 ** USARTD_TX
+#endif // DIGITAL_IO_PIN_SHIFT
+
   _PD,  // PD 4 ** 4 **
   _PD,  // PD 5 ** 5 **
+
+#ifdef DIGITAL_IO_PIN_SHIFT
+  _PD,  // PD 2 ** 6 ** ASYNC
+  _PD,  // PD 3 ** 7 **
+#else // no pin shifting
   _PD,  // PD 6 ** 6 **
   _PD,  // PD 7 ** 7 **
-#if defined(DIGITAL_IO_PIN_SHIFT) && defined(USE_TWIC)
+#endif // DIGITAL_IO_PIN_SHIFT
+
+#ifdef DIGITAL_IO_PIN_SHIFT
   _PD,  // PD 0 ** 8 **
   _PD,  // PD 1 ** 9 **
-#else
+#else // no pin shifting
   _PC,  // PC 0 ** 8 ** SDA
   _PC,  // PC 1 ** 9 ** SCL
-#endif // defined(DIGITAL_IO_PIN_SHIFT) && defined(USE_TWIC)
+#endif // DIGITAL_IO_PIN_SHIFT
   _PC,  // PC 2 ** 10 **
   _PC,  // PC 3 ** 11 **
   _PC,  // PC 4 ** 12 ** SPI_SS
   _PC,  // PC 5 ** 13 ** SPI_MOSI
   _PC,  // PC 6 ** 14 ** SPI_MISO
   _PC,  // PC 7 ** 15 ** SPI_SCK
-  _PE,  // PE 0 ** 16 ** SDA
-  _PE,  // PE 1 ** 17 ** SCL
-  _PE,  // PE 2 ** 18 **
-  _PE,  // PE 3 ** 19 **
-  _PR,  // PR 0 ** 20 **
-  _PR,  // PR 1 ** 21 ** default LED
+  _PR,  // PR 0 ** 16 **
+  _PR,  // PR 1 ** 17 ** default LED
 #ifdef DIGITAL_IO_PIN_SHIFT
-#ifdef USE_TWIC
-  _PC,  // PC 0 ** the new 20 ** SDA
-  _PC,  // PC 1 ** the new 21 ** SCL
-#else
-  _PD,  // PD 0 ** the new 20 **
-  _PD,  // PD 1 ** the new 21 **
-#endif // USE_TWIC
+  _PC,  // PC 0 ** the new 16 ** SDA
+  _PC,  // PC 1 ** the new 17 ** SCL
 #endif // DIGITAL_IO_PIN_SHIFT
   _PA,  // PA 0 ** 22 ** A0
   _PA,  // PA 1 ** 23 ** A1
@@ -475,10 +480,6 @@ const uint8_t PROGMEM digital_pin_to_port_PGM[] = {
   _PA,  // PA 5 ** 27 ** A5
   _PA,  // PA 6 ** 28 ** A6
   _PA,  // PA 7 ** 29 ** A7
-  _PB,  // PB 0 ** 30 ** A8
-  _PB,  // PB 1 ** 31 ** A9
-  _PB,  // PB 2 ** 32 ** A10
-  _PB,  // PB 3 ** 33 ** A11
 };
 
 const uint8_t PROGMEM digital_pin_to_bit_mask_PGM[] = {
@@ -488,40 +489,45 @@ const uint8_t PROGMEM digital_pin_to_bit_mask_PGM[] = {
   _BV( 0 ),  // PD 0 ** 0 **
   _BV( 1 ),  // PD 1 ** 1 **
 #endif // DIGITAL_IO_PIN_SHIFT
+
 // subtract 2 from the digital pin number if DIGITAL_IO_PIN_SHIFT is defined
-  _BV( 2 ),  // PD 2 ** 2 ** USARTD_RX
+#ifdef DIGITAL_IO_PIN_SHIFT
+  _BV( 6 ),  // PD 6 ** 2 ** USARTD_RX
+  _BV( 7 ),  // PD 7 ** 3 ** USARTD_TX
+#else // no pin shifting
+  _BV( 2 ),  // PD 2 ** 2 ** USARTD_RX ASYNC
   _BV( 3 ),  // PD 3 ** 3 ** USARTD_TX
+#endif // DIGITAL_IO_PIN_SHIFT
+
   _BV( 4 ),  // PD 4 ** 4 **
   _BV( 5 ),  // PD 5 ** 5 **
+
+#ifdef DIGITAL_IO_PIN_SHIFT
+  _BV( 2 ),  // PD 2 ** 6 ** ASYNC
+  _BV( 3 ),  // PD 3 ** 7 **
+#else // no pin shifting
   _BV( 6 ),  // PD 6 ** 6 **
   _BV( 7 ),  // PD 7 ** 7 **
-#if defined(DIGITAL_IO_PIN_SHIFT) && defined(USE_TWIC)
+#endif // DIGITAL_IO_PIN_SHIFT
+
+#ifdef DIGITAL_IO_PIN_SHIFT
   _BV( 0 ),  // PD 0 ** 8 **
   _BV( 1 ),  // PD 1 ** 9 **
-#else
+#else // no pin shifting
   _BV( 0 ),  // PC 0 ** 8 ** SDA
   _BV( 1 ),  // PC 1 ** 9 ** SCL
-#endif // defined(DIGITAL_IO_PIN_SHIFT) && defined(USE_TWIC)
+#endif // DIGITAL_IO_PIN_SHIFT
   _BV( 2 ),  // PC 2 ** 10 **
   _BV( 3 ),  // PC 3 ** 11 **
   _BV( 4 ),  // PC 4 ** 12 ** SPI_SS
   _BV( 5 ),  // PC 5 ** 13 ** SPI_MOSI
   _BV( 6 ),  // PC 6 ** 14 ** SPI_MISO
   _BV( 7 ),  // PC 7 ** 15 ** SPI_SCK
-  _BV( 0 ),  // PE 0 ** 16 ** SDA
-  _BV( 1 ),  // PE 1 ** 17 ** SCL
-  _BV( 2 ),  // PE 2 ** 18 **
-  _BV( 3 ),  // PE 3 ** 19 **
-  _BV( 0 ),  // PR 0 ** 20 **
-  _BV( 1 ),  // PR 1 ** 21 ** default LED
+  _BV( 0 ),  // PR 0 ** 16 **
+  _BV( 1 ),  // PR 1 ** 17 ** default LED
 #ifdef DIGITAL_IO_PIN_SHIFT
-#ifdef USE_TWIC
-  _BV( 0 ),  // PC 0 ** the new 20 ** SDA
-  _BV( 1 ),  // PC 1 ** the new 21 ** SCL
-#else
-  _BV( 0 ),  // PD 0 ** the new 20 **
-  _BV( 1 ),  // PD 1 ** the new 21 **
-#endif // USE_TWIC
+  _BV( 0 ),  // PC 0 ** the new 16 ** SDA
+  _BV( 1 ),  // PC 1 ** the new 17 ** SCL
 #endif // DIGITAL_IO_PIN_SHIFT
   _BV( 0 ),  // PA 0 ** 22 ** A0
   _BV( 1 ),  // PA 1 ** 23 ** A1
@@ -531,10 +537,6 @@ const uint8_t PROGMEM digital_pin_to_bit_mask_PGM[] = {
   _BV( 5 ),  // PA 5 ** 27 ** A5
   _BV( 6 ),  // PA 6 ** 28 ** A6
   _BV( 7 ),  // PA 7 ** 29 ** A7
-  _BV( 0 ),  // PB 0 ** 30 ** A8
-  _BV( 1 ),  // PB 1 ** 31 ** A9
-  _BV( 2 ),  // PB 2 ** 32 ** A10
-  _BV( 3 ),  // PB 3 ** 33 ** A11
 };
 
 const uint8_t PROGMEM digital_pin_to_timer_PGM[] = {
@@ -548,43 +550,36 @@ const uint8_t PROGMEM digital_pin_to_timer_PGM[] = {
   // for the appropriate pin.  LCMPENx/HCMPENx registers to enable it.
 
 #ifndef DIGITAL_IO_PIN_SHIFT
-  TIMERD2,       // PD 0 ** 0 **
-  TIMERD2,       // PD 1 ** 1 **
+  TIMERD5,       // PD 0 ** 0 **
+  TIMERD5,       // PD 1 ** 1 **
 #endif // DIGITAL_IO_PIN_SHIFT
+
 // subtract 2 from the digital pin number if DIGITAL_IO_PIN_SHIFT is defined
-  TIMERD2,       // PD 2 ** 2 ** USARTD_RX
-  TIMERD2,       // PD 3 ** 3 ** USARTD_TX
-  TIMERD2,       // PD 4 ** 4 **
-  TIMERD2,       // PD 5 ** 5 **
-  TIMERD2,       // PD 6 ** 6 **
-  TIMERD2,       // PD 7 ** 7 **
-#if defined(DIGITAL_IO_PIN_SHIFT) && defined(USE_TWIC)
-  TIMERD2,       // PD 0 ** 8 **
-  TIMERD2,       // PD 1 ** 9 **
-#else
-  TIMERC2,       // PC 0 ** 8 ** SDA
-  TIMERC2,       // PC 1 ** 9 ** SCL
-#endif // defined(DIGITAL_IO_PIN_SHIFT) && defined(USE_TWIC)
-  TIMERC2,       // PC 2 ** 10 **
-  TIMERC2,       // PC 3 ** 11 **
-  TIMERC2,       // PC 4 ** 12 ** SPI_SS
-  TIMERC2,       // PC 5 ** 13 ** SPI_MOSI
-  TIMERC2,       // PC 6 ** 14 ** SPI_MISO
-  TIMERC2,       // PC 7 ** 15 ** SPI_SCK
-  TIMERE0,       // PE 0 ** 16 ** SDA
-  TIMERE0,       // PE 1 ** 17 ** SCL
-  TIMERE0,       // PE 2 ** 18 **
-  TIMERE0,       // PE 3 ** 19 **
-  NOT_ON_TIMER,  // PR 0 ** 20 **
-  NOT_ON_TIMER,  // PR 1 ** 21 ** default LED
+  NOT_ON_TIMER,  // PD 2,6 ** 2 ** USARTD_RX
+  NOT_ON_TIMER,  // PD 3,7 ** 3 ** USARTD_TX
+  NOT_ON_TIMER,  // PD 4   ** 4 **
+  NOT_ON_TIMER,  // PD 5   ** 5 **
+  TIMERD5,       // PD 6,2 ** 6 **
+  TIMERD5,       // PD 7,3 ** 7 **
+
 #ifdef DIGITAL_IO_PIN_SHIFT
-#ifdef USE_TWIC
-  TIMERC2,       // PC 0 ** the new 20 ** SDA
-  TIMERC2,       // PC 1 ** the new 21 ** SCL
-#else
-  TIMERD2,       // PD 0 ** the new 20 **
-  TIMERD2,       // PD 1 ** the new 21 **
-#endif // USE_TWIC
+  TIMERD5,       // PD 0 ** 8 **
+  TIMERD5,       // PD 1 ** 9 **
+#else // no pin shifting
+  TIMERC4,       // PC 0 ** 8 ** SDA
+  TIMERC4,       // PC 1 ** 9 ** SCL
+#endif // DIGITAL_IO_PIN_SHIFT
+  TIMERC4,       // PC 2 ** 10 **
+  TIMERC4,       // PC 3 ** 11 **
+  TIMERC4,       // PC 4 ** 12 ** SPI_SS
+  TIMERC4,       // PC 5 ** 13 ** SPI_MOSI
+  TIMERC4,       // PC 6 ** 14 ** SPI_MISO
+  TIMERC4,       // PC 7 ** 15 ** SPI_SCK
+  NOT_ON_TIMER,  // PR 0 ** 16 **
+  NOT_ON_TIMER,  // PR 1 ** 17 ** default LED
+#ifdef DIGITAL_IO_PIN_SHIFT
+  TIMERC4,       // PC 0 ** the new 16 **
+  TIMERC4,       // PC 1 ** the new 17 **
 #endif // DIGITAL_IO_PIN_SHIFT
   NOT_ON_TIMER,  // PA 0 ** 22 ** A0
   NOT_ON_TIMER,  // PA 1 ** 23 ** A1
@@ -594,10 +589,6 @@ const uint8_t PROGMEM digital_pin_to_timer_PGM[] = {
   NOT_ON_TIMER,  // PA 5 ** 27 ** A5
   NOT_ON_TIMER,  // PA 6 ** 28 ** A6
   NOT_ON_TIMER,  // PA 7 ** 29 ** A7
-  NOT_ON_TIMER,  // PB 0 ** 30 ** A8
-  NOT_ON_TIMER,  // PB 1 ** 31 ** A9
-  NOT_ON_TIMER,  // PB 2 ** 32 ** A10
-  NOT_ON_TIMER,  // PB 3 ** 33 ** A11
 };
 
 #endif

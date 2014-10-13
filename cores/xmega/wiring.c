@@ -66,8 +66,18 @@ static unsigned char timer0_fract = 0;
 // NOTE:  at 32Mhz MICROSECONDS_PER_TIMER0_OVERFLOW will be 512 - consider a divider of 128 instead
 //        unless you want 2khz for the PWM (which is actually a good idea, for servos etc.)
 
-ISR(TCD2_LUNF_vect) /* for this to work the limit must be 255 */
+#ifdef TCC4 // 'E' series or later that has TCC4 and TCD5
+ISR(TCD5_OVF_vect)
+#else // USING TCD2
+ISR(TCD2_LUNF_vect)
+#endif // TCD2, TCD5
 {
+  // for this to work the limit must be 255 (8-bit mode)
+
+#ifdef TCC4 // 'E' series or later that has TCC4 and TCD5
+  TCD5_INTFLAGS = 1; // clears the flag so I don't 'spin' (this behavior changed from previous timers)
+#endif // 'E' series
+
   // copy these to local variables so they can be stored in registers
   // (volatile variables must be read from memory on every access)
   unsigned long m = timer0_millis;
@@ -110,12 +120,25 @@ unsigned long micros()
   oldSREG = SREG;
   cli(); // for consistency, don't let this part get interrupted
 
-  m = timer0_overflow_count; // for xmega it's really an underflow
+  m = timer0_overflow_count; // for xmega it's really an underflow except 'E' series
+#ifdef TCC4
+  t = 255 - (TCD5_CNT & 0xff);
+#elif !defined(TCD2)
+  t = 255 - (TCD0_CNT & 0xff);
+#else // TCC4
   t = 255 - TCD2_LCNT; // 'low' count, it's what we interrupt on (and it always counts DOWN)
                        // must subtract count value from 255 for this to work correctly
+#endif // TCC4
 
   // check the interrupt flag to see if I just got an underflow
+
+#ifdef TCC4
+  if((TCD5_INTFLAGS & _BV(0)) && (t < 255)) // which means I overflowed but didn't call the ISR yet
+#elif !defined(TCD2)
+  if((TCD0_INTFLAGS & _BV(0)) && (t < 255)) // which means I underflowed but didn't call the ISR yet
+#else // TCC4
   if((TCD2_INTFLAGS & _BV(0)) && (t < 255)) // which means I underflowed but didn't call the ISR yet
+#endif // TCC4
   {
     m++; // increment ISR count for more accurate microseconds
   }
@@ -143,6 +166,8 @@ void delay(unsigned long ms)
 // NOTE:  for XMEGA, you can have a 32mhz clock
 void delayMicroseconds(unsigned int us)
 {
+  // NOTE:  for 32mhz clock, max time is 65536 / 8 or about 8k microsecs
+
   // calling avrlib's delay_us() function with low values (e.g. 1 or
   // 2 microseconds) gives delays longer than desired.
   //delay_us(us);
@@ -172,7 +197,7 @@ void delayMicroseconds(unsigned int us)
   us = (us<<3);// * 8
 
   // account for the time taken in the preceeding commands.
-  us -= 2;
+  us -= 2; // 2 clock cycles
 
 #elif F_CPU >= 20000000L
   // for the 20 MHz clock on rare Arduino boards
@@ -249,12 +274,11 @@ register unsigned char c1;
 
   // enable BOTH the 32Mhz and 32.768KHz internal clocks [ignore what else might be set for now]
 
-  OSC_CTRL |= _BV(2) | _BV(1); // sect 6.10.1 - enable 32.768KHz (2), 32Mhz (1).  2Mhz is _BV(0)
-                               //               _BV(3) and _BV(4) are for PLL and external - will set to 0 later
+  OSC_CTRL |= CLK_SCLKSEL_RC32M_gc | CLK_SCLKSEL_RC32K_gc;
 
-  if(!(CLK_LOCK & 1)) // clock lock bit NOT set, so I can muck with the clock
+  if(!(CLK_LOCK & CLK_LOCK_bm)) // clock lock bit NOT set, so I can muck with the clock
   {
-    if((CLK_CTRL & 0x7) != 1) // it's not already 32 Mhz
+    if((CLK_CTRL & CLK_SCLKSEL_gm) != CLK_SCLKSEL_RC32M_gc) // it's not already 32 Mhz
     {
       // wait until 32mhz clock is 'stable'
 
@@ -262,7 +286,7 @@ register unsigned char c1;
       {
         // spin on oscillator status bit for 32Mhz oscillator
 
-        if(OSC_STATUS & _BV(1)) // 32Mhz oscillator is 'ready' (6.10.2)
+        if(OSC_STATUS & CLK_SCLKSEL_RC32M_gc) // 32Mhz oscillator is 'ready' (6.10.2)
         {
           break;
         }
@@ -271,7 +295,7 @@ register unsigned char c1;
       // for now, I can allow the clock to NOT be changed if it's
       // not ready.  This prevents infinite loop inside startup code
 
-      if(!(OSC_STATUS & _BV(1))) // is my oscillator 'ready' ?
+      if(!(OSC_STATUS & CLK_SCLKSEL_RC32M_gc)) // is my oscillator 'ready' ?
       {
         return; // exit - don't change anything
       }
@@ -279,7 +303,7 @@ register unsigned char c1;
       // switch to 32Mhz clock using internal source
 
       CCP = CCP_IOREG_gc; // 0xd8 - see D manual, sect 3.14.1 (protected I/O)
-      CLK_CTRL = 1; // set the clock to 32Mhz (6.9.1)
+      CLK_CTRL = CLK_SCLKSEL_RC32M_gc; // set the clock to 32Mhz (6.9.1)
     }
 
     if(CLK_PSCTRL != 0)
@@ -288,10 +312,14 @@ register unsigned char c1;
       CLK_PSCTRL = 0; // set the clock divider(s) to 1:1 (6.9.2)
     }
 
-
     // now that I've changed the clock, disable 2Mhz, PLL, and external clocks
     // 32.768KHz should remain active, but I need to make sure it's stable
-    OSC_CTRL &= ~(_BV(4) | _BV(3) | _BV(0)); // sect 6.10.1 - disable PLL, external, 2Mhz clocks
+    OSC_CTRL &= // ~(_BV(4) | _BV(3) | _BV(0)); // sect 6.10.1 - disable PLL, external, 2Mhz clocks
+      ~(CLK_SCLKSEL_RC2M_gc | CLK_SCLKSEL_XOSC_gc | CLK_SCLKSEL_PLL_gc
+#ifdef OSC_RC8MCAL // only present in 'E' series
+        | CLK_SCLKSEL_RC8M_gc
+#endif // OSC_RC8MCAL
+        );
 
     // wait until 32.768KHz clock is 'stable'.  this one goes for a while
     // in case it doesn't stabilize in a reasonable time.  I figure about
@@ -300,7 +328,7 @@ register unsigned char c1;
     {
       for(c1=255; c1 > 0; c1--)
       {
-        if(OSC_STATUS & _BV(2)) // 32.768KHz oscillator is 'ready' (6.10.2)
+        if(OSC_STATUS & CLK_SCLKSEL_RC32K_gc) // 32.768KHz oscillator is 'ready' (6.10.2)
         {
           sCtr = 1; // this will bail out of the outer loop
           break;
@@ -324,7 +352,7 @@ register unsigned char c1;
   {
     for(c1=255; c1 > 0; c1--)
     {
-      if(OSC_STATUS & _BV(2)) // 32.768KHz oscillator is 'ready' (6.10.2)
+      if(OSC_STATUS & CLK_SCLKSEL_RC32K_gc) // 32.768KHz oscillator is 'ready' (6.10.2)
       {
         sCtr = 1; // this will bail out of the outer loop
         break;
@@ -332,7 +360,7 @@ register unsigned char c1;
     }
   }
 
-  if(!(OSC_STATUS & _BV(2))) // is my oscillator 'ready' ?
+  if(!(OSC_STATUS & CLK_SCLKSEL_RC32K_gc)) // is my oscillator 'ready' ?
   {
     return; // exit - don't change anything else
   }
@@ -402,6 +430,137 @@ void init()
   // If you don't need PWM, or want 'other than 2khz', you can re-configure TCC0/2 and TCE0/2
   // but leave TCD2 alone because it's needed for the system clock (via TCD2_LUNF_vect)
 
+  // on the 'E' series (and anything with timers 4 and 5), this will be TCD5
+
+#ifdef TCC4 /* this is my trigger for 'E' series */
+
+  // TCD5 first
+  TCD5_INTCTRLA = 0;   // no underflow interrupts
+  TCD5_INTCTRLB = 0;   // no comparison interrupts
+
+  TCD5_CTRLA = 5; // b0101 - divide by 64 - E manual 13.13.1
+  TCD5_CTRLB = TC45_BYTEM_BYTEMODE_gc | TC45_WGMODE_SINGLESLOPE_gc; // byte mode
+//  TCD5_CTRLC = 0; // when timer not running, sets compare (13.9.3)
+  TCD5_CTRLD = 0; // events off
+  TCD5_CTRLE = 0; // no output on L pins
+  TCD5_CTRLF = 0; // no output on H pins
+
+  TCD5_PER = 255; // 255 for period limit
+
+  // pre-assign comparison registers to 'zero' (for PWM out) which is actually 255
+  // 'timer 2' counts DOWN.
+
+  TCD5_CCA = 65535;
+  TCD5_CCB = 65535;
+
+  TCD5_CTRLGCLR = 0xfe;
+  TCD5_CTRLGSET = 1; // count DOWN
+
+  // enable the underflow interrupt on A, disable on B, disable comparison interrupts
+  TCD5_INTCTRLA = 0x3; // enable LOW underflow interrupt, pri level 3 (see 13.9.5 in D manual)
+
+
+  // TCC4
+  // first the clock selection
+  TCC4_CTRLA = 5; // b0101 - divide by 64 - E manual 13.13.1
+  TCC4_CTRLB = TC45_BYTEM_BYTEMODE_gc | TC45_WGMODE_SINGLESLOPE_gc; // byte mode
+//  TCC5_CTRLC = 0; // when timer not running, sets compare (13.9.3)
+  TCC4_CTRLD = 0; // events off
+  TCC4_CTRLE = 0; // no output on L pins
+  TCC4_CTRLF = 0; // no output on H pins
+
+  TCC4_PER = 255; // 255 for period limit
+
+  // pre-assign comparison registers to 'zero' (for PWM out) which is actually 255
+  // 'timer 2' counts DOWN.
+
+  TCC4_CCA = 65535;
+  TCC4_CCB = 65535;
+  TCC4_CCC = 65535;
+  TCC4_CCD = 65535;
+
+  TCC4_CTRLGCLR = 0xfe;
+  TCC4_CTRLGSET = 1; // count DOWN
+
+
+  // disable underflow and comparison interrupts
+  TCC4_INTCTRLA = 0;   // no underflow interrupts
+  TCC4_INTCTRLB = 0;   // no comparison interrupts
+
+
+#else // everything else uses TCD2
+
+#ifndef TCC2 /* A1 series doesn't define thi properly, so use TCC0 and TCD0, etc. */
+
+  // TCD2
+  // first the clock selection
+  TCD0_CTRLA = 5; // b0101 - divide by 64 - D manual 13.9.1 (should be the same for 'A' and others)
+  TCD0_CTRLB = 0; // compare outputs disabled on all 8 bits (13.9.2)
+//  TCD0_CTRLC = 0; // when timer not running, sets compare (13.9.3)
+  TCD0_CTRLE = 0x2; // b10 - 'split' mode - D manual 13.9.4
+#ifdef TCD0_CTRLFCLR
+  TCD0_CTRLFCLR = 0xff;
+#else // TCD0_CTRLFCLR
+  TCD0_CTRLF = 0;   // not resetting or anything (13.9.7)
+#endif // TCD0_CTRLFCLR
+
+  TCD0_PER = 255;
+//  TCD2_LPER = 255; // count 255 to 0 (total period = 256)
+//  TCD2_HPER = 255;
+
+  // pre-assign comparison registers to 'zero' (for PWM out) which is actually 255
+  // 'timer 2' counts DOWN.
+
+  ((uint8_t *)&(TCD0_CCA))[0] = 255; // low bytes
+  ((uint8_t *)&(TCD0_CCB))[0] = 255;
+  ((uint8_t *)&(TCD0_CCC))[0] = 255;
+  ((uint8_t *)&(TCD0_CCD))[0] = 255;
+
+  ((uint8_t *)&(TCD0_CCA))[1] = 255; // high bytes
+  ((uint8_t *)&(TCD0_CCB))[1] = 255;
+  ((uint8_t *)&(TCD0_CCC))[1] = 255;
+  ((uint8_t *)&(TCD0_CCD))[1] = 255;
+
+  // enable the underflow interrupt on A, disable on B, disable comparison interrupts
+  TCD0_INTCTRLA = 0x3; // enable LOW underflow interrupt, pri level 3 (see 13.9.5 in D manual)
+  TCD0_INTCTRLB = 0;   // no comparison or underflow interrupts on anything else
+
+
+  // TCC2
+  // first the clock selection
+  TCC0_CTRLA = 5; // b0101 - divide by 64 - D manual 13.9.1
+  TCC0_CTRLB = 0; // compare outputs disabled on all 8 bits (13.9.2)
+//  TCC2_CTRLC = 0; // when timer not running, sets compare (13.9.3)
+  TCC0_CTRLE = 0x2; // b10 - 'split' mode - D manual 13.9.4
+#ifdef TCC0_CTRLFCLR
+  TCC0_CTRLFCLR = 0xff;
+#else // TCC0_CTRLFCLR
+  TCC0_CTRLF = 0;   // not resetting or anything (13.9.7)
+#endif // TCC0_CTRLFCLR
+
+  TCC0_PER = 255;
+//  TCC2_LPER = 255; // count 255 to 0 (total period = 256)
+//  TCC2_HPER = 255; // should this be zero?
+
+  // pre-assign comparison registers to 'zero' (for PWM out) which is actually 255
+  // 'timer 2' counts DOWN.  This, however, would generate a '1' output.
+
+  ((uint8_t *)&(TCC0_CCA))[0] = 255; // low bytes
+  ((uint8_t *)&(TCC0_CCB))[0] = 255;
+  ((uint8_t *)&(TCC0_CCC))[0] = 255;
+  ((uint8_t *)&(TCC0_CCD))[0] = 255;
+
+  ((uint8_t *)&(TCC0_CCA))[1] = 255; // high bytes
+  ((uint8_t *)&(TCC0_CCB))[1] = 255;
+  ((uint8_t *)&(TCC0_CCC))[1] = 255;
+  ((uint8_t *)&(TCC0_CCD))[1] = 255;
+
+  // disable underflow and comparison interrupts
+  TCC0_INTCTRLA = 0;   // no underflow interrupts
+  TCC0_INTCTRLB = 0;   // no comparison interrupts
+
+#else // TCC2
+
   // TCD2
   // first the clock selection
   TCD2_CTRLA = 5; // b0101 - divide by 64 - D manual 13.9.1
@@ -459,6 +618,77 @@ void init()
   TCC2_INTCTRLA = 0;   // no underflow interrupts
   TCC2_INTCTRLB = 0;   // no comparison interrupts
 
+#endif // TCC2
+
+#endif // TCD5 or TCD2
+
+
+#if NUM_DIGITAL_PINS > 22 /* meaning PORTE has 8 pins */
+
+#ifndef TCE2
+
+  TCE0_CTRLA = 5; // b0101 - divide by 64 - D manual 13.9.1
+  TCE0_CTRLB = 0; // compare outputs disabled on all 8 bits (13.9.2)
+//  TCE2_CTRLC = 0; // when timer not running, sets compare (13.9.3)
+  TCE0_CTRLE = 0x2; // b10 - 'split' mode - D manual 13.9.4
+#ifdef TCE0_CTRLFCLR
+  TCE0_CTRLFCLR = 0xff;
+#else // TCE0_CTRLFCLR
+  TCE0_CTRLF = 0;   // not resetting or anything (13.9.7)
+#endif // TCE0_CTRLFCLR
+
+  TCE0_PER = 255;
+//  TCE0_LPER = 255; // count 255 to 0 (total period = 256)
+//  TCE0_HPER = 255; // should this be zero?
+
+  // pre-assign comparison registers to 'zero' (for PWM out) which is actually 255
+  // 'timer 2' counts DOWN.  This, however, would generate a '1' output.
+
+  ((uint8_t *)&(TCE0_CCA))[0] = 255; // low bytes
+  ((uint8_t *)&(TCE0_CCB))[0] = 255;
+  ((uint8_t *)&(TCE0_CCC))[0] = 255;
+  ((uint8_t *)&(TCE0_CCD))[0] = 255;
+
+  ((uint8_t *)&(TCE0_CCA))[1] = 255; // high bytes
+  ((uint8_t *)&(TCE0_CCB))[1] = 255;
+  ((uint8_t *)&(TCE0_CCC))[1] = 255;
+  ((uint8_t *)&(TCE0_CCD))[1] = 255;
+
+  // disable underflow and comparison interrupts
+  TCE0_INTCTRLA = 0;   // no underflow interrupts
+  TCE0_INTCTRLB = 0;   // no comparison interrupts
+
+#else // TCE2 defined, use that
+
+  TCE2_CTRLA = 5; // b0101 - divide by 64 - D manual 13.9.1
+  TCE2_CTRLB = 0; // compare outputs disabled on all 8 bits (13.9.2)
+//  TCE2_CTRLC = 0; // when timer not running, sets compare (13.9.3)
+  TCE2_CTRLE = 0x2; // b10 - 'split' mode - D manual 13.9.4
+  TCE2_CTRLF = 0;   // not resetting or anything (13.9.7)
+
+  TCE2_LPER = 255; // count 255 to 0 (total period = 256)
+  TCE2_HPER = 255;
+
+  // pre-assign comparison registers to 'zero' (for PWM out) which is actually 255
+  // 'timer 2' counts DOWN.  This, however, would generate a '1' output.
+
+  TCE2_LCMPA = 255;
+  TCE2_LCMPB = 255;
+  TCE2_LCMPC = 255;
+  TCE2_LCMPD = 255;
+
+  TCE2_HCMPA = 255;
+  TCE2_HCMPB = 255;
+  TCE2_HCMPC = 255;
+  TCE2_HCMPD = 255;
+
+  // disable underflow and comparison interrupts
+  TCE2_INTCTRLA = 0;   // no underflow interrupts
+  TCE2_INTCTRLB = 0;   // no comparison interrupts
+
+#endif // TCE2
+
+#elif NUM_DIGITAL_PINS > 18 /* meaning there is a PORT E available */
 
   // now set up TCE0 as an 8-bit timer so it's compatible with Arduino's PWM
   // first the clock selection
@@ -485,6 +715,8 @@ void init()
   TCE0_CCC = 255;
   TCE0_CCD = 255;
 
+#endif // NUM_DIGITAL_PINS > 18
+
 
   // in case the bootloader enabled serial or TWI, disable it
   // and make sure the associated port input pins are inputs
@@ -498,9 +730,11 @@ void init()
   // -----------------------------------------
 
   TWIC_MASTER_CTRLA = 0;
-  TWIE_MASTER_CTRLA = 0;
   TWIC_SLAVE_CTRLA = 0;
+#if NUM_DIGITAL_PINS > 18 /* meaning there is a PORT E available */
+  TWIE_MASTER_CTRLA = 0;
   TWIE_SLAVE_CTRLA = 0;
+#endif // NUM_DIGITAL_PINS > 18
 
   // --------------------
   // DISABLE SERIAL PORTS
@@ -511,27 +745,69 @@ void init()
   USARTC0_CTRLA = 0; // do the same thing
   USARTC0_CTRLB = 0; // for both port C and D
 
+#ifdef USARTC0_CTRLD
+  USARTC0_CTRLD = 0;  // E5 has this register, must assign to zero
+#endif // USARTC0_CTRLD  
+#ifdef USARTD0_CTRLD
+  USARTD0_CTRLD = 0;  // E5 has this register, must assign to zero
+#endif // USARTC0_CTRLD  
+
+  // other serial ports found on A series
+#ifdef USARTDD1_CTRLA
+  USARTD1_CTRLA = 0; // disables interrupts
+  USARTD1_CTRLB = 0; // disables interrupts
+#endif // USARTD1_CTRLA
+#ifdef USARTDC1_CTRLA
+  USARTC1_CTRLA = 0; // disables interrupts
+  USARTC1_CTRLB = 0; // disables interrupts
+#endif // USARTD1_CTRLA
+#ifdef USARTDE0_CTRLA
+  USARTE0_CTRLA = 0; // disables interrupts
+  USARTE0_CTRLB = 0; // disables interrupts
+#endif // USARTD1_CTRLA
+#ifdef USARTDE1_CTRLA
+  USARTE1_CTRLA = 0; // disables interrupts
+  USARTE1_CTRLB = 0; // disables interrupts
+#endif // USARTD1_CTRLA
+#ifdef USARTDF0_CTRLA
+  USARTF0_CTRLA = 0; // disables interrupts
+  USARTF0_CTRLB = 0; // disables interrupts
+#endif // USARTD1_CTRLA
+#ifdef USARTDF1_CTRLA
+  USARTF1_CTRLA = 0; // disables interrupts
+  USARTF1_CTRLB = 0; // disables interrupts
+#endif // USARTD1_CTRLA
+
+
+
   //-----------------------------
   // PORTS C, D, and E are inputs
   //-----------------------------
 
   PORTC_DIR = 0; // all 'port C' pins are now inputs
   PORTD_DIR = 0; // all 'port D' pins are now inputs
+#if NUM_DIGITAL_PINS > 18 /* meaning there is a PORT E available */
   PORTE_DIR = 0; // all 'port E' pins are now inputs
+#endif // NUM_DIGITAL_PINS > 18
 
 
   // Added code to pre-set input pins also - note PIN0CTRL through PIN7CTRL are like an array
   // also, 'PORT_ISC_BOTHEDGES_gc | PORT_OPC_TOTEM_gc' evaluates to '0' and is the normal default
   memset((void *)&(PORTC.PIN0CTRL), PORT_ISC_BOTHEDGES_gc | PORT_OPC_TOTEM_gc, 8);
   memset((void *)&(PORTD.PIN0CTRL), PORT_ISC_BOTHEDGES_gc | PORT_OPC_TOTEM_gc, 8);
+#if NUM_DIGITAL_PINS > 18 /* meaning there is a PORT E available */
   memset((void *)&(PORTE.PIN0CTRL), PORT_ISC_BOTHEDGES_gc | PORT_OPC_TOTEM_gc, 4);
+#endif // NUM_DIGITAL_PINS > 18
 
   // ---------------------------------------------------
   // ANALOG INPUT PINS - 'INPUT_DISABLED' (recommended)
   // ---------------------------------------------------
 
   PORTA_DIR = 0; // direction bits - set all of them as input
+#if NUM_ANALOG_PINS > 8 /* meaning there is a PORT B */
   PORTB_DIR = 0;
+#endif // NUM_ANALOG_PINS > 8
+
 
 #if 1
   // all analog pins set up for 'INPUT_DISABLED' which is recommended for analog read

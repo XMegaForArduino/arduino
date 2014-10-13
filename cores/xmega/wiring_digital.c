@@ -172,10 +172,123 @@ void pinMode(uint8_t pin, uint8_t mode)
 
 // BBB - added 'bit' parameter for xmega - it's a bit MASK, not a bit number
 //       use the result from digitalPinToBitMask(pin) for 'bit'
+
 static void turnOffPWM(uint8_t timer, uint8_t bit)
 {
+#ifdef TCC4 /* 'E' series and later that have TCC4 */
+register uint8_t mode;
+#endif // TCC4
+
   switch (timer)
   {
+#ifdef TCC4 /* 'E' series and later that have TCC4 */
+      case TIMERC4:
+
+        if(bit == 1)
+        {
+          mode = (TCC4_CTRLE & ~TC4_LCCAMODE_gm);
+        }
+        else if(bit == 2)
+        {
+          mode = (TCC4_CTRLE & ~TC4_LCCBMODE_gm);
+        }
+        else if(bit == 4)
+        {
+          mode = (TCC4_CTRLE & ~TC4_LCCCMODE_gm);
+        }
+        else if(bit == 8)
+        {
+          mode = (TCC4_CTRLE & ~TC4_LCCDMODE_gm);
+        }
+        else if(bit == 16)
+        {
+          mode = (TCC4_CTRLF & ~TC4_HCCAMODE_gm);
+        }
+        else if(bit == 32)
+        {
+          mode = (TCC4_CTRLF & ~TC4_HCCBMODE_gm);
+        }
+        else if(bit == 64)
+        {
+          mode = (TCC4_CTRLF & ~TC4_HCCCMODE_gm);
+        }
+        else if(bit == 128)
+        {
+          mode = (TCC4_CTRLF & ~TC4_HCCDMODE_gm);
+        }
+        else
+        {
+          break;
+        }
+
+        if(bit <= 8)
+        {
+          TCC4_CTRLE = mode;
+        }
+        else
+        {
+          TCC4_CTRLF = mode;
+        }
+
+        break;
+
+      case TIMERD5:
+
+        if(bit == 1 || bit == 16)
+        {
+          mode = (TCD5_CTRLE & ~TC5_LCCAMODE_gm);
+        }
+        else if(bit == 2 || bit == 32)
+        {
+          mode = (TCD5_CTRLE & ~TC5_LCCBMODE_gm);
+        }
+        else if(bit == 4 || bit == 64)
+        {
+          mode = (TCD5_CTRLF & ~TC5_HCCAMODE_gm);
+        }
+        else if(bit == 8 || bit == 128)
+        {
+          mode = (TCD5_CTRLF & ~TC5_HCCBMODE_gm);
+        }
+        else
+        {
+          break;
+        }
+
+        // TODO:  check to see if it was enabled AND the bit was configured properly for PWM
+        //        AND was properly mapped (L vs H, REMAP register?)
+        if(bit == 1 || bit == 2 ||  bit == 16 || bit == 32)
+        {
+          TCD5_CTRLE = mode;
+        }
+        else
+        {
+          TCD5_CTRLF = mode;
+        }
+
+        break;
+
+#else // everything else
+
+#ifndef TCC2 /* A1 series does not define this */
+
+    case TIMERD2:
+      TCD0_CTRLB &= ~bit; // DISables PWM output
+      break;
+
+    case TIMERC2:
+      TCC0_CTRLB &= ~bit; // DISables PWM output
+      break;
+
+#if NUM_DIGITAL_PINS > 18 /* which means we have PORT E */
+// TODO:  64d4 has 4 pins on PORT E.  128A1 has 8 pins on PORT E.  determine which to use?
+    case TIMERE0:
+      TCE0_CTRLB &= ~(bit << 4); // DISables PWM output
+                                 // note that the 'enable' bits are in CTRLB and in upper nybble
+      break;
+#endif // NUM_DIGITAL_PINS > 18
+
+#else // TCC2
     case TIMERD2:
       TCD2_CTRLB &= ~bit; // DISables PWM output
       break;
@@ -183,11 +296,16 @@ static void turnOffPWM(uint8_t timer, uint8_t bit)
     case TIMERC2:
       TCC2_CTRLB &= ~bit; // DISables PWM output
       break;
-
+#if NUM_DIGITAL_PINS > 18 /* which means we have PORT E */
+// TODO:  64d4 has 4 pins on PORT E.  128A1 has 8 pins on PORT E.  determine which to use?
     case TIMERE0:
       TCE0_CTRLB &= ~(bit << 4); // DISables PWM output
                                  // note that the 'enable' bits are in CTRLB and in upper nybble
       break;
+#endif // NUM_DIGITAL_PINS > 18
+#endif // TCC2
+
+#endif // TCC4
   }
 }
 

@@ -132,16 +132,13 @@
 // The default UART is assigned on Port D, pins PD2-3
 // The default SPI is assigned on Port C, pins PC4-7
 //
-// Also there are multiple 2-wire ports, the default being assigned to PE0-1
-// TODO:  assign to PC0-1 (TWIC) since TWIE appears to be broke-dick
+// There is only ONE TWI on the 'E' series, on port C pins 0,1
 //
 // Standard GPIO pins are assigned as follows:
 // PD0-7 Digital 0-7
 // PC0-7 Digital 8-15
-// PE0-3 digital 16-19
-// PR0-1 digital 20-21
+// PR0-1 digital 16-17
 // PA0-7 analog A0-A7
-// PB0-3 analog A8-A11
 //
 // '#define'ing DIGITAL_IO_PIN_SHIFT shifts this down by 2, and places PD0-1 on 20-21
 // This is for Arduino 'atmega' compatibility with respect to existing shields, so that
@@ -161,10 +158,44 @@
 // See 'D' manual chapter 13 for more on this
 
 
+// --------------------------------------------
+// DEFINITIONS FOR SERIAL PORTS AND DEFAULT TWI
+// --------------------------------------------
+
+#define DEFAULT_TWI TWIC
+
+// serial port 0
+#define SERIAL_0_PORT_NAME PORTD
+#define SERIAL_0_USART_NAME USARTD0
+#define SERIAL_0_USART_DATA USARTD0_DATA
+#define SERIAL_0_RXC_ISR ISR(USARTD0_RXC_vect)
+#define SERIAL_0_DRE_ISR ISR(USARTD0_DRE_vect)
+//#define SERIAL_0_REMAP PORTD_REMAP /* define THIS to re-map the pins from 0-3 to 4-7 on serial port 0 */
+#define SERIAL_0_REMAP_BIT 4    /* the bit needed to remap the port if SERIAL_0_REMAP is defined */
+#define SERIAL_0_RX_PIN_INDEX 2 /* the pin number on the port, not the mapped digital pin number */
+#define SERIAL_0_TX_PIN_INDEX 3 /* the pin number on the port, not the mapped digital pin number */
+
+// serial port 1
+#define SERIAL_1_PORT_NAME PORTC
+#define SERIAL_1_USART_NAME USARTC0
+#define SERIAL_1_USART_DATA USARTC0_DATA
+#define SERIAL_1_RXC_ISR ISR(USARTC0_RXC_vect)
+#define SERIAL_1_DRE_ISR ISR(USARTC0_DRE_vect)
+//#define SERIAL_1_REMAP PORTC_REMAP /* define THIS to re-map the pins from 0-3 to 4-7 on serial port 1 */
+#define SERIAL_1_REMAP_BIT 4    /* the bit needed to remap the port if SERIAL_1_REMAP is defined */
+#define SERIAL_1_RX_PIN_INDEX 2 /* the pin number on the port, not the mapped digital pin number */
+#define SERIAL_1_TX_PIN_INDEX 3 /* the pin number on the port, not the mapped digital pin number */
+
+
+// pin shifting for TCD5 [since it's only 4-bits, which ones get the PWM out?]
+
+#define TCD5_PIN_SHIFT 0xe /* 1110b PD0 PD5 PD6 PD7 */
+
+
 // For atmega/Arduino shield compatibility, with DIGITAL_IO_PIN_SHIFT defined
 // typical board/pin layout might be like this (for shield pins):
 //
-// TWI is on TWIC (port C pins 0/1)
+// TWI is on TWIC (port C pins 0/1).  pins marked as '~' have PWM
 //
 //               M M
 //             S I O   T R
@@ -174,9 +205,9 @@
 //     L A F D 3 2 1 0 9 8  7 6 5 4 3 2 1 0
 // ----o-o-o-o-o-o-o-o-o-o--o-o-o-o-o-o-o-o----
 //     P P     P P P P P P  P P P P P P P P
-//     C C     C C C C C C  C C D D D D D D
-//     1 0     7 6 5 4 3 2  1 0 7 6 5 4 3 2
-//
+//     C C     C C C C C C  D D D D D D D D
+//     1 0     7 6 5 4 3 2  0 1 7 6 5 4 3 2
+//                 ~ ~ ~ ~  ~ ~ ~ ~ ~ ~ ~ ~
 //
 //               T O P   V I E W
 //
@@ -345,8 +376,8 @@ const uint16_t PROGMEM digital_pin_to_control_PGM[] = {
   (uint16_t) &PORTD_PIN6CTRL,  // PD 6 ** 6 **
   (uint16_t) &PORTD_PIN7CTRL,  // PD 7 ** 7 **
 #ifdef DIGITAL_IO_PIN_SHIFT
-  (uint16_t) &PORTD_PIN0CTRL,  // PD 0 ** 8 ** must do this to reserve PC 0 and 1 for SDA/SCL
-  (uint16_t) &PORTD_PIN1CTRL,  // PD 1 ** 9 **
+  (uint16_t) &PORTD_PIN1CTRL,  // PD 1 ** 8 ** PC 0,1 must be used for TWI
+  (uint16_t) &PORTD_PIN0CTRL,  // PD 0 ** 9 ** PWM out here
 #else // no pin shifting
   (uint16_t) &PORTC_PIN0CTRL,  // PC 0 ** 8 ** SDA
   (uint16_t) &PORTC_PIN1CTRL,  // PC 1 ** 9 ** SCL
@@ -360,8 +391,8 @@ const uint16_t PROGMEM digital_pin_to_control_PGM[] = {
   (uint16_t) &PORTR_PIN0CTRL,  // PR 0 ** 16 **
   (uint16_t) &PORTR_PIN1CTRL,  // PR 1 ** 17 ** default LED
 #ifdef DIGITAL_IO_PIN_SHIFT
-  (uint16_t) &PORTC_PIN0CTRL,  // PD 0 ** the new 16 ** SDA
-  (uint16_t) &PORTC_PIN1CTRL,  // PD 1 ** the new 17 ** SCL
+  (uint16_t) &PORTC_PIN0CTRL,  // PC 0 ** the new 16 ** SDA
+  (uint16_t) &PORTC_PIN1CTRL,  // PC 1 ** the new 17 ** SCL
 #endif // DIGITAL_IO_PIN_SHIFT
   (uint16_t) &PORTA_PIN0CTRL,  // PA 0 ** 22 ** A0
   (uint16_t) &PORTA_PIN1CTRL,  // PA 1 ** 23 ** A1
@@ -388,8 +419,8 @@ const uint8_t PROGMEM digital_pin_to_port_PGM[] = {
   _PD,  // PD 6 ** 6 **
   _PD,  // PD 7 ** 7 **
 #ifdef DIGITAL_IO_PIN_SHIFT
-  _PD,  // PD 0 ** 8 **
-  _PD,  // PD 1 ** 9 **
+  _PD,  // PD 1 ** 8 **
+  _PD,  // PD 0 ** 9 **
 #else // no pin shifting
   _PC,  // PC 0 ** 8 ** SDA
   _PC,  // PC 1 ** 9 ** SCL
@@ -431,8 +462,8 @@ const uint8_t PROGMEM digital_pin_to_bit_mask_PGM[] = {
   _BV( 6 ),  // PD 6 ** 6 **
   _BV( 7 ),  // PD 7 ** 7 **
 #ifdef DIGITAL_IO_PIN_SHIFT
-  _BV( 0 ),  // PD 0 ** 8 **
-  _BV( 1 ),  // PD 1 ** 9 **
+  _BV( 1 ),  // PD 1 ** 8 **
+  _BV( 0 ),  // PD 0 ** 9 **
 #else // no pin shifting
   _BV( 0 ),  // PC 0 ** 8 ** SDA
   _BV( 1 ),  // PC 1 ** 9 ** SCL
@@ -470,34 +501,34 @@ const uint8_t PROGMEM digital_pin_to_timer_PGM[] = {
   // for the appropriate pin.  LCMPENx/HCMPENx registers to enable it.
 
 #ifndef DIGITAL_IO_PIN_SHIFT
-  TIMERD2,       // PD 0 ** 0 **
-  TIMERD2,       // PD 1 ** 1 **
+  TIMERD5,       // PD 0 ** 0 **
+  NOT_ON_TIMER,  // PD 1 ** 1 **
 #endif // DIGITAL_IO_PIN_SHIFT
 // subtract 2 from the digital pin number if DIGITAL_IO_PIN_SHIFT is defined
-  TIMERD2,       // PD 2 ** 2 ** USARTD_RX
-  TIMERD2,       // PD 3 ** 3 ** USARTD_TX
-  TIMERD2,       // PD 4 ** 4 **
-  TIMERD2,       // PD 5 ** 5 **
-  TIMERD2,       // PD 6 ** 6 **
-  TIMERD2,       // PD 7 ** 7 **
+  NOT_ON_TIMER,  // PD 2 ** 2 ** USARTD_RX
+  NOT_ON_TIMER,  // PD 3 ** 3 ** USARTD_TX
+  NOT_ON_TIMER,  // PD 4 ** 4 **
+  TIMERD5,       // PD 5 ** 5 ** PWM 3
+  TIMERD5,       // PD 6 ** 6 **
+  TIMERD5,       // PD 7 ** 7 ** PWM 5
 #ifdef DIGITAL_IO_PIN_SHIFT
-  TIMERD2,       // PD 0 ** 8 **
-  TIMERD2,       // PD 1 ** 9 **
+  NOT_ON_TIMER,  // PD 1 ** 8 **
+  TIMERD5,       // PD 0 ** 9 ** PWM 7
 #else // no pin shifting
-  TIMERC2,       // PC 0 ** 8 ** SDA
-  TIMERC2,       // PC 1 ** 9 ** SCL
+  TIMERC4,       // PC 0 ** 8 ** SDA
+  TIMERC4,       // PC 1 ** 9 ** SCL
 #endif // DIGITAL_IO_PIN_SHIFT
-  TIMERC2,       // PC 2 ** 10 **
-  TIMERC2,       // PC 3 ** 11 **
-  TIMERC2,       // PC 4 ** 12 ** SPI_SS
-  TIMERC2,       // PC 5 ** 13 ** SPI_MOSI
-  TIMERC2,       // PC 6 ** 14 ** SPI_MISO
-  TIMERC2,       // PC 7 ** 15 ** SPI_SCK
+  TIMERC4,       // PC 2 ** 10 **
+  TIMERC4,       // PC 3 ** 11 **
+  TIMERC4,       // PC 4 ** 12 ** SPI_SS
+  TIMERC4,       // PC 5 ** 13 ** SPI_MOSI
+  TIMERC4,       // PC 6 ** 14 ** SPI_MISO
+  TIMERC4,       // PC 7 ** 15 ** SPI_SCK
   NOT_ON_TIMER,  // PR 0 ** 16 **
   NOT_ON_TIMER,  // PR 1 ** 17 ** default LED
 #ifdef DIGITAL_IO_PIN_SHIFT
-  TIMERC2,       // PC 0 ** the new 16 **
-  TIMERC2,       // PC 1 ** the new 17 **
+  TIMERC4,       // PC 0 ** the new 16 **
+  TIMERC4,       // PC 1 ** the new 17 **
 #endif // DIGITAL_IO_PIN_SHIFT
   NOT_ON_TIMER,  // PA 0 ** 22 ** A0
   NOT_ON_TIMER,  // PA 1 ** 23 ** A1
