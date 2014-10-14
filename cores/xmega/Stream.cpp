@@ -75,7 +75,7 @@ void Stream::setTimeout(unsigned long timeout)  // sets the maximum number of mi
  // find returns true if the target string is found
 bool  Stream::find(char *target)
 {
-  return findUntil(target, NULL);
+  return findUntil(target, "");
 }
 
 // reads data from the stream until the target string of given length is found
@@ -99,21 +99,21 @@ bool Stream::findUntil(char *target, size_t targetLen, char *terminator, size_t 
   size_t index = 0;  // maximum target string length is 64k bytes!
   size_t termIndex = 0;
   int c;
-
+  
   if( *target == 0)
     return true;   // return true if target is a null string
   while( (c = timedRead()) > 0){
-
+    
     if(c != target[index])
       index = 0; // reset index if any char does not match
-
+    
     if( c == target[index]){
       //////Serial.print("found "); Serial.write(c); Serial.print("index now"); Serial.println(index+1);
       if(++index >= targetLen){ // return true if all chars in the target match
         return true;
       }
     }
-
+    
     if(termLen > 0 && c == terminator[termIndex]){
       if(++termIndex >= termLen)
         return false;       // return false if terminate string found before target string

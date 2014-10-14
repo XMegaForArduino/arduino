@@ -100,6 +100,9 @@
 #define digitalPinHasPWM(p)         ((p) < 32) /* port F pin 7 is the highest one that has PWM */
 #endif // DIGITAL_IO_PIN_SHIFT
 
+// TODO:  find out how to make this one work
+//#define digitalPinToInterrupt(p)  ((p) == 2 ? 0 : ((p) == 3 ? 1 : NOT_AN_INTERRUPT))
+
 
 // xmega-specific - Interrupt 'vector number' assignments:
 
@@ -135,6 +138,30 @@
 #define PORTQ_INT1  21
 
 #define EXTERNAL_NUM_INTERRUPTS 22 /* defined here instead of wiring_private.h */
+
+// was in wiring_external.h, moved here
+#define EXTERNAL_INT_0  0
+#define EXTERNAL_INT_1  1
+#define EXTERNAL_INT_2  2
+#define EXTERNAL_INT_3  3
+#define EXTERNAL_INT_4  4
+#define EXTERNAL_INT_5  5
+#define EXTERNAL_INT_6  6
+#define EXTERNAL_INT_7  7
+#define EXTERNAL_INT_8  8
+#define EXTERNAL_INT_9  9
+#define EXTERNAL_INT_10 10
+#define EXTERNAL_INT_11 11
+#define EXTERNAL_INT_12 12
+#define EXTERNAL_INT_13 13
+#define EXTERNAL_INT_14 14
+#define EXTERNAL_INT_15 15
+#define EXTERNAL_INT_16 16
+#define EXTERNAL_INT_17 17
+#define EXTERNAL_INT_18 18
+#define EXTERNAL_INT_19 19
+#define EXTERNAL_INT_20 20
+#define EXTERNAL_INT_21 21
 
 
 
@@ -344,7 +371,8 @@ static const uint8_t SCL = 17;
 
 
 // default 'status' LED on PR1
-static const uint8_t LED_BUILTIN = PR1;
+//static const uint8_t LED_BUILTIN = PR1;
+#define LED_BUILTIN PR1 /* Arduino 1.06 uses #define, not a const uint8_t */
 
 
 static const uint8_t A0 = 62;
@@ -855,6 +883,26 @@ const uint8_t PROGMEM digital_pin_to_timer_PGM[] = {
 };
 
 #endif
+
+
+// These serial port names are intended to allow libraries and architecture-neutral
+// sketches to automatically default to the correct port name for a particular type
+// of use.  For example, a GPS module would normally connect to SERIAL_PORT_HARDWARE_OPEN,
+// the first hardware serial port whose RX/TX pins are not dedicated to another use.
+//
+// SERIAL_PORT_MONITOR        Port which normally prints to the Arduino Serial Monitor
+//
+// SERIAL_PORT_USBVIRTUAL     Port which is USB virtual serial
+//
+// SERIAL_PORT_LINUXBRIDGE    Port which connects to a Linux system via Bridge library
+//
+// SERIAL_PORT_HARDWARE       Hardware serial port, physical RX & TX pins.
+//
+// SERIAL_PORT_HARDWARE_OPEN  Hardware serial ports which are open for use.  Their RX & TX
+//                            pins are NOT connected to anything by default.
+#define SERIAL_PORT_MONITOR   Serial
+#define SERIAL_PORT_HARDWARE  Serial
+#define SERIAL_HARDWARE_OPEN  Serial2
 
 #endif
 

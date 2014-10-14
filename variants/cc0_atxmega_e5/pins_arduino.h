@@ -104,6 +104,9 @@
 #define digitalPinHasPWM(p)         ((p) < 16) /* port E pin 3 is the highest one that has PWM */
 #endif // DIGITAL_IO_PIN_SHIFT
 
+// TODO:  find out how to make this one work
+//#define digitalPinToInterrupt(p)  ((p) == 2 ? 0 : ((p) == 3 ? 1 : NOT_AN_INTERRUPT))
+
 
 // xmega-specific - Interrupt 'vector number' assignments:
 
@@ -112,24 +115,24 @@
 // all other pins can manage synchronous interrupts.  'wakeup' from sleep mode
 // and other async interrupts must be on a 'pin 2', on ports A through E
 //
-// Each port has 2 separate interrupt vectors.  They can be assigned different pins.
-// The same pin can also be assigned to both vectors on the same port, if desired.
+// On the 'E5' each port has only 1 interrupt vector, unlike other xmega processors.
 
 #define PORTD_INT0  0
-#define PORTD_INT1  1
-#define PORTC_INT0  2
-#define PORTC_INT1  3
-//#define PORTE_INT0  4 - not on E series
-//#define PORTE_INT1  5 - not on E series
-#define PORTA_INT0  6
-#define PORTA_INT1  7
-//#define PORTB_INT0  8 - not on E series
-//#define PORTB_INT1  9 - not on E series
-#define PORTR_INT0  10
-#define PORTR_INT1  11
+#define PORTC_INT0  1
+#define PORTA_INT0  2
+#define PORTR_INT0  3
 
-#define EXTERNAL_NUM_INTERRUPTS 12 /* defined here instead of wiring_private.h */
+#define EXTERNAL_NUM_INTERRUPTS 4 /* defined here instead of wiring_private.h */
 
+// was in wiring_external.h, moved here
+#define EXTERNAL_INT_0 0
+#define EXTERNAL_INT_1 1
+#define EXTERNAL_INT_2 2
+#define EXTERNAL_INT_3 3
+//#define EXTERNAL_INT_4 4
+//#define EXTERNAL_INT_5 5
+//#define EXTERNAL_INT_6 6
+//#define EXTERNAL_INT_7 7
 
 
 // xmega 'E' series has 2 sets of UART and SPI.
@@ -308,7 +311,8 @@ static const uint8_t SCL = 9;
 
 
 // default 'status' LED on PR1
-static const uint8_t LED_BUILTIN = PR1;
+//static const uint8_t LED_BUILTIN = PR1;
+#define LED_BUILTIN PR1 /* Arduino 1.06 uses #define, not a const uint8_t */
 
 static const uint8_t A0 = 18;
 static const uint8_t A1 = 19;
@@ -592,6 +596,26 @@ const uint8_t PROGMEM digital_pin_to_timer_PGM[] = {
 };
 
 #endif
+
+
+// These serial port names are intended to allow libraries and architecture-neutral
+// sketches to automatically default to the correct port name for a particular type
+// of use.  For example, a GPS module would normally connect to SERIAL_PORT_HARDWARE_OPEN,
+// the first hardware serial port whose RX/TX pins are not dedicated to another use.
+//
+// SERIAL_PORT_MONITOR        Port which normally prints to the Arduino Serial Monitor
+//
+// SERIAL_PORT_USBVIRTUAL     Port which is USB virtual serial
+//
+// SERIAL_PORT_LINUXBRIDGE    Port which connects to a Linux system via Bridge library
+//
+// SERIAL_PORT_HARDWARE       Hardware serial port, physical RX & TX pins.
+//
+// SERIAL_PORT_HARDWARE_OPEN  Hardware serial ports which are open for use.  Their RX & TX
+//                            pins are NOT connected to anything by default.
+#define SERIAL_PORT_MONITOR   Serial
+#define SERIAL_PORT_HARDWARE  Serial
+#define SERIAL_HARDWARE_OPEN  Serial2
 
 #endif
 

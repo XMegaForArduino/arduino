@@ -252,7 +252,7 @@ void analogWrite(uint8_t pin, int val)
         else if(bit == 64)
         {
           ((uint8_t *)&(TCC4_CCD))[0] = val;
-          mode = (TCC4_CTRLF & ~TC4_HCCCMODE_gm) | TC4_HCCAMODE1_bm;
+          mode = (TCC4_CTRLF & ~TC4_HCCCMODE_gm) | TC4_HCCCMODE1_bm;
         }
         else if(bit == 128)
         {

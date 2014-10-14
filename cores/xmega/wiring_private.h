@@ -69,7 +69,22 @@ extern "C"{
 #define sbi(sfr, bit) (_SFR_BYTE(sfr) |= _BV(bit))
 #endif
 
+// NOTE:  xmega is SO different that these need to be in pins_arduino.h
+//        some xmegas have 2 per port, others 1 per port, and the # of ports vary greatly
+//#define EXTERNAL_INT_0 0
+//#define EXTERNAL_INT_1 1
+//#define EXTERNAL_INT_2 2
+//#define EXTERNAL_INT_3 3
+//#define EXTERNAL_INT_4 4
+//#define EXTERNAL_INT_5 5
+//#define EXTERNAL_INT_6 6
+//#define EXTERNAL_INT_7 7
 
+// CPU-specific definitions go into the 'pins_arduino.h' files anyway
+//
+//#if defined(SOME_CPU)
+//#define EXTERNAL_NUM_INTERRUPTS 8
+//#endif
 
 typedef void (*voidFuncPtr)(void);
 

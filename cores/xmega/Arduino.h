@@ -140,6 +140,9 @@ typedef uint8_t boolean;
 typedef uint8_t byte;
 
 void init(void);
+void initVariant(void);
+
+int atexit(void (*func)()) __attribute__((weak));
 
 void adc_setup(void); // implemented in wiring_analog.c - configures ADC for analogRead()
 // adc_setup must be called whenever exiting SLEEP MODE or ADC will malfunction
@@ -182,8 +185,13 @@ uint8_t shiftIn(uint8_t dataPin, uint8_t clockPin, uint8_t bitOrder);
 //
 // X M E G A   X M E G A   X M E G A   X M E G A   X M E G A   X M E G A   X M E G A   X M E G A
 
+#ifdef __cplusplus
+void attachInterrupt(uint8_t interruptNum, void (*)(void), int mode = 0); // default param is:  LOW | INT_MODE_PRI_DEFAULT | INT_MODE_PIN_DEFAULT
+#else // not __cplusplus
 void attachInterrupt(uint8_t interruptNum, void (*)(void), int mode);
-void detachInterrupt(uint8_t interruptNum);
+#endif // __cplusplus
+
+void detachInterrupt(uint8_t interruptNum); // NOTE:  detaches ALL interrupts for that port (special exceptions for serial flow control)
 
 
 // this next function reads data from the calibration row, including the serial # info.
