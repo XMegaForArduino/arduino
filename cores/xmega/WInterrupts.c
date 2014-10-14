@@ -141,7 +141,11 @@ PORT_t *port;
 
   if(!iPinBits)
   {
-    if(interruptNum == PORTR_INT0 || interruptNum == PORTR_INT1) // not valid for these
+    if(interruptNum == PORTR_INT0
+#ifdef PORTR_INT1
+       || interruptNum == PORTR_INT1
+#endif // PORTR_INT1
+       ) // not valid for these
     {
       return; // do nothing (for now)
     }
@@ -205,57 +209,93 @@ PORT_t *port;
   // Enable the interrupt (smaller code to use if/else and pointer)
 
   iNum = 0;
-  if(interruptNum == PORTA_INT0 || interruptNum == PORTA_INT1)
+  if(interruptNum == PORTA_INT0
+#ifdef PORTA_INT1
+     || interruptNum == PORTA_INT1
+#endif // PORTA_INT1
+     )
   {
     port = &PORTA;
+#ifdef PORTA_INT1
     if(interruptNum == PORTA_INT1)
     {
       iNum = 1;
     }
+#endif // PORTA_INT1
   }
 #if NUM_ANALOG_PINS > 8 /* which means we have PORT B */
-  else if(interruptNum == PORTB_INT0 || interruptNum == PORTB_INT1)
+  else if(interruptNum == PORTB_INT0
+#ifdef PORTB_INT1
+          || interruptNum == PORTB_INT1
+#endif // PORTB_INT1
+          )
   {
     port = &PORTB;
+#ifdef PORTB_INT1
     if(interruptNum == PORTB_INT1)
     {
       iNum = 1;
     }
+#endif // PORTB_INT1
   }
 #endif // NUM_ANALOG_PINS > 8
-  else if(interruptNum == PORTC_INT0 || interruptNum == PORTC_INT1)
+  else if(interruptNum == PORTC_INT0
+#ifdef PORTC_INT1
+          || interruptNum == PORTC_INT1
+#endif // PORTC_INT1
+          )
   {
     port = &PORTC;
+#ifdef PORTC_INT1
     if(interruptNum == PORTC_INT1)
     {
       iNum = 1;
     }
+#endif // PORTC_INT1
   }
-  else if(interruptNum == PORTD_INT0 || interruptNum == PORTD_INT1)
+  else if(interruptNum == PORTD_INT0
+#ifdef PORTD_INT1
+          || interruptNum == PORTD_INT1
+#endif // PORTD_INT1
+          )
   {
     port = &PORTD;
+#ifdef PORTD_INT1
     if(interruptNum == PORTD_INT1)
     {
       iNum = 1;
     }
+#endif // PORTC_INT1
   }
 #if NUM_DIGITAL_PINS > 18 /* which means we have PORT E */
-  else if(interruptNum == PORTE_INT0 || interruptNum == PORTE_INT1)
+  else if(interruptNum == PORTE_INT0
+#ifdef PORTE_INT1
+          || interruptNum == PORTE_INT1
+#endif // PORTE_INT1
+          )
   {
     port = &PORTE;
+#ifdef PORTE_INT1
     if(interruptNum == PORTE_INT1)
     {
       iNum = 1;
     }
+#endif // PORTE_INT1
   }
 #endif // NUM_DIGITAL_PINS > 18
-  else if(interruptNum == PORTR_INT0 || interruptNum == PORTR_INT1)
+  else if(interruptNum == PORTR_INT0
+#ifdef PORTR_INT1
+          || interruptNum == PORTR_INT1
+#endif // PORTR_INT1
+          )
   {
     port = &PORTR;
+#ifdef PORTR_INT1
     if(interruptNum == PORTR_INT1)
     {
       iNum = 1;
     }
+#endif // PORTR_INT1
   }
   else
   {
@@ -340,57 +380,93 @@ PORT_t *port;
   // Enable the interrupt (smaller code to use if/else and pointer)
 
   iNum = 0;
-  if(interruptNum == PORTA_INT0 || interruptNum == PORTA_INT1)
+  if(interruptNum == PORTA_INT0
+#ifdef PORTA_INT1
+     || interruptNum == PORTA_INT1
+#endif // PORTA_INT1
+     )
   {
     port = &PORTA;
+#ifdef PORTA_INT1
     if(interruptNum == PORTA_INT1)
     {
       iNum = 1;
     }
+#endif // PORTA_INT1
   }
 #if NUM_ANALOG_PINS > 8 /* which means we have PORT B */
-  else if(interruptNum == PORTB_INT0 || interruptNum == PORTB_INT1)
+  else if(interruptNum == PORTB_INT0
+#ifdef PORTB_INT1
+          || interruptNum == PORTB_INT1
+#endif // PORTB_INT1
+          )
   {
     port = &PORTB;
+#ifdef PORTB_INT1
     if(interruptNum == PORTB_INT1)
     {
       iNum = 1;
     }
+#endif // PORTB_INT1
   }
 #endif // NUM_ANALOG_PINS > 8
-  else if(interruptNum == PORTC_INT0 || interruptNum == PORTC_INT1)
+  else if(interruptNum == PORTC_INT0
+#ifdef PORTC_INT1
+          || interruptNum == PORTC_INT1
+#endif // PORTC_INT1
+          )
   {
     port = &PORTC;
+#ifdef PORTC_INT1
     if(interruptNum == PORTC_INT1)
     {
       iNum = 1;
     }
+#endif // PORTC_INT1
   }
-  else if(interruptNum == PORTD_INT0 || interruptNum == PORTD_INT1)
+  else if(interruptNum == PORTD_INT0
+#ifdef PORTD_INT1
+          || interruptNum == PORTD_INT1
+#endif // PORTD_INT1
+          )
   {
     port = &PORTD;
+#ifdef PORTD_INT1
     if(interruptNum == PORTD_INT1)
     {
       iNum = 1;
     }
+#endif // PORTD_INT1
   }
 #if NUM_DIGITAL_PINS > 18 /* which means we have PORT E */
-  else if(interruptNum == PORTE_INT0 || interruptNum == PORTE_INT1)
+  else if(interruptNum == PORTE_INT0
+#ifdef PORTE_INT1
+          || interruptNum == PORTE_INT1
+#endif // PORTE_INT1
+          )
   {
     port = &PORTE;
+#ifdef PORTE_INT1
     if(interruptNum == PORTE_INT1)
     {
       iNum = 1;
     }
+#endif // PORTE_INT1
   }
 #endif // NUM_DIGITAL_PINS > 18
-  else if(interruptNum == PORTR_INT0 || interruptNum == PORTR_INT1)
+  else if(interruptNum == PORTR_INT0
+#ifdef PORTR_INT1
+          || interruptNum == PORTR_INT1
+#endif // PORTR_INT1
+          )
   {
     port = &PORTR;
+#ifdef PORTR_INT1
     if(interruptNum == PORTR_INT1)
     {
       iNum = 1;
     }
+#endif // PORTR_INT1
   }
   else
   {

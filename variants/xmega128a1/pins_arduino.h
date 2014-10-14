@@ -26,15 +26,22 @@
   The xmega code mods make a considerable number of assumptions
   about the pin number assignments (as defined here):
 
+  DEFAULT MAPPING ('DIGITAL_IO_PIN_SHIFT' NOT DEFINED)
+  ----------------------------------------------------
   PORTD - digital 0-7
   PORTC - digital 8-15
-  PORTE - digital 16-20
-  PORTR - digital 20-21 (built-in LED on PORTR pin 1, aka '21')
-  PORTA - analog 0-7, digital 22-29
-  PORTB - analog 8-11, digital 30-33
+  PORTE - digital 16-23
+  PORTF - digital 24-31
+  PORTH - digital 32-39
+  PORTJ - digital 40-47
+  PORTK - digital 48-55
+  PORTQ - digital 56-59
+  PORTR - digital 60-61 (built-in LED on PORTR pin 1, aka '61')
+  PORTA - analog 0-7, digital 62-69
+  PORTB - analog 8-15, digital 70-77
 
   SPI is assumed to be on PORTC (pins 4-7)
-  Serial is implemented on PORTD, Serial2 on PORTC, both using pins 2,3 (no handshaking)
+  Serial is implemented on PORTD, Serial2 on PORTC, both using pins 2,3 (no flow control)
   PORTR pin 1 is assumed to be connected to an LED.  Pin 1 is the 'built-in' LED, defined
   as 'LED_BUILTIN', and is active HIGH.
 
@@ -489,7 +496,7 @@ const uint16_t PROGMEM port_to_input_PGM[] = {
 //                       100 wired 'or', 101 wired 'and', 110 wired 'or' pulldown, 111 wired 'and' pullup
 //   bit 6:  "invert logic" (0 = normal, 1 = inverted)
 //   bit 7:  unused, must be zero
-// NOTE:  PORTA through PORTE (PORTF?) support 'input buffer disabled' and this setting is recommended
+// NOTE:  PORTA through PORTQ support 'input buffer disabled' and this setting is recommended
 //        for analog inputs.  PORTR apparently does NOT support this (set to zero?)
 
 const uint16_t PROGMEM digital_pin_to_control_PGM[] = {

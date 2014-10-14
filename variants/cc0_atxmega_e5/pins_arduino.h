@@ -26,15 +26,15 @@
   The xmega code mods make a considerable number of assumptions
   about the pin number assignments (as defined here):
 
+  DEFAULT MAPPING ('DIGITAL_IO_PIN_SHIFT' NOT DEFINED)
+  ----------------------------------------------------
   PORTD - digital 0-7
   PORTC - digital 8-15
-  PORTE - digital 16-20
-  PORTR - digital 20-21 (built-in LED on PORTR pin 1, aka '21')
-  PORTA - analog 0-7, digital 22-29
-  PORTB - analog 8-11, digital 30-33
+  PORTR - digital 16-17 (built-in LED on PORTR pin 1, aka '17')
+  PORTA - analog 0-7, digital 18-25
 
   SPI is assumed to be on PORTC (pins 4-7)
-  Serial is implemented on PORTD, Serial2 on PORTC, both using pins 2,3 (no handshaking)
+  Serial is implemented on PORTD, Serial2 on PORTC, both using pins 2,3 (no flow control)
   PORTR pin 1 is assumed to be connected to an LED.  Pin 1 is the 'built-in' LED, defined
   as 'LED_BUILTIN', and is active HIGH.
 
