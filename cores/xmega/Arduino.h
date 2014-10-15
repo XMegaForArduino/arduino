@@ -344,6 +344,16 @@ long map(long, long, long, long, long);
 
 #include "pins_arduino.h"
 
+// The default SPI interface is SPIC if not already defined
+#ifndef DEFAULT_SPI
+#define DEFAULT_SPI SPIC
+#endif // DEFAULT_SPI
+
+// the default TWI interface is TWIC if not already defined
+#ifndef DEFAULT_TWI
+#define DEFAULT_TWI TWIC
+#endif // DEFAULT_TWI
+
 
 // added support for hardware serial flow control - spans multiple files
 

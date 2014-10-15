@@ -93,15 +93,20 @@
 
 #define DIGITAL_IO_PIN_SHIFT /* UNCOMMENT THIS to shift digital pin assignments for Arduino shield compatibility */
 
-
+// NOTE:  'E' series can have analog inputs on PORTD.
+//#define USE_AREF 0x2 /* see 24.14.3 in 'E' manual - this is the REFCTRL bits for the reference select, AREF on PORTA (PA0) */
 
 #define NUM_DIGITAL_PINS            18
 #define NUM_ANALOG_INPUTS           8
-#define analogInputToDigitalPin(p)  ((p < 8) ? (p) + 18 : -1)
+#define analogInputToDigitalPin(p)  ((p < NUM_ANALOG_INPUTS) ? (p) + NUM_DIGITAL_PINS : -1)
+
+// pins with PWM:
+// no shift:  4, 5, 6, 7, 8, 9, 10-17
+// shift:  2-13, 16, 17
 #ifdef DIGITAL_IO_PIN_SHIFT
-#define digitalPinHasPWM(p)         ((p) < 14 || (p) == 20 || (p) == 21) /* PORTD pins 0 and 1 are 20 and 21, respectively */
+#define digitalPinHasPWM(p)         (((p) >= 2 && (p) <= 13) || (p) == 16 || (p) == 17)
 #else // no digital I/O pin shift
-#define digitalPinHasPWM(p)         ((p) < 16) /* port E pin 3 is the highest one that has PWM */
+#define digitalPinHasPWM(p)         ((p) == 0 || (p) == 1 || ((p) >= 6 && (p) <= 17))
 #endif // DIGITAL_IO_PIN_SHIFT
 
 // TODO:  find out how to make this one work
@@ -195,11 +200,10 @@
 #define SERIAL_1_TX_PIN_INDEX 3 /* the pin number on the port, not the mapped digital pin number */
 
 
-#ifdef DIGITAL_IO_PIN_SHIFT
-#define TCD5_PIN_SHIFT 0x0 /* 0000b PD0 PD1 PD2 PD3 */
-#else // DIGITAL_IO_PIN_SHIFT
-#define TCD5_PIN_SHIFT 0xc /* 1100b PD0 PD1 PD6 PD7 */
-#endif // DIGITAL_IO_PIN_SHIFT
+// PIN SHIFTING FOR PWM OUT ON PORT D
+// normal I/O is on pins 4, 5, 6, 7 - but 6 and 7 are in use by the serial port, so I must shift them
+//
+#define TCD5_PIN_SHIFT 0xc /* 1100b PD4 PD5 PD2 PD3 - see sect 12.13.13 */
 
 
 // TWI is on TWIC (port C pins 0/1)
@@ -543,6 +547,8 @@ const uint8_t PROGMEM digital_pin_to_bit_mask_PGM[] = {
   _BV( 7 ),  // PA 7 ** 29 ** A7
 };
 
+
+
 const uint8_t PROGMEM digital_pin_to_timer_PGM[] = {
   // TIMERS
   // -------------------------------------------
@@ -554,21 +560,34 @@ const uint8_t PROGMEM digital_pin_to_timer_PGM[] = {
   // for the appropriate pin.  LCMPENx/HCMPENx registers to enable it.
 
 #ifndef DIGITAL_IO_PIN_SHIFT
-  TIMERD5,       // PD 0 ** 0 **
-  TIMERD5,       // PD 1 ** 1 **
+  NOT_ON_TIMER,  // PD 0 ** 0 **
+  NOT_ON_TIMER,  // PD 1 ** 1 **
 #endif // DIGITAL_IO_PIN_SHIFT
 
 // subtract 2 from the digital pin number if DIGITAL_IO_PIN_SHIFT is defined
-  NOT_ON_TIMER,  // PD 2,6 ** 2 ** USARTD_RX
-  NOT_ON_TIMER,  // PD 3,7 ** 3 ** USARTD_TX
-  NOT_ON_TIMER,  // PD 4   ** 4 **
-  NOT_ON_TIMER,  // PD 5   ** 5 **
-  TIMERD5,       // PD 6,2 ** 6 **
-  TIMERD5,       // PD 7,3 ** 7 **
+#ifdef DIGITAL_IO_PIN_SHIFT
+  NOT_ON_TIMER,  // PD 6 ** 2 ** USARTD_RX
+  NOT_ON_TIMER,  // PD 7 ** 3 ** USARTD_TX
+#else // no pin shifting
+  TIMERD5,       // PD 2 ** 2 ** USARTD_RX ASYNC
+  TIMERD5,       // PD 3 ** 3 ** USARTD_TX
+#endif 
+
+  TIMERD5,       // PD 4 ** 4 **
+  TIMERD5,       // PD 5 ** 5 **
 
 #ifdef DIGITAL_IO_PIN_SHIFT
-  TIMERD5,       // PD 0 ** 8 **
-  TIMERD5,       // PD 1 ** 9 **
+  TIMERD5,       // PD 2 ** 6 ** USARTD_RX ASYNC
+  TIMERD5,       // PD 3 ** 7 ** USARTD_TX
+#else // no pin shifting
+  NOT_ON_TIMER,  // PD 6 ** 6 **
+  NOT_ON_TIMER,  // PD 7 ** 7 **
+#endif 
+
+
+#ifdef DIGITAL_IO_PIN_SHIFT
+  NOT_ON_TIMER,  // PD 0 ** 8 **
+  NOT_ON_TIMER,  // PD 1 ** 9 **
 #else // no pin shifting
   TIMERC4,       // PC 0 ** 8 ** SDA
   TIMERC4,       // PC 1 ** 9 ** SCL

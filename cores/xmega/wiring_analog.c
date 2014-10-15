@@ -60,9 +60,13 @@ void adc_setup(void)
   //   _BV(6) | _BV(5);     // section 22.14.2, 'HIGH' current limit, no apparent bit value constants in iox64d4.h
              // NOTE:  all other bits are zero - no 'freerun', 12-bit right-justified unsigned mode
 
+#ifdef USE_AREF
+  ADCA_REFCTRL = (USE_AREF << ADC_REFSEL_gp) & ADC_REFSEL_gm; // USE_AREF will ALSO be the correct bit assignment for 'REFSEL'
+#else // USE_AREF
   ADCA_REFCTRL = _BV(ADC_REFSEL2_bp);         // bit 100 --> Vcc/2 as reference
-             // NOTE:  all other bits are zero (bandgap, tempref) - section 22.14.3
-             // TODO:  use 'analog_reference', bit-shifted (see also 'analogReference()' below)
+#endif // USE_AREF
+  // NOTE:  all other ADCA_REFCTRL bits are zero (bandgap, tempref) - section 22.14.3
+  // TODO:  use an adjustable 'analog_reference'? (see also 'analogReference()' below)
 
   // TODO:  is this actually a RESERVED functionality?
   ADCA_SAMPCTRL = 24; // sect 22.14.8 - this value + 1 is # of "half cycles" used for sampling
@@ -78,12 +82,34 @@ void adc_setup(void)
   //        ADC_CH_INPUTMODE_DIFFWGAINL_gc uses A0-A3, GND, and internal GND (not same as D and earlier)
   //        ADC_CH_INPUTMODE_DIFFWGAINH_gc uses A4-A7 and GND (see E manual table 24-16,17 pg 366-7) (similar to D and earlier)
 #if defined (__AVR_ATxmega16E5__) || defined (__AVR_ATxmega32E5__)
-  ADCA_CH0_CTRL = ADC_CH_INPUTMODE_DIFFWGAINH_gc | // so MUXNEG 111b aka '7' still picks "GND" for 'diff with gain'
-                  ADC_CH_GAIN_DIV2_gc; // (see 24.15.1 in E manual - they differ)
+
+#ifdef USE_AREF
+  // 'E' series has 2 modes for 'diff with gain', each using a different set of inputs (so A0-A3 for L, and A4-A7 for H mode)
+#define ASSIGN_ADCA_CH0_CTRL ADC_CH_INPUTMODE_DIFFWGAINH_gc | /* MUXNEG 111b aka '7' still picks "GND" for 'diff with gain' for this one */ \
+                             ADC_CH_GAIN_1X_gc;               /* 1X gain when I'm using 'AREF' */
+#define MUXCTRL_MUXNEG 7 /* bits 111 which is GND for MUXNEG - see E manual 24.15.2 */
+#else // USE_AREF
+  // 'E' series has 2 modes for 'diff with gain', each using a different set of inputs (so A0-A3 for L, and A4-A7 for H mode)
+#define ASSIGN_ADCA_CH0_CTRL ADC_CH_INPUTMODE_DIFFWGAINH_gc | /* MUXNEG 111b aka '7' still picks "GND" for 'diff with gain' for this one */ \
+                             ADC_CH_GAIN_DIV2_gc;             /* (see 24.15.1 in E manual) */
+#define MUXCTRL_MUXNEG 7 /* bits 111 which is GND for MUXNEG - see E manual 24.15.2 */
+#endif // USE_AREF
+
 #else // everything else not an 'E' series
-  ADCA_CH0_CTRL = ADC_CH_INPUTMODE_DIFFWGAIN_gc |
-                  ADC_CH_GAIN_DIV2_gc; // (see 22.15.1 in D manual - they differ)
+
+#ifdef USE_AREF /* this is the same for 'A' series and 'D' series - double-check others */
+#define ASSIGN_ADCA_CH0_CTRL ADC_CH_INPUTMODE_DIFF_gc | /* no gain if I use 'AREF' */ \
+                             ADC_CH_GAIN_1X_gc;         /* (see 22.15.1 in D manual, 28.17.1 in A manual) */
+#define MUXCTRL_MUXNEG 5 /* bits 101 which is GND for MUXNEG - see D manual 22.15.2, A manual 28.17.2 */
+#else // USE_AREF
+#define ASSIGN_ADCA_CH0_CTRL ADC_CH_INPUTMODE_DIFFWGAIN_gc | /* use gain of 1/2 if I don't use 'AREF' */ \
+                             ADC_CH_GAIN_DIV2_gc;            /* (see 22.15.1 in D manual, 28.17.1 in A manual) */
+#define MUXCTRL_MUXNEG 7 /* bits 111 which is GND for MUXNEG - see D manual 22.15.2, A manual 28.17.2 */
+#endif // USE_AREF
+
 #endif
+
+  ADCA_CH0_CTRL = ASSIGN_ADCA_CH0_CTRL;
 
   // clear interrupt flag (probably not needed)
   ADCA_INTFLAGS = _BV(ADC_CH0IF_bp); // write a 1 to the interrupt bit (which clears it - 22.14.6)
@@ -122,24 +148,44 @@ int analogRead(uint8_t pin)
 
   if(pin >= A0)
   {
-#if NUM_ANALOG_PINS <= 8
-    if(pin > A7)
-#elif NUM_ANALOG_PINS <= 12
-    if(pin > A11)
-#else // NUM_ANALOG_PINS <= 16
-    if(pin > A15)
-#endif // NUM_ANALOG_PINS
+    if(pin >= (NUM_ANALOG_INPUTS + A0)) // pin number too high?
     {
-      return 0;
+      return 0; // not a valid analog input
     }
-    pin -= A0; // allow both 'pin number' and 'channel number'
+#ifdef analogInputToAnalogPin
+    pin = analogInputToAnalogPin(pin);
+#else // analogInputToAnalogPin
+    pin -= A0; // this works when PA0-PA7 and PB0-PBn are in sequence for A0-An
+#endif // analogInputToAnalogPin
+  }
+  else
+  {
+    // NOTE:  for pins less than 'A0', assume it's referring to the analog index (0 to NUM_ANALOG_INPUTS-1)
+
+    if(pin >= NUM_ANALOG_INPUTS)
+    {
+      return; // not a valid analog input
+    }
+
+#ifdef analogInputToAnalogPin
+    pin = analogInputToAnalogPin(pin + A0); // calc pin number (might not have 0 mapped to A0)
+#endif // analogInputToAnalogPin
   }
 
-  // TODO:  re-configure the analog reference? for now, leave it
+  // ANALOG REFERENCE - in some cases I can map one of the analog inputs
+  //                    as an analog reference.  For now, assume it's Vcc/2.
+  // NOTE:  On the A-series processors with more than a handful of inputs,
+  //        it is NOT possible to use 'diff input with gain' on MORE than
+  //        A0-A7.  On later processors (like D series) it _IS_ possible.
+  //        Because of this, the 'hack' that allows rail-rail measurements
+  //        is no longer possible on PB0-PB7.  PA0-PA7 will still work.
+  //        IF PA0 or PB0 is used as VRef (see 28.16.3 in AU manual) via 'REFCTRL'
+  //        then you can read all 15 remaining values with whatever VRef you want.
+
 
   ADCA_CH0_SCAN = 0; // disable scan
-  ADCA_CH0_MUXCTRL = (pin << ADC_CH_MUXPOS_gp) // sect 22.15.2
-                   | 7; // GND is the 'other input' (NOTE:  this is MUXNEG)
+  ADCA_CH0_MUXCTRL = (pin << ADC_CH_MUXPOS_gp) // sect 22.15.2 in 'D' manual, 28.17.2 in 'A' manual, 24.15.2 in 'E' manual
+                   | MUXCTRL_MUXNEG; // GND is the 'other input' (NOTE:  this is MUXNEG, can be changed)
 
   ADCA_CH0_INTCTRL = 0;    // no interrupts, flag on complete sect 22.15.3
 
@@ -153,17 +199,8 @@ int analogRead(uint8_t pin)
 //  ADCA_CH0_CTRL = ADC_CH_START_bm       // conversion start
 //                | ADC_CH_INPUTMODE0_bm; // zero gain and input mode '01' (see 22.15.1)
 
-// AS NOTED ABOVE, the E series is quite a bit different here with respect to how it handles
-// differential inputs.  it's actually better, but incompatible (hence the need for '#if' block)
-#if defined (__AVR_ATxmega16E5__) || defined (__AVR_ATxmega32E5__)
   ADCA_CH0_CTRL = ADC_CH_START_bm |       // conversion start
-                  ADC_CH_INPUTMODE_DIFFWGAINH_gc | // so MUXNEG 111b aka '7' still picks "GND" for 'diff with gain'
-                  ADC_CH_GAIN_DIV2_gc; // (see 24.15.1 in E manual - they differ)
-#else // everything else not an 'E' series
-  ADCA_CH0_CTRL = ADC_CH_START_bm |       // conversion start
-                  ADC_CH_INPUTMODE_DIFFWGAIN_gc |
-                  ADC_CH_GAIN_DIV2_gc; // (see 22.15.1 in D manual - they differ)
-#endif
+                  ASSIGN_ADCA_CH0_CTRL;   // defined above on a per-cpu with pins_arduino.h modifications to select gain+mode
 
 #ifdef ADC_CH_IF_bm /* iox16e5.h and iox32e5.h - probably the ATMel Studio version */
   while(!(ADCA_CH0_INTFLAGS & ADC_CH_IF_bm)) { }
@@ -222,42 +259,42 @@ void analogWrite(uint8_t pin, int val)
         if(bit == 1)
         {
           ((uint8_t *)&(TCC4_CCA))[0] = val; // NOTE:  these are 16-bit registers and low/high byte access is needed
-          mode = (TCC4_CTRLE & ~TC4_LCCAMODE_gm) | TC4_LCCAMODE1_bm;
+          mode = (TCC4_CTRLE & ~TC4_LCCAMODE_gm) | TC4_LCCAMODE0_bm;
         }
         else if(bit == 2)
         {
           ((uint8_t *)&(TCC4_CCA))[1] = val;
-          mode = (TCC4_CTRLE & ~TC4_LCCBMODE_gm) | TC4_LCCBMODE1_bm;
+          mode = (TCC4_CTRLE & ~TC4_LCCBMODE_gm) | TC4_LCCBMODE0_bm;
         }
         else if(bit == 4)
         {
           ((uint8_t *)&(TCC4_CCB))[0] = val;
-          mode = (TCC4_CTRLE & ~TC4_LCCCMODE_gm) | TC4_LCCCMODE1_bm;
+          mode = (TCC4_CTRLE & ~TC4_LCCCMODE_gm) | TC4_LCCCMODE0_bm;
         }
         else if(bit == 8)
         {
           ((uint8_t *)&(TCC4_CCB))[1] = val;
-          mode = (TCC4_CTRLE & ~TC4_LCCDMODE_gm) | TC4_LCCDMODE1_bm;
+          mode = (TCC4_CTRLE & ~TC4_LCCDMODE_gm) | TC4_LCCDMODE0_bm;
         }
         else if(bit == 16)
         {
           ((uint8_t *)&(TCC4_CCC))[0] = val;
-          mode = (TCC4_CTRLF & ~TC4_HCCAMODE_gm) | TC4_HCCAMODE1_bm;
+          mode = (TCC4_CTRLF & ~TC4_HCCAMODE_gm) | TC4_HCCAMODE0_bm;
         }
         else if(bit == 32)
         {
           ((uint8_t *)&(TCC4_CCC))[1] = val;
-          mode = (TCC4_CTRLF & ~TC4_HCCBMODE_gm) | TC4_HCCBMODE1_bm;
+          mode = (TCC4_CTRLF & ~TC4_HCCBMODE_gm) | TC4_HCCBMODE0_bm;
         }
         else if(bit == 64)
         {
           ((uint8_t *)&(TCC4_CCD))[0] = val;
-          mode = (TCC4_CTRLF & ~TC4_HCCCMODE_gm) | TC4_HCCCMODE1_bm;
+          mode = (TCC4_CTRLF & ~TC4_HCCCMODE_gm) | TC4_HCCCMODE0_bm;
         }
         else if(bit == 128)
         {
           ((uint8_t *)&(TCC4_CCD))[1] = val;
-          mode = (TCC4_CTRLF & ~TC4_HCCDMODE_gm) | TC4_HCCDMODE1_bm;
+          mode = (TCC4_CTRLF & ~TC4_HCCDMODE_gm) | TC4_HCCDMODE0_bm;
         }
         else
         {
@@ -282,22 +319,22 @@ void analogWrite(uint8_t pin, int val)
         if(bit == 1 || bit == 16)
         {
           ((uint8_t *)&(TCD5_CCA))[0] = val; // NOTE:  these are 16-bit registers and low/high byte access is needed
-          mode = (TCD5_CTRLE & ~TC5_LCCAMODE_gm) | TC5_LCCAMODE1_bm;
+          mode = (TCD5_CTRLE & ~TC5_LCCAMODE_gm) | TC5_LCCAMODE0_bm;
         }
         else if(bit == 2 || bit == 32)
         {
           ((uint8_t *)&(TCD5_CCA))[1] = val;
-          mode = (TCD5_CTRLE & ~TC5_LCCBMODE_gm) | TC5_LCCBMODE1_bm;
+          mode = (TCD5_CTRLE & ~TC5_LCCBMODE_gm) | TC5_LCCBMODE0_bm;
         }
         else if(bit == 4 || bit == 64)
         {
           ((uint8_t *)&(TCD5_CCB))[0] = val;
-          mode = (TCD5_CTRLF & ~TC5_HCCAMODE_gm) | TC5_HCCAMODE1_bm;
+          mode = (TCD5_CTRLF & ~TC5_HCCAMODE_gm) | TC5_HCCAMODE0_bm;
         }
         else if(bit == 8 || bit == 128)
         {
           ((uint8_t *)&(TCD5_CCB))[1] = val;
-          mode = (TCD5_CTRLF & ~TC5_HCCBMODE_gm) | TC5_HCCBMODE1_bm;
+          mode = (TCD5_CTRLF & ~TC5_HCCBMODE_gm) | TC5_HCCBMODE0_bm;
         }
         else
         {

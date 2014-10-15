@@ -459,6 +459,10 @@ void init()
   // enable the underflow interrupt on A, disable on B, disable comparison interrupts
   TCD5_INTCTRLA = 0x3; // enable LOW underflow interrupt, pri level 3 (see 13.9.5 in D manual)
 
+// TODO:  this is not well documented - does it even work for TIMER D5 ??
+#ifdef TCD5_PIN_SHIFT /* shifting PWM output pins, normally 4,5,6,7 */
+  PORTD_REMAP = (PORTD_REMAP & 0xf0) | TCD5_PIN_SHIFT;
+#endif // PORTD_REMAP
 
   // TCC4
   // first the clock selection

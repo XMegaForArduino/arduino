@@ -90,14 +90,29 @@
 #define DIGITAL_IO_PIN_SHIFT /* UNCOMMENT THIS to shift digital pin assignments for Arduino shield compatibility */
 
 
+// NOTE:  'E' series can have analog inputs on PORTD.  It can also support ARef on PORTA pin 0, or PORTD pin 0
+#define USE_AREF 0x2 /* see 24.14.3 in 'E' manual - this is the REFCTRL bits for the reference select, AREF on PORTA (PA0) */
 
 #define NUM_DIGITAL_PINS            18
+
+#ifdef USE_AREF
+#define NUM_ANALOG_INPUTS           7
+#define analogInputToAnalogPin(p) ((p)-A0 + 1)
+#else // USE_AREF
 #define NUM_ANALOG_INPUTS           8
-#define analogInputToDigitalPin(p)  ((p < 8) ? (p) + 18 : -1)
+#define analogInputToAnalogPin(p) ((p)-A0)
+#endif // USE_AREF
+
+#define analogInputToDigitalPin(p)  ((p < NUM_ANALOG_INPUTS) ? (p) + NUM_DIGITAL_PINS : -1)
+
+
+// pins with PWM
+// no shift:  0, 5-15
+// shift:  3-6, 8-13, 16-17
 #ifdef DIGITAL_IO_PIN_SHIFT
-#define digitalPinHasPWM(p)         ((p) < 14 || (p) == 20 || (p) == 21) /* PORTD pins 0 and 1 are 20 and 21, respectively */
+#define digitalPinHasPWM(p)         (((p) >= 3 && (p) <= 13 && (p) != 7) || (p) == 16 || (p) == 17)
 #else // no digital I/O pin shift
-#define digitalPinHasPWM(p)         ((p) < 16) /* port E pin 3 is the highest one that has PWM */
+#define digitalPinHasPWM(p)         ((p) == 0 || ((p) >= 5 && (p) <= 15))
 #endif // DIGITAL_IO_PIN_SHIFT
 
 // TODO:  find out how to make this one work
@@ -190,13 +205,8 @@
 #define SERIAL_1_TX_PIN_INDEX 3 /* the pin number on the port, not the mapped digital pin number */
 
 
-// pin shifting for TCD5 [since it's only 4-bits, which ones get the PWM out?]
-
-#define TCD5_PIN_SHIFT 0xe /* 1110b PD0 PD5 PD6 PD7 */
-
-
-// For atmega/Arduino shield compatibility, with DIGITAL_IO_PIN_SHIFT defined
-// typical board/pin layout might be like this (for shield pins):
+// For atmega/Arduino Uno shield compatibility, with DIGITAL_IO_PIN_SHIFT defined,
+// the typical board/pin layout might be like this (for shield pins):
 //
 // TWI is on TWIC (port C pins 0/1).  pins marked as '~' have PWM
 //
@@ -207,35 +217,46 @@
 //     C D E N 1 1 1 1                  x x
 //     L A F D 3 2 1 0 9 8  7 6 5 4 3 2 1 0
 // ----o-o-o-o-o-o-o-o-o-o--o-o-o-o-o-o-o-o----
-//     P P     P P P P P P  P P P P P P P P
-//     C C     C C C C C C  D D D D D D D D
-//     1 0     7 6 5 4 3 2  0 1 7 6 5 4 3 2
-//                 ~ ~ ~ ~  ~ ~ ~ ~ ~ ~ ~ ~
+//     P P P   P P P P P P  P P P P P P P P
+//     C C A   C C C C C C  D D D D D D D D
+//     1 0 0   7 6 5 4 3 2  1 7 6 5 4 0 3 2
+//     ~ ~     ~ ~ ~ ~ ~ ~    ~ ~ ~ ~
 //
 //               T O P   V I E W
 //
-//
-//                              P P P P P P
-//                              A A A A A A
-//                              5 4 3 2 1 0
+//                           p
+//               3   3       w  P P P P P P
+//               V   V 5     r  A A A A A A
+//               3   3 V     +  6 5 4 3 2 1
 // ------------o-o-o-o-o-o-o-o--o-o-o-o-o-o----
-//             G I R 3 5 G G V  A A A A A A
+//             U I R 3 5 G G V  A A A A A A
 //             N O E . V N N i  5 4 3 2 1 0
-//             D R S 3   D D n
-//               E E V
-//               F T
+//             U R S 3   D D n
+//             S E E V
+//             E F T
+//             D
+//
+// RESERVED PINS (not brought out):  PA7, PR0, PR1 (connected to LED_BUILTIN)
+//
+// ARef should have a 100 ohm (or similar) resistor to Vcc with a decoupling capacitor
+// IOREF must be connected to 3.3V so that compatible shields can detect 3.3V logic
+// Vin connects to the 'power in' pin (may have 9V or more on this pin)
+// 5V can be left unconnected, or use a separate voltage reg for 5V
+// 3.3v must be regulated and able to supply 1A or more for shields.
+//
+// NOTE:  PA0 is connected to 'AREF', and PORTA pins are shifted to PA1 through PA6 for
+//        A0 through A5.
 //
 // As with the MEGA2560 and other 'mega' Arduino boards, additional connectors would
 // break out the additional pins, with appropriate labeling.  Additionally, there should
 // be an LED on PORTR pin 1 for 'LED_BUILTIN'.
 //
-// This layout is based on the 'Rev C' Arduino.
+// This layout is based on the 'Rev C' Arduino.  Rev B didn't have IOREF, SDA, SCL.
 //
-// NOTE - NO AREF:  AREF is not connected.  AREF is a bit of an issue on xmega because
-// it DOES! NOT! WORK! THE! SAME! as it does on the ATmegaXXX and so you would need to
-// (literally) steal one of the additional analog input pins to implement it. It's not
-// impossible, or even THAT difficult.  I'm just not doing it here.
-
+// Uno has automatic switching between 5V reg out and 5V from USB power.  When Vin is more
+// than 6.6v, the Vin source supplies 5V (and 3.3V) to the board.  otherwise, the USB
+// 5V power supplies 5V (and 3.3V) to the board.
+//
 
 
 #ifdef DIGITAL_IO_PIN_SHIFT // aka digital I/O pin 0 is PORTD pin 2
@@ -375,13 +396,15 @@ const uint16_t PROGMEM digital_pin_to_control_PGM[] = {
 // subtract 2 from the digital pin number if DIGITAL_IO_PIN_SHIFT is defined
   (uint16_t) &PORTD_PIN2CTRL,  // PD 2 ** 2 ** USARTD_RX     ASYNC
   (uint16_t) &PORTD_PIN3CTRL,  // PD 3 ** 3 ** USARTD_TX
+#ifdef DIGITAL_IO_PIN_SHIFT
+  (uint16_t) &PORTD_PIN0CTRL,  // PD 0 ** 8 ** 
+#endif // DIGITAL_IO_PIN_SHIFT
   (uint16_t) &PORTD_PIN4CTRL,  // PD 4 ** 4 **
   (uint16_t) &PORTD_PIN5CTRL,  // PD 5 ** 5 **
   (uint16_t) &PORTD_PIN6CTRL,  // PD 6 ** 6 **
   (uint16_t) &PORTD_PIN7CTRL,  // PD 7 ** 7 **
 #ifdef DIGITAL_IO_PIN_SHIFT
-  (uint16_t) &PORTD_PIN1CTRL,  // PD 1 ** 8 ** PC 0,1 must be used for TWI
-  (uint16_t) &PORTD_PIN0CTRL,  // PD 0 ** 9 ** PWM out here
+  (uint16_t) &PORTD_PIN1CTRL,  // PD 1 ** 9 ** PC 0,1 must be used for TWI
 #else // no pin shifting
   (uint16_t) &PORTC_PIN0CTRL,  // PC 0 ** 8 ** SDA
   (uint16_t) &PORTC_PIN1CTRL,  // PC 1 ** 9 ** SCL
@@ -398,7 +421,9 @@ const uint16_t PROGMEM digital_pin_to_control_PGM[] = {
   (uint16_t) &PORTC_PIN0CTRL,  // PC 0 ** the new 16 ** SDA
   (uint16_t) &PORTC_PIN1CTRL,  // PC 1 ** the new 17 ** SCL
 #endif // DIGITAL_IO_PIN_SHIFT
-  (uint16_t) &PORTA_PIN0CTRL,  // PA 0 ** 22 ** A0
+#ifndef USE_AREF
+  (uint16_t) &PORTA_PIN0CTRL,  // PA 0 ** 22 ** A0           AREF (when USE_AREF is defined, and then it won't be mapped)
+#endif // USE_AREF
   (uint16_t) &PORTA_PIN1CTRL,  // PA 1 ** 23 ** A1
   (uint16_t) &PORTA_PIN2CTRL,  // PA 2 ** 24 ** A2           ASYNC
   (uint16_t) &PORTA_PIN3CTRL,  // PA 3 ** 25 ** A3
@@ -418,13 +443,15 @@ const uint8_t PROGMEM digital_pin_to_port_PGM[] = {
 // subtract 2 from the digital pin number if DIGITAL_IO_PIN_SHIFT is defined
   _PD,  // PD 2 ** 2 ** USARTD_RX
   _PD,  // PD 3 ** 3 ** USARTD_TX
+#ifdef DIGITAL_IO_PIN_SHIFT
+  _PD,  // PD 0 ** 2 **
+#endif // DIGITAL_IO_PIN_SHIFT
   _PD,  // PD 4 ** 4 **
   _PD,  // PD 5 ** 5 **
   _PD,  // PD 6 ** 6 **
   _PD,  // PD 7 ** 7 **
 #ifdef DIGITAL_IO_PIN_SHIFT
-  _PD,  // PD 1 ** 8 **
-  _PD,  // PD 0 ** 9 **
+  _PD,  // PD 1 ** 9 **
 #else // no pin shifting
   _PC,  // PC 0 ** 8 ** SDA
   _PC,  // PC 1 ** 9 ** SCL
@@ -441,7 +468,9 @@ const uint8_t PROGMEM digital_pin_to_port_PGM[] = {
   _PC,  // PC 0 ** the new 16 ** SDA
   _PC,  // PC 1 ** the new 17 ** SCL
 #endif // DIGITAL_IO_PIN_SHIFT
+#ifndef USE_AREF
   _PA,  // PA 0 ** 22 ** A0
+#endif // USE_AREF
   _PA,  // PA 1 ** 23 ** A1
   _PA,  // PA 2 ** 24 ** A2
   _PA,  // PA 3 ** 25 ** A3
@@ -461,13 +490,15 @@ const uint8_t PROGMEM digital_pin_to_bit_mask_PGM[] = {
 // subtract 2 from the digital pin number if DIGITAL_IO_PIN_SHIFT is defined
   _BV( 2 ),  // PD 2 ** 2 ** USARTD_RX
   _BV( 3 ),  // PD 3 ** 3 ** USARTD_TX
+#ifdef DIGITAL_IO_PIN_SHIFT
+  _BV( 0 ),  // PD 0 ** 2 **
+#endif // DIGITAL_IO_PIN_SHIFT
   _BV( 4 ),  // PD 4 ** 4 **
   _BV( 5 ),  // PD 5 ** 5 **
   _BV( 6 ),  // PD 6 ** 6 **
   _BV( 7 ),  // PD 7 ** 7 **
 #ifdef DIGITAL_IO_PIN_SHIFT
-  _BV( 1 ),  // PD 1 ** 8 **
-  _BV( 0 ),  // PD 0 ** 9 **
+  _BV( 1 ),  // PD 1 ** 9 **
 #else // no pin shifting
   _BV( 0 ),  // PC 0 ** 8 ** SDA
   _BV( 1 ),  // PC 1 ** 9 ** SCL
@@ -484,7 +515,9 @@ const uint8_t PROGMEM digital_pin_to_bit_mask_PGM[] = {
   _BV( 0 ),  // PC 0 ** the new 16 ** SDA
   _BV( 1 ),  // PC 1 ** the new 17 ** SCL
 #endif // DIGITAL_IO_PIN_SHIFT
+#ifndef USE_AREF
   _BV( 0 ),  // PA 0 ** 22 ** A0
+#endif // USE_AREF
   _BV( 1 ),  // PA 1 ** 23 ** A1
   _BV( 2 ),  // PA 2 ** 24 ** A2
   _BV( 3 ),  // PA 3 ** 25 ** A3
@@ -494,15 +527,13 @@ const uint8_t PROGMEM digital_pin_to_bit_mask_PGM[] = {
   _BV( 7 ),  // PA 7 ** 29 ** A7
 };
 
+
 const uint8_t PROGMEM digital_pin_to_timer_PGM[] = {
   // TIMERS
   // -------------------------------------------
-  // for now 'NOT_ON_TIMER' for all - later, assign timers based
-  // on pins 0-3 being enabled as PWM out for ports A through E
-  // corresponding to timers A through D (see D manual sections 11.12.14,
-  // also see D manual sect 13.6 for using the 'compare' channel on 'TCx2' to generate
-  // a PWM output.  Must select pin as output, _AND_ enable the 'compare' output
-  // for the appropriate pin.  LCMPENx/HCMPENx registers to enable it.
+  // The timers on the E5 are a bit different than the others
+  // Since TIMERD5 only goes tp PD4, PD5, PD6, PD7, I have to
+  // map them to places that have PWM.
 
 #ifndef DIGITAL_IO_PIN_SHIFT
   TIMERD5,       // PD 0 ** 0 **
@@ -511,13 +542,15 @@ const uint8_t PROGMEM digital_pin_to_timer_PGM[] = {
 // subtract 2 from the digital pin number if DIGITAL_IO_PIN_SHIFT is defined
   NOT_ON_TIMER,  // PD 2 ** 2 ** USARTD_RX
   NOT_ON_TIMER,  // PD 3 ** 3 ** USARTD_TX
-  NOT_ON_TIMER,  // PD 4 ** 4 **
-  TIMERD5,       // PD 5 ** 5 ** PWM 3
-  TIMERD5,       // PD 6 ** 6 **
-  TIMERD5,       // PD 7 ** 7 ** PWM 5
 #ifdef DIGITAL_IO_PIN_SHIFT
-  NOT_ON_TIMER,  // PD 1 ** 8 **
-  TIMERD5,       // PD 0 ** 9 ** PWM 7
+  TIMERD5,       // PD 0 ** 2 ** non-PWM 2
+#endif // DIGITAL_IO_PIN_SHIFT
+  NOT_ON_TIMER,  // PD 4 ** 4 ** PWM 3
+  TIMERD5,       // PD 5 ** 5 ** PWM 4
+  TIMERD5,       // PD 6 ** 6 ** PWM 5
+  TIMERD5,       // PD 7 ** 7 ** PWM 6
+#ifdef DIGITAL_IO_PIN_SHIFT
+  NOT_ON_TIMER,  // PD 1 ** 9 **
 #else // no pin shifting
   TIMERC4,       // PC 0 ** 8 ** SDA
   TIMERC4,       // PC 1 ** 9 ** SCL
@@ -534,7 +567,9 @@ const uint8_t PROGMEM digital_pin_to_timer_PGM[] = {
   TIMERC4,       // PC 0 ** the new 16 **
   TIMERC4,       // PC 1 ** the new 17 **
 #endif // DIGITAL_IO_PIN_SHIFT
+#ifndef USE_AREF
   NOT_ON_TIMER,  // PA 0 ** 22 ** A0
+#endif // USE_AREF
   NOT_ON_TIMER,  // PA 1 ** 23 ** A1
   NOT_ON_TIMER,  // PA 2 ** 24 ** A2
   NOT_ON_TIMER,  // PA 3 ** 25 ** A3
