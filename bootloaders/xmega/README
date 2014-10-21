@@ -1,0 +1,46 @@
+This is a modification of the Arduino bootloader, which is derived from the
+Adafruit bootloader 'as downloaded' that builds on POSIX-compatible systems 
+and uses an AVRISPmkII to program the target.
+
+
+  make xmega TARGET=target; make flashboot TARGET=target
+
+where
+  'target' is one of the following standard targets:
+    xmega16d4 xmega32d4 xmega64d4 xmega128d4
+    xmega16a1 xmega16a1u xmega32a1 xmega32a1u
+    xmega64a1 xmega64a1u xmega128a1 xmega128a1u
+    xmega8e5 xmega16e5 xmega32e5
+  or one of the following custom targets
+    cc0_atxmega_e5 MikeXMega  
+
+Alternately you can build and flash with the following variables pre-assigned:
+  MCU_TARGET=cputype  (atxmega64d4, atxmega32e5, etc.)
+  START_ADDR={bootloader start address}
+  SERIAL_PORT=portname
+  SERIAL_USART=usartname
+  SERIAL_PORT_REMAP=[yes|no|1|0] (default is 'no')
+  LED_BUILTIN_PORT=portname
+  LED_BUILTIN_PIN=pin_number
+
+where
+  'portname' is a valid port name (such as 'PORTC')
+  'usartname' is an optional USART name (such as 'USARTC0')
+  'pin_number' is a valid pin number (such as '2')
+  'bootloader start address' is the address of the boot section, in hex
+     i.e. a value such as '0x10000'
+-and-
+  'cputype' is a valid cputype recognized by gcc and binutils
+
+So, to make clean and flash a custom bootloader you could do the following:
+  make clean xmega flashboot MCU_TARGET=atxmega64a1u START_ADDR=0x10000 SERIAL_PORT=PORTC
+
+This would build a bootloader for an atxmega64a1u
+
+
+original bootloader source:
+  http://learn.adafruit.com/arduino-tips-tricks-and-techniques/bootloader
+  http://ladyada.net/library/arduino/Adaboot328.zip
+
+
+
