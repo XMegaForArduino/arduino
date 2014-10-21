@@ -6,6 +6,6 @@ if test -z "$1" ; then
 fi
 
 /usr/local/bin/avrdude -C./avrdude.conf -v -v -v -v -v \
-   -patxmega128a1 -carduino -P/dev/ttyU0 -b115200 -D -Uflash:w:$1:i
+   -patxmega128a1 -cwiring -P/dev/ttyU0 -b115200 -D -Uflash:w:$1:i
 
 
