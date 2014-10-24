@@ -19,6 +19,21 @@
 
 #include <Arduino.h>
 
+#ifdef EIND
+// if I have an EIND register, I want it pre-loaded with the correct value
+// for info on THIS thing, see http://gcc.gnu.org/onlinedocs/gcc/AVR-Options.html
+// in essence, 'init3' section functions run just before 'main()'
+
+// must prototype it to get all of the attributes
+static void __attribute__((section(".init3"),naked,used,no_instrument_function)) init3_set_eind (void);
+
+void init3_set_eind (void)
+{
+  __asm volatile ("ldi r24,pm_hh8(__trampolines_start)\n\t"
+                  "out %i0,r24" :: "n" (&EIND) : "r24","memory");
+}
+#endif // EIND
+
 //Declared weak in Arduino.h to allow user redefinitions.
 int atexit(void (*func)()) { return 0; }
 
@@ -29,12 +44,13 @@ void initVariant() { }
 
 int main(void)
 {
+
 	init();
 
 	initVariant();
 
 #if defined(USBCON)
-	USBDevice.attach();
+  USBDevice.attach();
 #endif
 	
 	setup();

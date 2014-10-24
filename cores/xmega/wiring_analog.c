@@ -218,10 +218,18 @@ int analogRead(uint8_t pin)
   return iRval / 2;  // -1023 to 1023 [TODO:  clip at zero?]
 }
 
-// Right now, PWM output only works on the pins with
-// hardware support.  These are defined in the appropriate
-// pins_*.c file.  For the rest of the pins, we default
-// to digital output.
+// Right now, PWM output only works on the pins with hardware support.
+// These are defined in the appropriate pins_arduino.h file.  For the
+// rest of the pins, we default to digital output with a 1 or 0
+
+#ifdef TCC4
+static void DoAnalogWriteForPort(TC4_t *port, uint8_t bit, uint8_t val);
+#elif defined(TCC2)
+static void DoAnalogWriteForPort(TC2_t *port, uint8_t bit, uint8_t val);
+#else // TCC0
+static void DoAnalogWriteForPort(TC0_t *port, uint8_t bit, uint8_t val);
+#endif // TCC4, TCC2, TCC0
+
 void analogWrite(uint8_t pin, int val)
 {
   // We need to make sure the PWM output is enabled for those pins
@@ -250,99 +258,45 @@ void analogWrite(uint8_t pin, int val)
   }
   else
   {
+    // NOTE:  according to the docs, 16-bit registers MUST be accessed
+    //        low byte first, then high byte, before the actual value
+    //        is transferred to the register.  THIS code will.
+    //        see A1U manual sect. 3.11 (and others as well)
+
     switch(digitalPinToTimer(pin))
     {
 #ifdef TCC4 /* 'E' series and later that have TCC4 */
 
       case TIMERC4:
-
-        if(bit == 1)
-        {
-          ((uint8_t *)&(TCC4_CCA))[0] = val; // NOTE:  these are 16-bit registers and low/high byte access is needed
-          mode = (TCC4_CTRLE & ~TC4_LCCAMODE_gm) | TC4_LCCAMODE0_bm;
-        }
-        else if(bit == 2)
-        {
-          ((uint8_t *)&(TCC4_CCA))[1] = val;
-          mode = (TCC4_CTRLE & ~TC4_LCCBMODE_gm) | TC4_LCCBMODE0_bm;
-        }
-        else if(bit == 4)
-        {
-          ((uint8_t *)&(TCC4_CCB))[0] = val;
-          mode = (TCC4_CTRLE & ~TC4_LCCCMODE_gm) | TC4_LCCCMODE0_bm;
-        }
-        else if(bit == 8)
-        {
-          ((uint8_t *)&(TCC4_CCB))[1] = val;
-          mode = (TCC4_CTRLE & ~TC4_LCCDMODE_gm) | TC4_LCCDMODE0_bm;
-        }
-        else if(bit == 16)
-        {
-          ((uint8_t *)&(TCC4_CCC))[0] = val;
-          mode = (TCC4_CTRLF & ~TC4_HCCAMODE_gm) | TC4_HCCAMODE0_bm;
-        }
-        else if(bit == 32)
-        {
-          ((uint8_t *)&(TCC4_CCC))[1] = val;
-          mode = (TCC4_CTRLF & ~TC4_HCCBMODE_gm) | TC4_HCCBMODE0_bm;
-        }
-        else if(bit == 64)
-        {
-          ((uint8_t *)&(TCC4_CCD))[0] = val;
-          mode = (TCC4_CTRLF & ~TC4_HCCCMODE_gm) | TC4_HCCCMODE0_bm;
-        }
-        else if(bit == 128)
-        {
-          ((uint8_t *)&(TCC4_CCD))[1] = val;
-          mode = (TCC4_CTRLF & ~TC4_HCCDMODE_gm) | TC4_HCCDMODE0_bm;
-        }
-        else
-        {
-          break;
-        }
-
-// this is a reminder that the low nybble should be assigned the correct value for single-slope PWM mode
-//        TCC4_CTRLB = TC45_WGMODE_SINGLESLOPE_gc;
-        if(bit <= 8)
-        {
-          TCC4_CTRLE = mode;
-        }
-        else
-        {
-          TCC4_CTRLF = mode;
-        }
-
+        DoAnalogWriteForPort(&TCC4, bit, val); // TODO: smaller if inlined here?
         break;
 
       case TIMERD5:
-
-        if(bit == 1 || bit == 16)
+        // THIS code is unique to the E5, most likely, so it's inlined
+        if(bit == 1 || bit == 16) // TODO:  either bit?  not sure if I can re-map these to 0-3
         {
-          ((uint8_t *)&(TCD5_CCA))[0] = val; // NOTE:  these are 16-bit registers and low/high byte access is needed
+          TCD5_CCA = (TCD5_CCA & 0xff00) | (val & 0xff);
           mode = (TCD5_CTRLE & ~TC5_LCCAMODE_gm) | TC5_LCCAMODE0_bm;
         }
         else if(bit == 2 || bit == 32)
         {
-          ((uint8_t *)&(TCD5_CCA))[1] = val;
+          TCD5_CCB = (TCD5_CCB & 0xff00) | (val & 0xff);
           mode = (TCD5_CTRLE & ~TC5_LCCBMODE_gm) | TC5_LCCBMODE0_bm;
         }
         else if(bit == 4 || bit == 64)
         {
-          ((uint8_t *)&(TCD5_CCB))[0] = val;
+          TCD5_CCA = (TCD5_CCA & 0xff) | ((val << 8) & 0xff00);
           mode = (TCD5_CTRLF & ~TC5_HCCAMODE_gm) | TC5_HCCAMODE0_bm;
         }
         else if(bit == 8 || bit == 128)
         {
-          ((uint8_t *)&(TCD5_CCB))[1] = val;
+          TCD5_CCB = (TCD5_CCB & 0xff) | ((val << 8) & 0xff00);
           mode = (TCD5_CTRLF & ~TC5_HCCBMODE_gm) | TC5_HCCBMODE0_bm;
         }
         else
         {
           break;
         }
-
-// this is a reminder that the low nybble should be assigned the correct value for single-slope PWM mode
-//        TCD5_CTRLB = TC45_WGMODE_SINGLESLOPE_gc;
 
         if(bit == 1 || bit == 2 ||  bit == 16 || bit == 32)
         {
@@ -354,176 +308,52 @@ void analogWrite(uint8_t pin, int val)
         }
 
         break;
-#else // everything else
+
+#else // everything else NOT an 'E' series
+
       case TIMERD2:
-
 #ifndef TCD2
-
-        // NOTE:  timers C2 and D2 count DOWN, always.  However, the output starts at zero
-        //        and flips to 1 when CTR reaches the CMP value.  So a value of 255 would be
-        //        '1' and 0 would be '0', as is expected.  See 'D' manual 13.6.2
-        if(bit == 1)
-        {
-          ((uint8_t *)&(TCD0_CCA))[0] = val;
-        }
-        else if(bit == 2)
-        {
-          ((uint8_t *)&(TCD0_CCB))[0] = val;
-        }
-        else if(bit == 4)
-        {
-          ((uint8_t *)&(TCD0_CCC))[0] = val;
-        }
-        else if(bit == 8)
-        {
-          ((uint8_t *)&(TCD0_CCD))[0] = val;
-        }
-        else if(bit == 16)
-        {
-          ((uint8_t *)&(TCD0_CCA))[1] = val;
-        }
-        else if(bit == 32)
-        {
-          ((uint8_t *)&(TCD0_CCB))[1] = val;
-        }
-        else if(bit == 64)
-        {
-          ((uint8_t *)&(TCD0_CCC))[1] = val;
-        }
-        else if(bit == 128)
-        {
-          ((uint8_t *)&(TCD0_CCD))[1] = val;
-        }
-
-        TCD0_CTRLB |= bit; // enables output
-
+        DoAnalogWriteForPort(&TCD0, bit, val);
 #else // TCD2 defined
-
-        // NOTE:  timers C2 and D2 count DOWN, always.  However, the output starts at zero
-        //        and flips to 1 when CTR reaches the CMP value.  So a value of 255 would be
-        //        '1' and 0 would be '0', as is expected.  See 'D' manual 13.6.2
-        if(bit == 1)
-        {
-          TCD2_LCMPA = val;
-        }
-        else if(bit == 2)
-        {
-          TCD2_LCMPB = val;
-        }
-        else if(bit == 4)
-        {
-          TCD2_LCMPC = val;
-        }
-        else if(bit == 8)
-        {
-          TCD2_LCMPD = val;
-        }
-        else if(bit == 16)
-        {
-          TCD2_HCMPA = val;
-        }
-        else if(bit == 32)
-        {
-          TCD2_HCMPB = val;
-        }
-        else if(bit == 64)
-        {
-          TCD2_HCMPC = val;
-        }
-        else if(bit == 128)
-        {
-          TCD2_HCMPD = val;
-        }
-
-        TCD2_CTRLB |= bit; // enables output
+        DoAnalogWriteForPort(&TCD2, bit, val);
 #endif // TCD2 defined
         break;
 
       case TIMERC2:
 
 #ifndef TCC2
-
-        // NOTE:  timers C2 and D2 count DOWN, always.  However, the output starts at zero
-        //        and flips to 1 when CTR reaches the CMP value.  So a value of 255 would be
-        //        '1' and 0 would be '0', as is expected.  See 'D' manual 13.6.2
-        if(bit == 1)
-        {
-          ((uint8_t *)&(TCC0_CCA))[0] = val;
-        }
-        else if(bit == 2)
-        {
-          ((uint8_t *)&(TCC0_CCB))[0] = val;
-        }
-        else if(bit == 4)
-        {
-          ((uint8_t *)&(TCC0_CCC))[0] = val;
-        }
-        else if(bit == 8)
-        {
-          ((uint8_t *)&(TCC0_CCD))[0] = val;
-        }
-        else if(bit == 16)
-        {
-          ((uint8_t *)&(TCC0_CCA))[1] = val;
-        }
-        else if(bit == 32)
-        {
-          ((uint8_t *)&(TCC0_CCB))[1] = val;
-        }
-        else if(bit == 64)
-        {
-          ((uint8_t *)&(TCC0_CCC))[1] = val;
-        }
-        else if(bit == 128)
-        {
-          ((uint8_t *)&(TCC0_CCD))[1] = val;
-        }
-
-        TCC0_CTRLB |= bit; // enables output
-
+        DoAnalogWriteForPort(&TCC0, bit, val);
 #else // TCC2 defined
-        // NOTE:  timers C2 and D2 count DOWN, always.  However, the output starts at zero
-        //        and flips to 1 when CTR reaches the CMP value.  So a value of 255 would be
-        //        '1' and 0 would be '0', as is expected.  See 'D' manual 13.6.2
-        if(bit == 1)
-        {
-          TCC2_LCMPA = val;
-        }
-        else if(bit == 2)
-        {
-          TCC2_LCMPB = val;
-        }
-        else if(bit == 4)
-        {
-          TCC2_LCMPC = val;
-        }
-        else if(bit == 8)
-        {
-          TCC2_LCMPD = val;
-        }
-        else if(bit == 16)
-        {
-          TCC2_HCMPA = val;
-        }
-        else if(bit == 32)
-        {
-          TCC2_HCMPB = val;
-        }
-        else if(bit == 64)
-        {
-          TCC2_HCMPC = val;
-        }
-        else if(bit == 128)
-        {
-          TCC2_HCMPD = val;
-        }
-
-        TCC2_CTRLB |= bit; // enables output
-
+        DoAnalogWriteForPort(&TCC2, bit, val);
 #endif // TCC2 defined
         break;
 
-#if NUM_DIGITAL_PINS > 18 /* meaning there is a PORT E available */
+#if NUM_DIGITAL_PINS > 22 /* meaning there is a PORT E available with 8 pins */
+
+      case TIMERE2: // TIMER 'E2' for 8-bits
+
+#ifndef TCE2
+        DoAnalogWriteForPort(&TCE0, bit, val);
+#else // TCE2 defined
+        DoAnalogWriteForPort(&TCE2, bit, vao);
+#endif // TCE2 defined
+        break;
+
+#if NUM_DIGITAL_PINS > 30 /* meaning there is a PORT F available */
+
+      case TIMERF2:
+
+#ifndef TCF2
+        DoAnalogWriteForPort(&TCF0, bit, val);
+#else // TCF2 defined
+        DoAnalogWriteForPort(&TCF2, bit, val);
+#endif // TCF2 defined
+        break;
+
+
+#endif // NUM_DIGITAL_PINS > 30
+
+#elif NUM_DIGITAL_PINS > 18 /* meaning there is a PORT E available but with only 4 pins */
 
       case TIMERE0:
         // timer E0 counts UP, but a value of 0 would still generate a '0' output because
@@ -553,7 +383,8 @@ void analogWrite(uint8_t pin, int val)
                                   // note that the 'enable' bits are in CTRLB and in upper nybble
         break;
 
-#endif // NUM_DIGITAL_PINS > 18
+
+#endif // NUM_DIGITAL_PINS >= 18, 24
 
 #endif // TCC4 check
 
@@ -570,4 +401,160 @@ void analogWrite(uint8_t pin, int val)
     }
   }
 }
+
+
+
+#ifdef TCC4
+void DoAnalogWriteForPort(TC4_t *port, uint8_t bit, uint8_t val)
+{
+uint8_t modeE, modeF;
+
+  modeE = port->CTRLE;
+  modeF = port->CTRLF;
+
+  if(bit == 1)
+  {
+    port->CCA = (port->CCA & 0xff00) | (val & 0xff);
+    modeE = (modeE & ~TC4_LCCAMODE_gm) | TC45_LCCAMODE_COMP_gc;
+  }
+  else if(bit == 2)
+  {
+    port->CCB = (port->CCB & 0xff00) | (val & 0xff);
+    modeE = (modeE & ~TC4_LCCBMODE_gm) | TC45_LCCBMODE_COMP_gc;
+  }
+  else if(bit == 4)
+  {
+    port->CCC = (port->CCC & 0xff00) | (val & 0xff);
+    modeE = (modeE & ~TC4_LCCCMODE_gm) | TC45_LCCCMODE_COMP_gc;
+  }
+  else if(bit == 8)
+  {
+    port->CCD = (port->CCD & 0xff00) | (val & 0xff);
+    modeE = (modeE & ~TC4_LCCDMODE_gm) | TC45_LCCDMODE_COMP_gc;
+  }
+  else if(bit == 16)
+  {
+    port->CCA = (port->CCA & 0xff) | ((val << 8) & 0xff00);
+    modeF = (modeF & ~TC4_HCCAMODE_gm) | TC45_HCCAMODE_COMP_gc;
+  }
+  else if(bit == 32)
+  {
+    port->CCB = (port->CCB & 0xff) | ((val << 8) & 0xff00);
+    modeF = (modeF & ~TC4_HCCBMODE_gm) | TC45_HCCBMODE_COMP_gc;
+  }
+  else if(bit == 64)
+  {
+    port->CCC = (port->CCC & 0xff) | ((val << 8) & 0xff00);
+    modeF = (modeF & ~TC4_HCCCMODE_gm) | TC45_HCCCMODE_COMP_gc;
+  }
+  else if(bit == 128)
+  {
+    port->CCD = (port->CCD & 0xff) | ((val << 8) & 0xff00);
+    modeF = (modeF & ~TC4_HCCDMODE_gm) | TC45_HCCDMODE_COMP_gc;
+  }
+  else
+  {
+    return;
+  }
+
+  port->CTRLE = modeE;
+  port->CTRLF = modeF;
+
+//  if(bit <= 8)
+//  {
+//    port->CTRLE = mode;
+//  }
+//  else
+//  {
+//    port->CTRLF = mode;
+//  }
+}
+#elif defined(TCC2)
+void DoAnalogWriteForPort(TC2_t *port, uint8_t bit, uint8_t val)
+{
+  // NOTE:  timers C2 and D2 count DOWN, always.  However, the output starts at zero
+  //        and flips to 1 when CTR reaches the CMP value.  So a value of 255 would be
+  //        '1' and 0 would be '0', as is expected.  See 'D' manual 13.6.2
+  if(bit == 1)
+  {
+    port->LCMPA = val;
+  }
+  else if(bit == 2)
+  {
+    port->LCMPB = val;
+  }
+  else if(bit == 4)
+  {
+    port->LCMPC = val;
+  }
+  else if(bit == 8)
+  {
+    port->LCMPD = val;
+  }
+  else if(bit == 16)
+  {
+    port->HCMPA = val;
+  }
+  else if(bit == 32)
+  {
+    port->HCMPB = val;
+  }
+  else if(bit == 64)
+  {
+    port->HCMPC = val;
+  }
+  else if(bit == 128)
+  {
+    port->HCMPD = val;
+  }
+
+// this is a reminder that the low nybble should be assigned the correct value for single-slope PWM mode
+//        port->CTRLB = TC45_WGMODE_SINGLESLOPE_gc;
+  port->CTRLB |= bit; // enables output
+}
+#else // TCC0
+void DoAnalogWriteForPort(TC0_t *port, uint8_t bit, uint8_t val)
+{
+  // NOTE:  timers C2 and D2 count DOWN, always.  However, the output starts at zero
+  //        and flips to 1 when CTR reaches the CMP value.  So a value of 255 would be
+  //        '1' and 0 would be '0', as is expected.  See 'D' manual 13.6.2
+  if(bit == 1)
+  {
+    port->CCA = (port->CCA & 0xff00) | (val & 0xff);
+  }
+  else if(bit == 2)
+  {
+    port->CCB = (port->CCB & 0xff00) | (val & 0xff);
+  }
+  else if(bit == 4)
+  {
+    port->CCC = (port->CCC & 0xff00) | (val & 0xff);
+  }
+  else if(bit == 8)
+  {
+    port->CCD = (port->CCD & 0xff00) | (val & 0xff);
+  }
+  else if(bit == 16)
+  {
+    port->CCA = (port->CCA & 0xff) | ((val << 8) & 0xff00);
+  }
+  else if(bit == 32)
+  {
+    port->CCB = (port->CCB & 0xff) | ((val << 8) & 0xff00);
+  }
+  else if(bit == 64)
+  {
+    port->CCC = (port->CCC & 0xff) | ((val << 8) & 0xff00);
+  }
+  else if(bit == 128)
+  {
+    port->CCD = (port->CCD & 0xff) | ((val << 8) & 0xff00);
+  }
+
+// this is a reminder that the low nybble should be assigned the correct value for single-slope PWM mode
+//        port->CTRLB = TC45_WGMODE_SINGLESLOPE_gc;
+  port->CTRLB |= bit; // enables output
+}
+#endif // TCC4, TCC2, TCC0
+
 

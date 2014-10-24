@@ -268,9 +268,9 @@ register uint8_t mode;
 
         break;
 
-#else // everything else
+#else // everything else NOT an 'E' series
 
-#ifndef TCC2 /* A1 series does not define this */
+#ifndef TCC2 /* A1 series does not define this and I need TC0 */
 
     case TIMERD2:
       TCD0_CTRLB &= ~bit; // DISables PWM output
@@ -280,13 +280,25 @@ register uint8_t mode;
       TCC0_CTRLB &= ~bit; // DISables PWM output
       break;
 
-#if NUM_DIGITAL_PINS > 18 /* which means we have PORT E */
-// TODO:  64d4 has 4 pins on PORT E.  128A1 has 8 pins on PORT E.  determine which to use?
+#if NUM_DIGITAL_PINS > 22 /* which means we have PORT E but with 8 pins, not 4 */
+
+    case TIMERE2:
+      TCE0_CTRLB &= ~bit; // DISables PWM output
+      break;
+
+#if NUM_DIGITAL_PINS > 30 /* which means we have PORT F */
+
+    case TIMERF2:
+      TCF0_CTRLB &= ~bit; // DISables PWM output
+      break;
+#endif // NUM_DIGITAL_PINS > 30
+
+#elif NUM_DIGITAL_PINS > 18 /* which means we have PORT E but only with 4 pins */
     case TIMERE0:
       TCE0_CTRLB &= ~(bit << 4); // DISables PWM output
                                  // note that the 'enable' bits are in CTRLB and in upper nybble
       break;
-#endif // NUM_DIGITAL_PINS > 18
+#endif // NUM_DIGITAL_PINS > 18, 22
 
 #else // TCC2
     case TIMERD2:
@@ -296,15 +308,29 @@ register uint8_t mode;
     case TIMERC2:
       TCC2_CTRLB &= ~bit; // DISables PWM output
       break;
-#if NUM_DIGITAL_PINS > 18 /* which means we have PORT E */
+
+#if NUM_DIGITAL_PINS > 22 /* which means we have PORT E but with 8 pins, not 4 */
+
+    case TIMERE2:
+      TCE2_CTRLB &= ~bit; // DISables PWM output
+      break;
+
+#if NUM_DIGITAL_PINS > 30 /* which means we have PORT F */
+
+    case TIMERF2:
+      TCF2_CTRLB &= ~bit; // DISables PWM output
+      break;
+#endif // NUM_DIGITAL_PINS > 30
+
+#elif NUM_DIGITAL_PINS > 18 /* which means we have PORT E but only with 4 pins */
 // TODO:  64d4 has 4 pins on PORT E.  128A1 has 8 pins on PORT E.  determine which to use?
     case TIMERE0:
       TCE0_CTRLB &= ~(bit << 4); // DISables PWM output
                                  // note that the 'enable' bits are in CTRLB and in upper nybble
       break;
-#endif // NUM_DIGITAL_PINS > 18
-#endif // TCC2
+#endif // NUM_DIGITAL_PINS > 18, 22
 
+#endif // TCC2
 #endif // TCC4
   }
 }

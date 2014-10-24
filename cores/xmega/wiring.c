@@ -68,6 +68,8 @@ static unsigned char timer0_fract = 0;
 
 #ifdef TCC4 // 'E' series or later that has TCC4 and TCD5
 ISR(TCD5_OVF_vect)
+#elif !defined(TCD2_LUNF_vect)
+ISR(TCD0_OVF_vect) // for A series
 #else // USING TCD2
 ISR(TCD2_LUNF_vect)
 #endif // TCD2, TCD5
@@ -390,6 +392,86 @@ uint8_t readCalibrationData(uint16_t iIndex)
   return(rVal);
 }
 
+#ifdef TCC2
+static void Timer2Init(TC2_t *port)
+{
+  port->CTRLA = 5; // b0101 - divide by 64 - D manual 13.9.1
+  port->CTRLB = 0; // compare outputs disabled on all 8 bits (13.9.2)
+//  port->CTRLC = 0; // when timer not running, sets compare (13.9.3)
+  port->CTRLE = 0x2; // b10 - 'split' mode - D manual 13.9.4
+  port->CTRLF = 0;   // not resetting or anything (13.9.7)
+
+  port->LPER = 255; // count 255 to 0 (total period = 256)
+  port->HPER = 255;
+
+  // pre-assign comparison registers to 'zero' (for PWM out) which is actually 255
+  // 'timer 2' counts DOWN.  This, however, would generate a '1' output.
+
+  port->LCMPA = 255;
+  port->LCMPB = 255;
+  port->LCMPC = 255;
+  port->LCMPD = 255;
+
+  port->HCMPA = 255;
+  port->HCMPB = 255;
+  port->HCMPC = 255;
+  port->HCMPD = 255;
+
+  // disable underflow and comparison interrupts
+  port->INTCTRLA = 0;   // no underflow interrupts
+  port->INTCTRLB = 0;   // no comparison interrupts
+}
+#elif defined(TCC0) // use TC0_t
+static void Timer2Init(TC0_t *port)
+{
+  // TCC2
+  // first the clock selection
+  port->CTRLA = 5; // b0101 - divide by 64 - D manual 13.9.1
+  port->CTRLB = 0; // compare outputs disabled on all 8 bits (13.9.2)
+//  TCC2_CTRLC = 0; // when timer not running, sets compare (13.9.3)
+  port->CTRLE = 0x2; // b10 - 'split' mode - D manual 13.9.4
+#ifdef TCC0_CTRLFCLR // NOTE:  is this correct?
+  port->CTRLFCLR = 0xff; // this does NOT map to anything for TC_t, but I want zeros in CTRLF so 'just in case'
+  port->CTRLFSET = 0; // this maps to 'CTRLF' for TC2_t, and this assignment should work on its own
+#else // TCC0_CTRLFCLR
+  // NOTE: this code will probably NOT be compiled due to the way TC0_t maps to TC2_t
+  port->CTRLF = 0;   // not resetting or anything (13.9.7)
+#endif // TCC0_CTRLFCLR
+
+  port->PER = 255;
+//  TCC2_LPER = 255; // count 255 to 0 (total period = 256)
+//  TCC2_HPER = 255; // should this be zero?
+
+  // pre-assign comparison registers to 'zero' (for PWM out) which is actually 255
+  // 'timer 2' counts DOWN.  This, however, would generate a '1' output.
+
+//  ((uint8_t *)&(port->CCA))[0] = 255; // low bytes
+//  ((uint8_t *)&(port->CCB))[0] = 255;
+//  ((uint8_t *)&(port->CCC))[0] = 255;
+//  ((uint8_t *)&(port->CCD))[0] = 255;
+
+//  ((uint8_t *)&(port->CCA))[1] = 255; // high bytes
+//  ((uint8_t *)&(port->CCB))[1] = 255;
+//  ((uint8_t *)&(port->CCC))[1] = 255;
+//  ((uint8_t *)&(port->CCD))[1] = 255;
+
+  // NOTE:  according to the docs, 16-bit registers MUST be accessed
+  //        low byte first, then high byte, before the actual value
+  //        is transferred to the register.  THIS code will.
+  //        see A1U manual sect. 3.11 (and others as well)
+
+  port->CCA = 0xffff;
+  port->CCB = 0xffff;
+  port->CCC = 0xffff;
+  port->CCD = 0xffff;
+
+  // disable underflow and comparison interrupts
+  port->INTCTRLA = 0;   // no underflow interrupts
+  port->INTCTRLB = 0;   // no comparison interrupts
+}
+#endif // TCC2
+
+
 // NOTE:  calibration data for ADC must be loaded BEFORE it's initialized
 // ADCA.CALL = readCalibrationData(&PRODSIGNATURES_ADCACAL0);
 // ADCA.CALH = readCalibrationData(&PRODSIGNATURES_ADCACAL1);
@@ -461,8 +543,18 @@ void init()
 
 // TODO:  this is not well documented - does it even work for TIMER D5 ??
 #ifdef TCD5_PIN_SHIFT /* shifting PWM output pins, normally 4,5,6,7 */
-  PORTD_REMAP = (PORTD_REMAP & 0xf0) | TCD5_PIN_SHIFT;
+  PORTD_REMAP = (PORTD_REMAP & PORT_USART0_bm) | TCD5_PIN_SHIFT;
+#else  // PORTD_REMAP
+  PORTD_REMAP &= PORT_USART0_bm; // all other pins are zero except maybe USART0 remap
 #endif // PORTD_REMAP
+
+
+// if 'HIRES' enabled, shut it off
+#ifdef HIRESC_ENABLE
+  HIRESC_ENABLE = HIRES_HREN_NONE_gc;
+#endif // HIRESC_ENABLE
+
+  PORTC_REMAP &= PORT_USART0_bm; // all other pins are zero except maybe USART0 remap
 
   // TCC4
   // first the clock selection
@@ -486,15 +578,43 @@ void init()
   TCC4_CTRLGCLR = 0xfe;
   TCC4_CTRLGSET = 1; // count DOWN
 
-
   // disable underflow and comparison interrupts
   TCC4_INTCTRLA = 0;   // no underflow interrupts
   TCC4_INTCTRLB = 0;   // no comparison interrupts
 
 
+  // also set up TCC5
+
+#ifdef TCC5
+
+  TCC5_INTCTRLA = 0;   // no underflow interrupts
+  TCC5_INTCTRLB = 0;   // no comparison interrupts
+
+  TCC5_CTRLA = 5; // b0101 - divide by 64 - E manual 13.13.1
+  TCC5_CTRLB = 0; // 'normal' mode, 16-bit mode
+//  TCC5_CTRLC = 0; // when timer not running, sets compare (13.9.3)
+  TCC5_CTRLD = 0; // events off
+  TCC5_CTRLE = 0; // no output on L pins
+  TCC5_CTRLF = 0; // no output on H pins
+
+  TCC5_PER = 255; // 255 for period limit
+
+  TCC5_CCA = 0;
+  TCC5_CCB = 0;
+
+  TCC5_CTRLGCLR = 0xff;
+  TCC5_CTRLGSET = 0; // count UP
+
+  // disable underflow and comparison interrupts
+  TCC5_INTCTRLA = 0;   // no underflow interrupts
+  TCC5_INTCTRLB = 0;   // no comparison interrupts
+
+#endif // TCC5
+
+
 #else // everything else uses TCD2
 
-#ifndef TCC2 /* A1 series doesn't define thi properly, so use TCC0 and TCD0, etc. */
+#ifndef TCC2 /* A1 series doesn't define this properly, so use TCC0 and TCD0, etc. */
 
   // TCD2
   // first the clock selection
@@ -515,53 +635,31 @@ void init()
   // pre-assign comparison registers to 'zero' (for PWM out) which is actually 255
   // 'timer 2' counts DOWN.
 
-  ((uint8_t *)&(TCD0_CCA))[0] = 255; // low bytes
-  ((uint8_t *)&(TCD0_CCB))[0] = 255;
-  ((uint8_t *)&(TCD0_CCC))[0] = 255;
-  ((uint8_t *)&(TCD0_CCD))[0] = 255;
+//  ((uint8_t *)&(TCD0_CCA))[0] = 255; // low bytes
+//  ((uint8_t *)&(TCD0_CCB))[0] = 255;
+//  ((uint8_t *)&(TCD0_CCC))[0] = 255;
+//  ((uint8_t *)&(TCD0_CCD))[0] = 255;
+//
+//  ((uint8_t *)&(TCD0_CCA))[1] = 255; // high bytes
+//  ((uint8_t *)&(TCD0_CCB))[1] = 255;
+//  ((uint8_t *)&(TCD0_CCC))[1] = 255;
+//  ((uint8_t *)&(TCD0_CCD))[1] = 255;
 
-  ((uint8_t *)&(TCD0_CCA))[1] = 255; // high bytes
-  ((uint8_t *)&(TCD0_CCB))[1] = 255;
-  ((uint8_t *)&(TCD0_CCC))[1] = 255;
-  ((uint8_t *)&(TCD0_CCD))[1] = 255;
+  // NOTE:  according to the docs, 16-bit registers MUST be accessed
+  //        low byte first, then high byte, before the actual value
+  //        is transferred to the register.  THIS code will.
+  //        see A1U manual sect. 3.11 (and others as well)
+
+  TCD0_CCA = 0xffff;
+  TCD0_CCB = 0xffff;
+  TCD0_CCC = 0xffff;
+  TCD0_CCD = 0xffff;
 
   // enable the underflow interrupt on A, disable on B, disable comparison interrupts
   TCD0_INTCTRLA = 0x3; // enable LOW underflow interrupt, pri level 3 (see 13.9.5 in D manual)
   TCD0_INTCTRLB = 0;   // no comparison or underflow interrupts on anything else
 
-
-  // TCC2
-  // first the clock selection
-  TCC0_CTRLA = 5; // b0101 - divide by 64 - D manual 13.9.1
-  TCC0_CTRLB = 0; // compare outputs disabled on all 8 bits (13.9.2)
-//  TCC2_CTRLC = 0; // when timer not running, sets compare (13.9.3)
-  TCC0_CTRLE = 0x2; // b10 - 'split' mode - D manual 13.9.4
-#ifdef TCC0_CTRLFCLR
-  TCC0_CTRLFCLR = 0xff;
-#else // TCC0_CTRLFCLR
-  TCC0_CTRLF = 0;   // not resetting or anything (13.9.7)
-#endif // TCC0_CTRLFCLR
-
-  TCC0_PER = 255;
-//  TCC2_LPER = 255; // count 255 to 0 (total period = 256)
-//  TCC2_HPER = 255; // should this be zero?
-
-  // pre-assign comparison registers to 'zero' (for PWM out) which is actually 255
-  // 'timer 2' counts DOWN.  This, however, would generate a '1' output.
-
-  ((uint8_t *)&(TCC0_CCA))[0] = 255; // low bytes
-  ((uint8_t *)&(TCC0_CCB))[0] = 255;
-  ((uint8_t *)&(TCC0_CCC))[0] = 255;
-  ((uint8_t *)&(TCC0_CCD))[0] = 255;
-
-  ((uint8_t *)&(TCC0_CCA))[1] = 255; // high bytes
-  ((uint8_t *)&(TCC0_CCB))[1] = 255;
-  ((uint8_t *)&(TCC0_CCC))[1] = 255;
-  ((uint8_t *)&(TCC0_CCD))[1] = 255;
-
-  // disable underflow and comparison interrupts
-  TCC0_INTCTRLA = 0;   // no underflow interrupts
-  TCC0_INTCTRLB = 0;   // no comparison interrupts
+  Timer2Init(&TCC0);
 
 #else // TCC2
 
@@ -593,106 +691,46 @@ void init()
   TCD2_INTCTRLA = 0x3; // enable LOW underflow interrupt, pri level 3 (see 13.9.5 in D manual)
   TCD2_INTCTRLB = 0;   // no comparison or underflow interrupts on anything else
 
-
-  // TCC2
-  // first the clock selection
-  TCC2_CTRLA = 5; // b0101 - divide by 64 - D manual 13.9.1
-  TCC2_CTRLB = 0; // compare outputs disabled on all 8 bits (13.9.2)
-//  TCC2_CTRLC = 0; // when timer not running, sets compare (13.9.3)
-  TCC2_CTRLE = 0x2; // b10 - 'split' mode - D manual 13.9.4
-  TCC2_CTRLF = 0;   // not resetting or anything (13.9.7)
-
-  TCC2_LPER = 255; // count 255 to 0 (total period = 256)
-  TCC2_HPER = 255;
-
-  // pre-assign comparison registers to 'zero' (for PWM out) which is actually 255
-  // 'timer 2' counts DOWN.  This, however, would generate a '1' output.
-
-  TCC2_LCMPA = 255;
-  TCC2_LCMPB = 255;
-  TCC2_LCMPC = 255;
-  TCC2_LCMPD = 255;
-
-  TCC2_HCMPA = 255;
-  TCC2_HCMPB = 255;
-  TCC2_HCMPC = 255;
-  TCC2_HCMPD = 255;
-
-  // disable underflow and comparison interrupts
-  TCC2_INTCTRLA = 0;   // no underflow interrupts
-  TCC2_INTCTRLB = 0;   // no comparison interrupts
+  Timer2Init(&TCC2);
 
 #endif // TCC2
 
 #endif // TCD5 or TCD2
 
 
-#if NUM_DIGITAL_PINS > 22 /* meaning PORTE has 8 pins */
+#if NUM_DIGITAL_PINS > 22 /* meaning PORTE is available and has 8 pins */
 
-#ifndef TCE2
+#if !defined(TCE2) && defined(TCE0)
 
-  TCE0_CTRLA = 5; // b0101 - divide by 64 - D manual 13.9.1
-  TCE0_CTRLB = 0; // compare outputs disabled on all 8 bits (13.9.2)
-//  TCE2_CTRLC = 0; // when timer not running, sets compare (13.9.3)
-  TCE0_CTRLE = 0x2; // b10 - 'split' mode - D manual 13.9.4
-#ifdef TCE0_CTRLFCLR
-  TCE0_CTRLFCLR = 0xff;
-#else // TCE0_CTRLFCLR
-  TCE0_CTRLF = 0;   // not resetting or anything (13.9.7)
-#endif // TCE0_CTRLFCLR
+  Timer2Init(&TCE0);
 
-  TCE0_PER = 255;
-//  TCE0_LPER = 255; // count 255 to 0 (total period = 256)
-//  TCE0_HPER = 255; // should this be zero?
+#elif defined(TCE2) // TCE2 defined, use that
 
-  // pre-assign comparison registers to 'zero' (for PWM out) which is actually 255
-  // 'timer 2' counts DOWN.  This, however, would generate a '1' output.
+  Timer2Init(&TCE2);
 
-  ((uint8_t *)&(TCE0_CCA))[0] = 255; // low bytes
-  ((uint8_t *)&(TCE0_CCB))[0] = 255;
-  ((uint8_t *)&(TCE0_CCC))[0] = 255;
-  ((uint8_t *)&(TCE0_CCD))[0] = 255;
+#endif // TCE2, TCE0
 
-  ((uint8_t *)&(TCE0_CCA))[1] = 255; // high bytes
-  ((uint8_t *)&(TCE0_CCB))[1] = 255;
-  ((uint8_t *)&(TCE0_CCC))[1] = 255;
-  ((uint8_t *)&(TCE0_CCD))[1] = 255;
 
-  // disable underflow and comparison interrupts
-  TCE0_INTCTRLA = 0;   // no underflow interrupts
-  TCE0_INTCTRLB = 0;   // no comparison interrupts
+#if NUM_DIGITAL_PINS > 30 /* meaning PORTF exists */
 
-#else // TCE2 defined, use that
+#if !defined(TCF2) && defined(TCF0)
 
-  TCE2_CTRLA = 5; // b0101 - divide by 64 - D manual 13.9.1
-  TCE2_CTRLB = 0; // compare outputs disabled on all 8 bits (13.9.2)
-//  TCE2_CTRLC = 0; // when timer not running, sets compare (13.9.3)
-  TCE2_CTRLE = 0x2; // b10 - 'split' mode - D manual 13.9.4
-  TCE2_CTRLF = 0;   // not resetting or anything (13.9.7)
+  Timer2Init(&TCF0);
 
-  TCE2_LPER = 255; // count 255 to 0 (total period = 256)
-  TCE2_HPER = 255;
+#elif defined(TCF2) // TCF2 defined, use that
 
-  // pre-assign comparison registers to 'zero' (for PWM out) which is actually 255
-  // 'timer 2' counts DOWN.  This, however, would generate a '1' output.
+  Timer2Init(&TCF2);
 
-  TCE2_LCMPA = 255;
-  TCE2_LCMPB = 255;
-  TCE2_LCMPC = 255;
-  TCE2_LCMPD = 255;
+#endif // TCF2, TCF0
 
-  TCE2_HCMPA = 255;
-  TCE2_HCMPB = 255;
-  TCE2_HCMPC = 255;
-  TCE2_HCMPD = 255;
 
-  // disable underflow and comparison interrupts
-  TCE2_INTCTRLA = 0;   // no underflow interrupts
-  TCE2_INTCTRLB = 0;   // no comparison interrupts
+// TODO:  other timers on other ports when more than 38 pins available?
 
-#endif // TCE2
 
-#elif NUM_DIGITAL_PINS > 18 /* meaning there is a PORT E available */
+#endif // NUM_DIGITAL_PINS > 30
+
+
+#elif NUM_DIGITAL_PINS > 18 /* meaning there is a PORT E available with only 4 pins */
 
   // now set up TCE0 as an 8-bit timer so it's compatible with Arduino's PWM
   // first the clock selection
@@ -719,7 +757,8 @@ void init()
   TCE0_CCC = 255;
   TCE0_CCD = 255;
 
-#endif // NUM_DIGITAL_PINS > 18
+#endif // NUM_DIGITAL_PINS > 18, 22
+
 
 
   // in case the bootloader enabled serial or TWI, disable it
@@ -784,9 +823,9 @@ void init()
 
 
 
-  //-----------------------------
-  // PORTS C, D, and E are inputs
-  //-----------------------------
+  //---------------------------------
+  // all pins on all ports are inputs
+  //---------------------------------
 
   PORTC_DIR = 0; // all 'port C' pins are now inputs
   PORTD_DIR = 0; // all 'port D' pins are now inputs
@@ -852,11 +891,11 @@ void init()
   // --------------------
 
   // FINALLY, set up the interrupt controller for priority-based interrupts
-  // and enable them.  Important.  See 10.8.3 in D manual
+  // _AND_ enable them.  Important.  See 10.8.3 in D manual.
+  // This also makes sure the IVT is at the bottom of NVRAM, not the boot section
 
-  CCP = CCP_IOREG_gc; // 0xd8 - see D manual, sect 3.14.1 (protected I/O)
-  PMIC_CTRL = 0x87; // binary 10000111  all 3 int levels enabled, round-robin enabled, IVT starts at 0002H
-
+  *((volatile uint8_t *)&(CCP)) = CCP_IOREG_gc; // 0xd8 - see D manual, sect 3.14.1 (protected I/O)
+  *((volatile uint8_t *)&(PMIC_CTRL)) = PMIC_RREN_bm | PMIC_HILVLEN_bm | PMIC_MEDLVLEN_bm | PMIC_LOLVLEN_bm;
 
 
   adc_setup(); // set up the ADC (function exported from wiring_analog.c)
