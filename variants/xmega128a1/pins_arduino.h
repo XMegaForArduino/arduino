@@ -96,16 +96,27 @@
 //
 #define DIGITAL_IO_PIN_SHIFT /* UNCOMMENT THIS to shift digital pin assignments for Arduino shield compatibility */
 
-
+//#define USE_AREF 0x2 /* see 28.16.3 in 'AU' manual - this is the REFCTRL bits for the reference select, AREF on PORTA (PA0) */
 
 #define NUM_DIGITAL_PINS            62
+
+#ifdef USE_AREF
+#define NUM_ANALOG_INPUTS           15
+#define analogInputToAnalogPin(p) ((p)-A0 + 1)
+#else // USE_AREF
 #define NUM_ANALOG_INPUTS           16
+#define analogInputToAnalogPin(p) ((p)-A0)
+#endif // USE_AREF
+
 #define analogInputToDigitalPin(p)  ((p < 16) ? (p) + 62 : -1)
+
 #ifdef DIGITAL_IO_PIN_SHIFT
 #define digitalPinHasPWM(p)         ((p) < 30 || (p) == 60 || (p) == 61) /* PORTD pins 0 and 1 are 20 and 21, respectively */
 #else // no digital I/O pin shift
 #define digitalPinHasPWM(p)         ((p) < 32) /* port F pin 7 is the highest one that has PWM */
 #endif // DIGITAL_IO_PIN_SHIFT
+
+
 
 // TODO:  find out how to make this one work
 //#define digitalPinToInterrupt(p)  ((p) == 2 ? 0 : ((p) == 3 ? 1 : NOT_AN_INTERRUPT))
@@ -263,40 +274,45 @@
 
 
 // For atmega/Arduino shield compatibility, with DIGITAL_IO_PIN_SHIFT defined
-// typical board/pin layout might be like this (for shield pins):
+// typical board/pin layout might be like this:
 //
-
-// NOTE:  re-do this ASCII art for the MEGA2560 layout
-
-//               M M
-//             S I O   T R
-//         A   C S S S x x
-//     S S R G K O I S 2 2              T R
-//     D C E N 1 1 1 1                  x x
-//     A L F D 3 2 1 0 9 8  7 6 5 4 3 2 1 0
-// ----o-o-o-o-o-o-o-o-o-o--o-o-o-o-o-o-o-o----
-//     P P     P P P P P P  P P P P P P P P
-//     E E     C C C C C C  C C D D D D D D
-//     1 0     7 6 5 4 3 2  1 0 7 6 5 4 3 2
-//
-//
-//               T O P   V I E W
-//
-//
-//                              P P P P P P
-//                              A A A A A A
-//                              5 4 3 2 1 0
-// ------------o-o-o-o-o-o-o-o--o-o-o-o-o-o----
-//             G I R 3 5 G G V  A A A A A A
-//             N O E . V N N i  5 4 3 2 1 0
-//             D R S 3   D D n
-//               E E V
-//               F T
+//      
+//                                                                 R I
+//                                                                 E O N
+//                    A A A A A A                        V G G 3   S R .
+//                    1 1 1 1 1 1 A A   A A A A A A A A  I N N V 5 E E C
+//                    5 4 3 2 1 0 9 8   7 6 5 4 3 2 1 0  n D D 3 V T F .
+//              {  } -o-o-o-o-o-o-o-o---o-o-o-o-o-o-o-o--o-o-o-o-o-o-o-o-----------
+//                    
+//      55 -o-o       
+//      53 -o-o       
+//      51 -o-o
+//      49 -o-o 48
+//      47 -o-o 46
+//      45 -o-o 44
+//      43 -o-o 42
+//      41 -o-o 40
+//      39 -o-o 38
+//      37 -o-o 36                     T O P   V I E W
+//      35 -o-o 34
+//      33 -o-o 32
+//      31 -o-o 30
+//      29 -o-o 28
+//      27 -o-o
+//      25 -o-o
+//      23 -o-o
+//         -o-o {  } -----o-o-o-o-o-o-o-o---o-o-o-o-o-o---o-o-o-o-o-o-o-o-o-o-o-o---
+//          5 5           2 2 1 1 1 1 1 1                         1 1 1 1 G A S S
+//          V V           1 0 9 8 7 6 5 4   0 1 2 3 4 5   6 7 8 9 0 1 2 3 N R C D
+//                        S S R T R T R T   R T                   S M M S D E L A
+//                        C D x x x x x x   x x                   S O I C   F
+//                        L A 1 1 2 2 3 3   0 0                     S S K
+//                                                                  I O
 //
 // As with other 'mega' Arduino boards, additional connectors would
 // break out the additional pins, with appropriate labeling.
 //
-// This layout is based on the 'Rev C' Arduino.
+// This layout is based on the 'Rev 3' Arduino mega 2560.
 //
 // NOTE - NO AREF:  AREF is not connected.  AREF is a bit of an issue on xmega because
 // it DOES! NOT! WORK! THE! SAME! as it does on the ATmegaXXX and so you would need to
@@ -889,7 +905,7 @@ const uint8_t PROGMEM digital_pin_to_timer_PGM[] = {
 
 };
 
-#endif
+#endif // ARDUINO_MAIN
 
 
 // These serial port names are intended to allow libraries and architecture-neutral
@@ -911,6 +927,6 @@ const uint8_t PROGMEM digital_pin_to_timer_PGM[] = {
 #define SERIAL_PORT_HARDWARE  Serial
 #define SERIAL_HARDWARE_OPEN  Serial2
 
-#endif
+#endif // Pins_Arduino_h
 
 
