@@ -1,12 +1,11 @@
-# Makefile for atxmega64d4 - invokes 'universal' Makefile in ../xmega
+# Makefile for atxmega128a1 - invokes 'universal' Makefile in ../xmega
 #
 #
 
-#USE_TARGET=Test64
-#CPU_TARGET=atxmega64d4
-USE_TARGET=xmega64d4
-CPU_TARGET=at$(USE_TARGET)
-
+USE_TARGET=Test128
+CPU_TARGET=atxmega128a1u
+#USE_TARGET=xmega128a1u
+#CPU_TARGET=at$(USE_TARGET)
 
 xmega:
 	$(MAKE) -C ../xmega xmega TARGET=$(USE_TARGET)

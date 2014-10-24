@@ -33,7 +33,7 @@ GREP_LINE ?=
 #    xmega64a1 xmega64a1u xmega128a1 xmega128a1u
 #    xmega8e5 xmega16e5 xmega32e5
 #  or one of the following custom targets
-#    cc0_atxmega_e5 MikeXMega  
+#    cc0_atxmega_e5 RockSolid128A
 
 ifneq ($(strip $(TARGET)),)
 
@@ -104,10 +104,9 @@ LED_BUILTIN_PIN := 1
 
 endif
 
-ifeq ($(TARGET),MikeXMega)
+ifeq ($(TARGET),RockSolid128A)
 
-#MCU_TARGET := atxmega128a1u
-MCU_TARGET := atxmega128a1
+MCU_TARGET := atxmega128a1u
 START_ADDR := 0x20000
 SERIAL_PORT := PORTC
 SERIAL_USART := USARTC0
@@ -119,6 +118,35 @@ USE_STK500V2 := 1
 GREP_LINE := ":020000022000DC"
 
 #BOOTLOADER_SUFFIX=$(TARGET)
+
+endif
+
+ifeq ($(TARGET),Test128)
+
+MCU_TARGET := atxmega128a1u
+START_ADDR := 0x20000
+SERIAL_PORT := PORTD
+SERIAL_USART := USARTD0
+SERIAL_PORT_REMAP := no
+LED_BUILTIN_PORT := PORTR
+LED_BUILTIN_PIN := 1
+# note, NOT using STK500V2 in this one
+GREP_LINE := ":020000022000DC"
+
+endif
+
+ifeq ($(TARGET),Test64)
+
+MCU_TARGET := atxmega64d4
+START_ADDR := 0x10000
+SERIAL_PORT := PORTD
+SERIAL_USART := USARTD0
+SERIAL_PORT_REMAP := no
+LED_BUILTIN_PORT := PORTR
+LED_BUILTIN_PIN := 1
+# testing STK500V2 with this one
+USE_STK500V2 := 1
+GREP_LINE := ":020000021000EC"
 
 endif
 

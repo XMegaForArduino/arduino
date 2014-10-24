@@ -5,7 +5,7 @@ if test -z "$1" ; then
   exit
 fi
 
-/usr/local/bin/avrdude -C./avrdude.conf -v -v -v -v -v \
+/usr/local/bin/avrdude -C../xmega/avrdude.conf -v -v -v -v -v \
    -patxmega64d4 -carduino -P/dev/ttyU0 -b115200 -D -Uflash:w:$1:i
 
 

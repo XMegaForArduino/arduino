@@ -1,10 +1,10 @@
-ATXMega64D4 bootloader
+ATXMega128A1 bootloader (currently NOT tested, does not support >64k images)
 
 This is a modification of the Arduino bootloader, which is derived from the
 Adafruit bootloader 'as downloaded' that builds on POSIX-compatible systems 
 and uses an AVRISPmkII to program the target.
 
-  make xmega; make flashboot
+  make xmega; make flash
 
 
 original source:

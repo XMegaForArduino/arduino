@@ -12,24 +12,13 @@
 /////////////////////////////////////////////////////////////////////////////////
 
 
-// NOTE:  bootloader for ATxmega64D4 will be compiled for 10000H start address
-//        this is 'the boot section' and MUST be flashed as 'boot' or it won't work
-//        The easiest way to do this is to strip out the first line of the bootloader
-//        hex file which will read as ":020000021000EC".
-//        As far as I can tell, it only works for the 64D4.  A HEX bootloader for the
-//        16D4, 32D4 or 128D4 may need to be 'relocated' programatically by modifying
-//        the address entries themselves.  This is a problem with avrdude, and not
-//        gcc nor this bootloader.  The boot section simply will NOT flash unless you
-//        specify the section name as 'boot', and start at address 0000.
-
-
 // XMEGA CHANGES:
 //
-// - apply equivalent fixes as the Adafruit bootloader
+// - apply equivalent fixes as the Adafruit bootloader does
 //   (blink, flash bypass, WATCHDOG_MODS)
 // - special '115k baud only' baud rate code (only rate supported at this time)
-// - built-in LED is on PORTR pin 1, optional LED on PORTR pin 0
-// - serial port on PORTD (pins 2,3) only for flash
+// - by default, built-in LED is on PORTR pin 1
+// - also by default, the serial port is on PORTD (pins 2,3) only for flashing
 // - XMEGA-specific NVRAM write functions
 
 // THIS is the _GENERIC_ version.  It requires some definitions to work properly
@@ -194,11 +183,13 @@ uint8_t readNVMData(uint8_t cmd, uint16_t iIndex);
 //
 #ifdef LED_BUILTIN_PORT
 
-#define LED_DDR (&(LED_BUILTIN_PORT))->DIR
-#define LED_PORT (&(LED_BUILTIN_PORT))->OUT
-#define LED_PIN (&(LED_BUILTIN_PORT))->IN
-#define LED_CTRL *(&((&(LED_BUILTIN_PORT))->PIN0CTRL) + LED_BUILTIN_PIN)
+#define LED_DDR ((&(LED_BUILTIN_PORT))->DIR)
+// NOTE:  if I don't cast the address as 'volatile uint8_t *' some processors won't work properly
+#define LED_PORT (*((volatile uint8_t *) &((&(LED_BUILTIN_PORT))->OUT) ))
+#define LED_PIN (*((volatile uint8_t *) &((&(LED_BUILTIN_PORT))->IN) ))
+#define LED_CTRL (*((volatile uint8_t *) &(*(&((&(LED_BUILTIN_PORT))->PIN0CTRL) + LED_BUILTIN_PIN)) ))
 #define LED_PIN_BIT _BV(LED_BUILTIN_PIN)
+#define LED_INTCTRL (*((volatile uint8_t *) &((&(LED_BUILTIN_PORT))->INTCTRL) ))
 
 #else // LED_BUILTIN_PORT
 
@@ -208,6 +199,7 @@ uint8_t readNVMData(uint8_t cmd, uint16_t iIndex);
 #define LED_PIN  PORTR_IN          /* D manual section 11.12.9 */
 #define LED_CTRL PORTR_PIN1CTRL    /* D manual section 11.12.15 */
 #define LED_PIN_BIT _BV(1)
+#define LED_INTCTRL PORTR_INTCTRL
 
 #endif // LED_BUILTIN_PORT
 
@@ -218,24 +210,44 @@ uint8_t readNVMData(uint8_t cmd, uint16_t iIndex);
 #define SERIAL_PORT_REMAP_REG ((&(SERIAL_PORT))->REMAP)
 #endif // PORTC_REMAP
 
-#define SERIAL_PORT_PIN2CTRL ((&(SERIAL_PORT))->PIN2CTRL)
-#define SERIAL_PORT_PIN3CTRL ((&(SERIAL_PORT))->PIN3CTRL)
-#define SERIAL_PORT_PIN6CTRL ((&(SERIAL_PORT))->PIN6CTRL)
-#define SERIAL_PORT_PIN7CTRL ((&(SERIAL_PORT))->PIN7CTRL)
-#define SERIAL_PORT_OUT      ((&(SERIAL_PORT))->OUT)
-#define SERIAL_PORT_DIR      ((&(SERIAL_PORT))->DIR)
+#if 0
+// NOTE:  if I don't cast the address as 'volatile uint8_t *' some processors won't work properly
+#define SERIAL_PORT_PIN2CTRL (*((volatile uint8_t *) &((&(SERIAL_PORT))->PIN2CTRL) ))
+#define SERIAL_PORT_PIN3CTRL (*((volatile uint8_t *) &((&(SERIAL_PORT))->PIN3CTRL) ))
+#define SERIAL_PORT_PIN6CTRL (*((volatile uint8_t *) &((&(SERIAL_PORT))->PIN6CTRL) ))
+#define SERIAL_PORT_PIN7CTRL (*((volatile uint8_t *) &((&(SERIAL_PORT))->PIN7CTRL) ))
+#define SERIAL_PORT_OUT      (*((volatile uint8_t *) &((&(SERIAL_PORT))->OUT) ))
+#define SERIAL_PORT_DIR      (*((volatile uint8_t *) &((&(SERIAL_PORT))->DIR) ))
 
-#define SERIAL_USART_STATUS ((&(SERIAL_USART))->STATUS)
-#define SERIAL_USART_DATA   ((&(SERIAL_USART))->DATA)
-#define SERIAL_USART_CTRLA  ((&(SERIAL_USART))->CTRLA)
-#define SERIAL_USART_CTRLB  ((&(SERIAL_USART))->CTRLB)
-#define SERIAL_USART_CTRLC  ((&(SERIAL_USART))->CTRLC)
+#define SERIAL_USART_STATUS (*((volatile uint8_t *) &((&(SERIAL_USART))->STATUS) ))
+#define SERIAL_USART_DATA   (*((volatile uint8_t *) &((&(SERIAL_USART))->DATA) ))
+#define SERIAL_USART_CTRLA  (*((volatile uint8_t *) &((&(SERIAL_USART))->CTRLA) ))
+#define SERIAL_USART_CTRLB  (*((volatile uint8_t *) &((&(SERIAL_USART))->CTRLB) ))
+#define SERIAL_USART_CTRLC  (*((volatile uint8_t *) &((&(SERIAL_USART))->CTRLC) ))
 #ifdef USARTC0_CTRLD
-#define SERIAL_USART_CTRLD  ((&(SERIAL_USART))->CTRLD)
+#define SERIAL_USART_CTRLD  (*((volatile uint8_t *) &((&(SERIAL_USART))->CTRLD) ))
 #endif // USARTC0_CTRLD
-#define SERIAL_USART_BAUDCTRLA ((&(SERIAL_USART))->BAUDCTRLA)
-#define SERIAL_USART_BAUDCTRLB ((&(SERIAL_USART))->BAUDCTRLB)
+#define SERIAL_USART_BAUDCTRLA (*((volatile uint8_t *) &((&(SERIAL_USART))->BAUDCTRLA) ))
+#define SERIAL_USART_BAUDCTRLB (*((volatile uint8_t *) &((&(SERIAL_USART))->BAUDCTRLB) ))
+#else
 
+#define SERIAL_PORT_PIN2CTRL PORTD_PIN2CTRL
+#define SERIAL_PORT_PIN3CTRL PORTD_PIN3CTRL
+#define SERIAL_PORT_PIN6CTRL PORTD_PIN6CTRL
+#define SERIAL_PORT_PIN7CTRL PORTD_PIN7CTRL
+#define SERIAL_PORT_DIR PORTD_DIR
+#define SERIAL_PORT_OUT PORTD_OUT
+
+
+#define SERIAL_USART_STATUS USARTD0_STATUS
+#define SERIAL_USART_DATA USARTD0_DATA
+#define SERIAL_USART_CTRLA USARTD0_CTRLA
+#define SERIAL_USART_CTRLB USARTD0_CTRLB
+#define SERIAL_USART_CTRLC USARTD0_CTRLC
+#define SERIAL_USART_BAUDCTRLA USARTD0_BAUDCTRLA
+#define SERIAL_USART_BAUDCTRLB USARTD0_BAUDCTRLB
+
+#endif 
 
 
 
@@ -281,7 +293,10 @@ uint8_t readNVMData(uint8_t cmd, uint16_t iIndex);
 
 /* function prototypes */
 void putch(char);
-char getch(void);
+void putstr(unsigned char *pBuf, char nBytes);
+void flush(void);
+void flushin(void);
+volatile char getch(void);
 void getNch(uint8_t);
 void byte_response(uint8_t);
 void nothing_response(void);
@@ -292,7 +307,9 @@ void smart_delay_ms(uint16_t ms);
 void flash_led(uint8_t);
 
 
-// SERIAL PORT STUFF
+// DEBUG STUFF
+//#define ENABLE_BANG /* for STK500v2, enable '!' command to test serial port */
+
 
 
 
@@ -310,8 +327,15 @@ address_t address = 0;
 
 volatile union address_union
 {
+#ifdef RAMPZ
+  uint32_t dword;
+#endif // RAMPZ
   uint16_t word;
+#ifdef RAMPZ
+  uint8_t  byte[4];
+#else // RAMPZ
   uint8_t  byte[2];
+#endif // RAMPZ
 } address;
 
 #endif // USE_STK500V2
@@ -363,18 +387,84 @@ uint8_t bootuart = 0;
 uint8_t error_count = 0;
 
 
+#if defined(EIND) && defined(__AVR_3_BYTE_PC__) // need to re-do the way we call the application
+void app_start(void)
+{
+  // first, assign 0 to EIND (I'm jumping to 128k-page 0)
+  __asm volatile ("ldi r24,0\n\t"
+                  "out %i0,r24" :: "n" (&EIND) : "memory");
+
+// NOTE:  don't do it this way
+//
+//  __asm volatile ("ldi r30,0\n\t"
+//                  "ldi r31,0\n\t"
+//                  "eijmp\n\t" ::: "memory");
+
+  // next, push 3 zeros onto the stack and do a return (it's a 3-byte PC so this should work)
+  // I check for '__AVR_3_BYTE_PC__' earlier
+  __asm volatile ("ldi r30,0\n\t"
+                  "push r30\n\t"
+                  "push r30\n\t"
+                  "push r30\n\t"
+                  "ret\r\n" ::: "memory");
+
+  // NOTE:  the ret address for the function that called THIS one should be ok on the stack
+}
+
+// NOTE:  this is in main.c now, in the core
+//// for info on THIS thing, see http://gcc.gnu.org/onlinedocs/gcc/AVR-Options.html
+//static void __attribute__((section(".init3"),naked,used,no_instrument_function)) init3_set_eind (void)
+//{
+//  __asm volatile ("ldi r24,pm_hh8(__trampolines_start)\n\t"
+//                  "out %i0,r24" :: "n" (&EIND) : "r24","memory");
+//}
+
+#else // no EIND or 3-byte PC, we're fine
 void (*app_start)(void) = 0x0000;
+#endif // EIND+3-byte PC vs "not"
+
+static inline void my_delay_loop_2(uint16_t __count) __attribute__((always_inline));
+static inline void my_delay_msec(unsigned short s1) __attribute__((always_inline));
+
+void my_delay_loop_2(uint16_t __count)
+{
+        __asm__ volatile (
+                "1: sbiw %0,1" "\n\t"
+                "brne 1b"
+                : "=w" (__count)
+                : "0" (__count)
+        );
+}
+
+void my_delay_msec(unsigned short s1)
+{
+register unsigned short i1;
+
+  for(i1=s1; i1 > 0; i1--)
+  {
+    my_delay_loop_2(50/*250*/); // 32mhz: 8000 1Mhz: 250 (4 cycles per iteration, 1 msec)
+  }
+}
 
 
 /* main program starts here */
 int main(void)
 {
-  uint8_t ch,ch2,bod;
-  uint16_t w;
-  uint8_t firstchar = 0; // make sure we dont start bootloader by accident
-
+uint8_t ch, ch2, bod;
+uint16_t w1;
+#if !defined(USE_STK500V2) || defined(ENABLE_BANG)
+uint8_t firstchar = 0; // make sure we dont start bootloader by accident
+#endif // USE_STK500V2
 
 //#if defined(WATCHDOG_MODS)  ALWAYS, now
+
+  // TODO:  create a stack frame?  some CPUs may not do this right, from what I have seen
+
+  if(SPL != (uint8_t)((INTERNAL_SRAM_START + INTERNAL_SRAM_SIZE) & 0xff) ||
+     SPH != (uint8_t)(((INTERNAL_SRAM_START + INTERNAL_SRAM_SIZE) >> 8) & 0xff))
+  {
+    // TODO:  I need to set the stack up...
+  }
 
   // this part needs to be done right away
 
@@ -455,7 +545,7 @@ int main(void)
     {
       // wait until 32mhz clock is 'stable'
 
-      for(w=32767; w > 0; w--) // TODO:  remove counter?
+      for(w1=32767; w1 > 0; w1--) // TODO:  remove counter?
       {
         // spin on oscillator status bit for 32Mhz oscillator
 
@@ -493,7 +583,7 @@ int main(void)
     // wait until 32.768KHz clock is 'stable'.  this one goes for a while
     // in case it doesn't stabilize in a reasonable time.  I figure about
     // 64*255 clock cycles should be enough, ya think?
-    for(w=65535; w > 0; w--)
+    for(w1=65535; w1 > 0; w1--)
     {
       for(ch2=255; ch2 > 0; ch2--) // this waits up to 256 times longer than just the outer loop
       {
@@ -519,7 +609,7 @@ done_waiting_for_osc_status:
 
   // NOTE:  I may not have checked for this if I skipped the previous section,
   //        so now I check again, just in case, to make sure the 32.768KHz osc is stable
-  for(w=65535; w > 0; w--)
+  for(w1=65535; w1 > 0; w1--)
   {
     for(ch2=255; ch2 > 0; ch2--)
     {
@@ -543,7 +633,6 @@ done_waiting_again_osc_status:
   CLK_RTCCTRL = 2; // section 6.9.4
 
 skip_clock:  // go here if clock cannot be assigned for some reason or is already assigned
-
 
   // regular 'WATCHDOG_MODS' code starts back up here (NOTE: 'WATCHDOG_MODS' are always active now)
 
@@ -649,11 +738,70 @@ skip_clock:  // go here if clock cannot be assigned for some reason or is alread
 
   // section 19.4.4
 #ifdef DOUBLE_SPEED
-  SERIAL_USART_CTRLB = _BV(2) | _BV(4) | _BV(3); // enable double-speed, RX, TX, and disable other stuff
+  SERIAL_USART_CTRLB = USART_RXEN_bm | USART_TXEN_bm | USART_CLK2X_bm; // enable double-speed, RX, TX, and disable other stuff
 #else   // DOUBLE_SPEED
-  SERIAL_USART_CTRLB = _BV(4) | _BV(3); // enable RX, TX, disable other stuff
+  SERIAL_USART_CTRLB = USART_RXEN_bm | USART_TXEN_bm;  // enable RX, TX, disable other stuff
 #endif  // DOUBLE_SPEED
+
   SERIAL_USART_CTRLA = 0; // NO! SERIAL! PORT! INTERRUPTS!
+
+  // before enabling interrupts, make sure that 'certain hardware' isn't possibly messing things up
+
+#if 0 // DISABLED
+#ifdef USARTC0_CTRLA
+  USARTC0_CTRLA = 0; // NO! SERIAL! PORT! INTERRUPTS!  
+#endif // USARTC0_CTRLA
+
+#ifdef USARTC1_CTRLA
+  USARTC1_CTRLA = 0; // NO! SERIAL! PORT! INTERRUPTS!  
+#endif // USARTC1_CTRLA
+
+#ifdef USARTD0_CTRLA
+  USARTD0_CTRLA = 0; // NO! SERIAL! PORT! INTERRUPTS!  
+#endif // USARTD0_CTRLA
+
+#ifdef USARTD1_CTRLA
+  USARTD1_CTRLA = 0; // NO! SERIAL! PORT! INTERRUPTS!  
+#endif // USARTD1_CTRLA
+
+#ifdef USARTE0_CTRLA
+  USARTE0_CTRLA = 0; // NO! SERIAL! PORT! INTERRUPTS!  
+#endif // USARTE0_CTRLA
+
+#ifdef USARTE1_CTRLA
+  USARTE1_CTRLA = 0; // NO! SERIAL! PORT! INTERRUPTS!  
+#endif // USARTE1_CTRLA
+
+#ifdef USARTF0_CTRLA
+  USARTF0_CTRLA = 0; // NO! SERIAL! PORT! INTERRUPTS!  
+#endif // USARTF0_CTRLA
+
+#ifdef USARTF1_CTRLA
+  USARTF1_CTRLA = 0; // NO! SERIAL! PORT! INTERRUPTS!  
+#endif // USARTF1_CTRLA
+
+#ifdef TWIC_CTRLA
+  TWIC_CTRLA = 0; // NO! TWI! INTERRUPTS!
+#endif // TWIC_CTRLA
+
+#ifdef TWID_CTRLA
+  TWID_CTRLA = 0; // NO! TWI! INTERRUPTS!
+#endif // TWID_CTRLA
+
+#ifdef TWIE_CTRLA
+  TWIE_CTRLA = 0; // NO! TWI! INTERRUPTS!
+#endif // TWIE_CTRLA
+
+#ifdef TWIF_CTRLA
+  TWIF_CTRLA = 0; // NO! TWI! INTERRUPTS!
+#endif // TWIF_CTRLA
+#endif // DISABLED
+
+
+#ifdef USB_INTCTRLA
+  USB_INTCTRLA = 0;
+  USB_INTCTRLB = 0;
+#endif // USB_INTCTRLA
 
 
   sei();  // ok to enable global interrupts now
@@ -676,7 +824,17 @@ skip_clock:  // go here if clock cannot be assigned for some reason or is alread
     smart_delay_ms(100);
     LED_PORT &= ~LED_PIN_BIT;
     smart_delay_ms(100);
+
+//// temporary to test the serial device - prints 'XMega\r\n' 3 times while blinking
+//        putch('X');
+//        putch('M');
+//        putch('e');
+//        putch('g');
+//        putch('a');
+//        putch(13);
+//        putch(10);
   }
+
 
 
   /* 20050803: by DojoCorp, this is one of the parts provoking the
@@ -834,8 +992,27 @@ skip_clock:  // go here if clock cannot be assigned for some reason or is alread
     /* This might explain why little endian was used here, big endian used everywhere else.  */
     else if(ch=='U')
     {
+#if PAGE_SIZE <= 256
       address.byte[0] = getch();
       address.byte[1] = getch();
+#ifdef RAMPZ
+      address.byte[2] = 0;
+      address.byte[3] = 0;
+#endif // RAMPZ
+#else // PAGE_SIZE > 256
+// this is a hack for 512 byte pages, which appear to use word addressing...
+      address.byte[0] = getch();
+      address.byte[1] = getch();
+#ifdef RAMPZ
+      address.byte[2] = 0;
+      address.byte[3] = 0;
+
+      address.dword <<= 1;
+#else // RAMPZ
+      address.word <<= 1;
+#endif // RAMPZ
+#endif // PAGE_SIZE > 256
+
       nothing_response();
     }
 
@@ -876,6 +1053,8 @@ skip_clock:  // go here if clock cannot be assigned for some reason or is alread
     /* Write memory, length is big endian and is in bytes  */
     else if(ch=='d')
     {
+      unsigned short w2 = address.word % PAGE_SIZE;
+
       length.byte[1] = getch();
       length.byte[0] = getch();
       flags.eeprom = 0;
@@ -890,9 +1069,25 @@ skip_clock:  // go here if clock cannot be assigned for some reason or is alread
         flags.eeprom = 1;
       }
 
-      for (w=0;w<length.word;w++)
+      if(w2 && !flags.eeprom) // address NOT on a page boundary, NOT EEPROM
       {
-        buff[w] = getch();                          // Store data in buffer, can't keep up with serial data stream whilst programming pages
+        for(w1=0; w1 < w2; w1++)
+        {
+#ifdef RAMPZ
+          buff[w1] = pgm_read_byte_far(address.dword - w2 + w1);
+#else // RAMPZ
+          buff[w1] = pgm_read_byte((unsigned char *)address.word - w2 + w1);
+#endif // RAMPZ
+        }
+      }
+      else
+      {
+        w2 = 0; // for EEPROM
+      }
+
+      for (w1=0; w1<length.word; w1++)
+      {
+        buff[w1 + w2] = getch();                          // Store data in buffer, can't keep up with serial data stream whilst programming pages
       }
 
       if (getch() == ' ')
@@ -900,9 +1095,9 @@ skip_clock:  // go here if clock cannot be assigned for some reason or is alread
         if (flags.eeprom)
         {                       // Write to EEPROM one byte at a time
 //          address.word <<= 1; // TODO:  is this right for EEPROM ?
-          for(w=0;w<length.word;w++)
+          for(w1=0;w1<length.word;w1++)
           {
-            eeprom_write_byte((void *)address.word,buff[w]);
+            eeprom_write_byte((void *)address.word,buff[w1]);
             address.word++;
           }
         }
@@ -911,20 +1106,28 @@ skip_clock:  // go here if clock cannot be assigned for some reason or is alread
           if (length.byte[0] & 0x01)
             length.word++;  // Even up an odd number of bytes
 
-          // NOTE:  this means the programmer MUST know the correct page size
-          //        or this part just won't work properly
+          // TODO:  compensate for page size too short or too long
+          //        for now, compensate for 'too short' only
 
           // XMEGA-ONLY CODE HERE
 
           SP_WaitForSPM();
           SP_EraseFlashBuffer();
           SP_WaitForSPM();
-          SP_LoadFlashPage(&(buff[0]), length.word);
+          SP_LoadFlashPage(&(buff[0]), length.word + w2);
           SP_WaitForSPM();
-          SP_WriteApplicationPage((uint32_t)address.word);
+#ifdef RAMPZ
+          SP_WriteApplicationPage((uint32_t)address.dword - w2);
+#else // RAMPZ
+          SP_WriteApplicationPage((uint32_t)address.word - w2);
+#endif // RAMPZ
           SP_WaitForSPM();
 
+#ifdef RAMPZ
+          address.dword += length.word;
+#else // RAMPZ
           address.word += length.word; // compatibility
+#endif // RAMPZ
         }
 
         putch(0x14);
@@ -967,7 +1170,7 @@ skip_clock:  // go here if clock cannot be assigned for some reason or is alread
         // NOTE:  the length can be up to a page size, but the address should be
         //        on a page boundary.  the programmer should respect the page size
 
-        for (w=0;w < length.word;w++)
+        for (w1=0;w1 < length.word;w1++)
         {                                             // Can handle odd and even lengths okay
           if (flags.eeprom)
           {                                           // Byte access EEPROM read
@@ -1034,6 +1237,7 @@ skip_clock:  // go here if clock cannot be assigned for some reason or is alread
 
 #else // USE_STK500V2
 
+
     //////////////////////////////////////////////////////////////////////////////
     //                                                                          //
     //                  _    _     ____    ___    ___          ____             //
@@ -1079,6 +1283,7 @@ skip_clock:  // go here if clock cannot be assigned for some reason or is alread
 #define CMD_SPI_MULTI                       0x1D
 #define STATUS_CMD_OK                       0x00
 #define STATUS_CMD_FAILED                   0xC0
+#define STATUS_CKSUM_ERROR                  0xC1
 #define PARAM_BUILD_NUMBER_LOW              0x80
 #define PARAM_BUILD_NUMBER_HIGH             0x81
 #define PARAM_HW_VER                        0x90
@@ -1102,97 +1307,157 @@ skip_clock:  // go here if clock cannot be assigned for some reason or is alread
 
     // main loop  (executed when bootstate == 1 in original code)
     // NOTE:  ch contains the last read-in character, and 'getch()' handles startup delay and blinking  
+#ifdef ENABLE_BANG
+    if(ch == '!' && !firstchar) // TEMPORARY, for testing
     {
-      uint8_t checksum = 0, msgParseState = ST_START;
-      uint8_t *p1 = NULL;
+      firstchar = 1;
 
-      w = 0; // pre-assign it each time I enter this section
-//      address = 0;  do NOT assign THIS - it MUST persist across calls to this section!
+      msgBuffer[0] = '*';
+      msgBuffer[1] = '@';
+      msgBuffer[2] = '$';
+      msgBuffer[3] = 'A';
+      msgBuffer[4] = 'V';
+      msgBuffer[5] = 'R';
+      msgBuffer[6] = 'I';
+      msgBuffer[7] = 'S';
+      msgBuffer[8] = 'P';
+      msgBuffer[9] = '_';
+      msgBuffer[10] = '2';
+      msgBuffer[11] = ' ';
+      msgBuffer[12] = 'X';
+      msgBuffer[13] = 'M';
+      msgBuffer[14] = 'e';
+      msgBuffer[15] = 'g';
+      msgBuffer[16] = 'a';
+      msgBuffer[17] = '\r';
+      msgBuffer[18] = '\n';
+
+      msgLength = 19;
+
+      LED_PORT &= ~LED_PIN_BIT;          // turn OFF the led
+
+      error_count = 127;
+
+      goto send_the_reply;
+    }    
+    else
+#endif // ENABLE_BANG
+    {
+      uint8_t checksum;
+
+#ifdef ENABLE_BANG
+      firstchar = 1; // TEMPORARY, for testing
+#endif // ENABLE_BANG
+
+      w1 = 0; // pre-assign it each time I enter this section
+      checksum = 0;
 
       /*
        * Collect received bytes to a complete message
        */
-//      msgParseState = ST_START;   moved
-      while ( msgParseState != ST_PROCESS )
+
+      if(ch != MESSAGE_START)
       {
-        if(msgParseState != ST_START) // I am not entering this from the beginning of the loop
+        // TODO:  flush the input?
+        msgLength = 5; // 2;
+        msgBuffer[1] = STATUS_CKSUM_ERROR;
+        msgBuffer[2] = 'z';
+        msgBuffer[3] = msgBuffer[0];
+        msgBuffer[4] = STATUS_CKSUM_ERROR;
+        flushin();
+
+        goto send_the_reply;
+      }
+
+      // message start
+      checksum = MESSAGE_START ^ 0;
+
+      ch = getch(); // seq number
+      seqNum = ch;
+      checksum ^= ch;
+
+      ch = getch(); // high byte of length
+      msgLength = ((uint16_t)ch) << 8;
+      checksum ^= ch;
+
+      ch = getch(); // low byte of length
+      msgLength |= ch;
+      checksum ^= ch;
+
+      ch = getch(); // token
+      checksum ^= ch;
+
+      if( ch != TOKEN)
+      {
+        msgLength = 5; // 2
+        msgBuffer[1] = STATUS_CKSUM_ERROR;
+        msgBuffer[2] = 'a';
+        msgBuffer[3] = msgBuffer[0];
+        msgBuffer[4] = STATUS_CKSUM_ERROR;
+
+        flushin();
+
+        goto send_the_reply;
+      }
+
+      // 'msgLength' bytes up to PAGE_SIZE
+      for(w1 = 0; w1 < msgLength; w1++)
+      {
+        ch2 = getch();
+        if(!w1)
         {
-          ch = getch(); // get the next character if I'm not at 'start'
+          ch = ch2;
         }
 
-        switch (msgParseState) // use 'msgParseState' to loop through the message and parse it as a state machine
+//        if(w1 < sizeof(msgBuffer)) // I think I can do a buffer check, eh?
         {
-          case ST_START:
-            if ( ch == MESSAGE_START )
-            {
-              msgParseState = ST_GET_SEQ_NUM;
-              checksum = MESSAGE_START^0;
-            }
-            break;
+          msgBuffer[w1] = ch2;
+        }
 
-          case ST_GET_SEQ_NUM:
-            // use whatever sequence number I'm thrown - this was called 'Issue 505' before (from stk500boot.c)
-            seqNum = ch;
-            msgParseState = ST_MSG_SIZE_1;
-            checksum ^= ch;
-            break;
+        checksum ^= ch2;
+      }
 
-          case ST_MSG_SIZE_1:
-            msgLength = ((uint16_t)ch) << 8;
-            msgParseState = ST_MSG_SIZE_2;
-            checksum ^= ch;
-            break;
+      ch2 = getch(); // checksum byte
+      if(ch2 != checksum) // mismatch?
+      {
+        msgLength = 7; // 2;
+        msgBuffer[1] = STATUS_CKSUM_ERROR;
+        msgBuffer[2] = 'b';
+        msgBuffer[3] = msgBuffer[0];
+        msgBuffer[4] = 'b';
+        msgBuffer[5] = msgBuffer[0];
+        msgBuffer[6] = STATUS_CKSUM_ERROR;
 
-          case ST_MSG_SIZE_2:
-            msgLength |= ch;
-            msgParseState = ST_GET_TOKEN;
-            checksum ^= ch;
-            break;
+        flushin();
 
-          case ST_GET_TOKEN:
-            if ( ch == TOKEN )
-            {
-              msgParseState = ST_GET_DATA;
-              checksum ^= ch;
-              w = 0;
-            }
-            else
-            {
-              msgParseState = ST_START;
-            }
-            break;
-
-          case ST_GET_DATA:
-            msgBuffer[w++] = ch;
-            checksum ^= ch;
-            if (w == msgLength )
-            {
-              msgParseState = ST_GET_CHECK;
-            }
-            break;
-
-          case ST_GET_CHECK:
-            if ( ch == checksum )
-            {
-              msgParseState = ST_PROCESS;
-            }
-            else
-            {
-              msgParseState = ST_START;
-            }
-
-            break;
-        }  //  switch
-      }  //  while(msgParseState)
+        goto send_the_reply;
+      }
 
       /*
        * Now process the STK500 commands, see Atmel Appnote AVR068
        */
 
-      switch (msgBuffer[0])
-      {
+      ch = msgBuffer[0]; // cache it, probably faster
+
+//      if(ch == 0)
+//      {
+//        msgLength = 9; // 2;
+//        msgBuffer[1] = STATUS_CKSUM_ERROR;
+//        msgBuffer[2] = 'e';
+//        msgBuffer[3] = 'e';
+//        msgBuffer[4] = 'e';
+//        msgBuffer[5] = 'e';
+//        msgBuffer[6] = 'e';
+//        msgBuffer[7] = msgBuffer[0];
+//        msgBuffer[8] = STATUS_CKSUM_ERROR;
+//
+//        goto send_the_reply;
+//      }
+
+
 #ifndef REMOVE_CMD_SPI_MULTI
-        case CMD_SPI_MULTI: // 0x1d
+      if(ch == CMD_SPI_MULTI) // 0x1d
+      {
           // the implementation in stk500boot.c is WRONG FREAKING WRONG!  OK it was a pretty
           // good HACK, and 'works', but it's still WRONG.
           //
@@ -1227,12 +1492,12 @@ skip_clock:  // go here if clock cannot be assigned for some reason or is alread
           // 'high byte' access handle addresses ending in 0 or 1, respectively.
 
           {
-            unsigned char answerByte;
-            unsigned char flag=0;
+            register unsigned char answerByte=0;
+            register unsigned char flag=0;
 
             if ( msgBuffer[4]== 0x30 ) // read signature byte (this turns out to be ok, actually)
             {
-              unsigned char signatureIndex = msgBuffer[6];
+              register unsigned char signatureIndex = msgBuffer[6];
 
               if ( signatureIndex == 0 )
               {
@@ -1249,13 +1514,13 @@ skip_clock:  // go here if clock cannot be assigned for some reason or is alread
             }
             else if ( msgBuffer[4] == 0x20 || msgBuffer[4] == 0x28 ) // read memory location
             {
-              uint32_t addr = (uint32_t)address * PAGE_SIZE;
+              register uint32_t addr = (uint32_t)address * PAGE_SIZE;
 
               // 'address' contains the page address?  msgBuffer[7] is the rxStartAddr?
               // and it expects msgBuffer[6] bytes in response
 
               flag = 1; // meaning I don't populate this
-              w = msgBuffer[2]; // number of bytes to receive
+              w1 = msgBuffer[2]; // number of bytes to receive
 
               addr += ((uint16_t)msgBuffer[5] << 9)  // MSB from SPI command, WORD address
                     + ((uint16_t)msgBuffer[6] << 1); // LSB from SPI command, WORD address
@@ -1267,20 +1532,20 @@ skip_clock:  // go here if clock cannot be assigned for some reason or is alread
 
               // TODO:  do I add msgBuffer[3] (the original offset) to this?
 
-              msgLength = 3 + w;
+              msgLength = 3 + w1;
               msgBuffer[1] = STATUS_CMD_OK;
-              msgBuffer[2 + w] = STATUS_CMD_OK;
+              msgBuffer[2 + w1] = STATUS_CMD_OK;
 
 #ifdef RAMPZ
-              msgBuffer[1 + w] = pgm_read_byte_far(addr);  // last byte in sequence
+              msgBuffer[1 + w1] = pgm_read_byte_far(addr);  // last byte in sequence
 #else // RAMPZ
-              msgBuffer[1 + w] = pgm_read_byte(addr);
+              msgBuffer[1 + w1] = pgm_read_byte(addr);
 #endif // RAMPZ
 
-              while(w > 0)
+              while(w1 > 0)
               {
-                w--;
-                msgBuffer[1 + w] = 0; // zero everything else
+                w1--;
+                msgBuffer[1 + w1] = 0; // zero everything else
               }
             }
             else if ( msgBuffer[4] & 0x50 ) // that would be 4xH or 5xH or 1xH - 50 read fuse bits, 58 read lock bits 
@@ -1349,10 +1614,13 @@ skip_clock:  // go here if clock cannot be assigned for some reason or is alread
               msgBuffer[6] = STATUS_CMD_OK;
             }
           }
-          break;
+      }
+      else
 #endif
-        case CMD_SIGN_ON:
-          msgLength = 17; // was 11, I added ' XMega' to it just for grins
+      if(ch == CMD_SIGN_ON)
+      {
+          msgLength = 11; //17; // was 11, I added ' XMega' to it just for grins
+
           msgBuffer[1] = STATUS_CMD_OK;
           msgBuffer[2] = 8;
           msgBuffer[3] = 'A';
@@ -1363,20 +1631,19 @@ skip_clock:  // go here if clock cannot be assigned for some reason or is alread
           msgBuffer[8] = 'P';
           msgBuffer[9] = '_';
           msgBuffer[10] = '2';
-          msgBuffer[11] = ' ';
-          msgBuffer[12] = 'X';
-          msgBuffer[13] = 'M';
-          msgBuffer[14] = 'e';
-          msgBuffer[15] = 'g';
-          msgBuffer[16] = 'a';
-          break;
+//          msgBuffer[11] = ' ';
+//          msgBuffer[12] = 'X';
+//          msgBuffer[13] = 'M';
+//          msgBuffer[14] = 'e';
+//          msgBuffer[15] = 'g';
+//          msgBuffer[16] = 'a';
+      }
+      else if(ch == CMD_GET_PARAMETER)
+      {
+          register unsigned char value;
 
-        case CMD_GET_PARAMETER:
+          switch(msgBuffer[1])
           {
-            unsigned char value;
-
-            switch(msgBuffer[1])
-            {
             case PARAM_BUILD_NUMBER_LOW:
               value = CONFIG_PARAM_BUILD_NUMBER_LOW;
               break;
@@ -1395,43 +1662,42 @@ skip_clock:  // go here if clock cannot be assigned for some reason or is alread
             default:
               value = 0;
               break;
-            }
-            msgLength = 3;
-            msgBuffer[1] = STATUS_CMD_OK;
-            msgBuffer[2] = value;
           }
-          break;
-
-        case CMD_LEAVE_PROGMODE_ISP: // I call this at various times, not just at the end
+          msgLength = 3;
+          msgBuffer[1] = STATUS_CMD_OK;
+          msgBuffer[2] = value;
+      }
+      else if(ch == CMD_LEAVE_PROGMODE_ISP) // I call this at various times, not just at the end
+      {
 //          error_count = 1;
-          //*  fall thru
-
-        case CMD_SET_PARAMETER:
-        case CMD_ENTER_PROGMODE_ISP:
           msgLength = 2;
           msgBuffer[1] = STATUS_CMD_OK;
-          break;
+      }
+      else if(ch ==CMD_SET_PARAMETER ||
+              ch == CMD_ENTER_PROGMODE_ISP)
+      {
+          msgLength = 2;
+          msgBuffer[1] = STATUS_CMD_OK;
+      }
+      else if(ch == CMD_READ_SIGNATURE_ISP)
+      {
+          register unsigned char signatureIndex = msgBuffer[4];
+          register unsigned char signature;
 
-        case CMD_READ_SIGNATURE_ISP:
-          {
-            unsigned char signatureIndex = msgBuffer[4];
-            unsigned char signature;
+          if ( signatureIndex == 0 )
+            signature = (SIGNATURE_BYTES >>16) & 0x000000FF;
+          else if ( signatureIndex == 1 )
+            signature = (SIGNATURE_BYTES >> 8) & 0x000000FF;
+          else
+            signature = SIGNATURE_BYTES & 0x000000FF;
 
-            if ( signatureIndex == 0 )
-              signature = (SIGNATURE_BYTES >>16) & 0x000000FF;
-            else if ( signatureIndex == 1 )
-              signature = (SIGNATURE_BYTES >> 8) & 0x000000FF;
-            else
-              signature = SIGNATURE_BYTES & 0x000000FF;
-
-            msgLength = 4;
-            msgBuffer[1] = STATUS_CMD_OK;
-            msgBuffer[2] = signature;
-            msgBuffer[3] = STATUS_CMD_OK;
-          }
-          break;
-
-        case CMD_READ_LOCK_ISP:
+          msgLength = 4;
+          msgBuffer[1] = STATUS_CMD_OK;
+          msgBuffer[2] = signature;
+          msgBuffer[3] = STATUS_CMD_OK;
+      }
+      else if(ch ==  CMD_READ_LOCK_ISP)
+      {
           msgLength = 4;
           msgBuffer[1] = STATUS_CMD_OK;
 #ifdef LOCKBIT_LOCKBITS
@@ -1440,33 +1706,30 @@ skip_clock:  // go here if clock cannot be assigned for some reason or is alread
           msgBuffer[2] = NVM_LOCKBITS; // this is how it's defined in the A1 files
 #endif // LOCKBIT_LOCKBITS
           msgBuffer[3] = STATUS_CMD_OK;
-          break;
+      }
+      else if(ch == CMD_READ_FUSE_ISP)
+      {
+          register unsigned char fuseBits;
 
-        case CMD_READ_FUSE_ISP:
+          if ( msgBuffer[2] == 0x50 )
           {
-            unsigned char fuseBits;
-
-            if ( msgBuffer[2] == 0x50 )
-            {
-              if ( msgBuffer[3] == 0x08 )
-                fuseBits = readNVMData(NVM_CMD_READ_FUSES_gc, 2); // extended fuse byte is wrong; xmega has up to 6 of them
-              else
-                fuseBits = readNVMData(NVM_CMD_READ_FUSES_gc, 0); // low fuse byte is wrong; xmega has up to 6 of them
-            }
+            if ( msgBuffer[3] == 0x08 )
+              fuseBits = readNVMData(NVM_CMD_READ_FUSES_gc, 2); // extended fuse byte is wrong; xmega has up to 6 of them
             else
-            {
-              fuseBits = readNVMData(NVM_CMD_READ_FUSES_gc, 1); // high fuse byte is wrong; xmega has up to 6 of them
-            }
-            msgLength = 4;
-            msgBuffer[1] = STATUS_CMD_OK;
-            msgBuffer[2] = fuseBits;
-            msgBuffer[3] = STATUS_CMD_OK;
+              fuseBits = readNVMData(NVM_CMD_READ_FUSES_gc, 0); // low fuse byte is wrong; xmega has up to 6 of them
           }
-          break;
-
-#ifndef REMOVE_PROGRAM_LOCK_BIT_SUPPORT
-        case CMD_PROGRAM_LOCK_ISP:
+          else
           {
+            fuseBits = readNVMData(NVM_CMD_READ_FUSES_gc, 1); // high fuse byte is wrong; xmega has up to 6 of them
+          }
+          msgLength = 4;
+          msgBuffer[1] = STATUS_CMD_OK;
+          msgBuffer[2] = fuseBits;
+          msgBuffer[3] = STATUS_CMD_OK;
+      }
+#ifndef REMOVE_PROGRAM_LOCK_BIT_SUPPORT
+      else if(ch == CMD_PROGRAM_LOCK_ISP)
+      {
             // NOTE:  this is the old 'lock bits' code.  activating lock bits on an xmega is a one-way operation
             //        that requires using the PDI interface to change them back, once locked.  So don't do it here.
 //            unsigned char lockBits = msgBuffer[4];
@@ -1480,10 +1743,10 @@ skip_clock:  // go here if clock cannot be assigned for some reason or is alread
             msgLength = 3;
             msgBuffer[1] = STATUS_CMD_OK;
             msgBuffer[2] = STATUS_CMD_OK;
-          }
-          break;
+      }
 #endif
-        case CMD_CHIP_ERASE_ISP:
+      else if(ch == CMD_CHIP_ERASE_ISP)
+      {
 //          eraseAddress = 0; erasure is automatic with the xmega and is part of the flash process
           msgLength = 2;
 
@@ -1494,9 +1757,9 @@ skip_clock:  // go here if clock cannot be assigned for some reason or is alread
 
           // msgBuffer[1] = STATUS_CMD_OK;
           msgBuffer[1] = STATUS_CMD_FAILED;  //*  isue 543, return FAILED instead of OK
-          break;
-
-        case CMD_LOAD_ADDRESS:
+      }
+      else if(ch == CMD_LOAD_ADDRESS)
+      {
 #if defined(RAMPZ)
           address = ( ((address_t)(msgBuffer[1])<<24)|((address_t)(msgBuffer[2])<<16)|((address_t)(msgBuffer[3])<<8)|(msgBuffer[4]) )<<1;
 #else
@@ -1504,29 +1767,28 @@ skip_clock:  // go here if clock cannot be assigned for some reason or is alread
 #endif
           msgLength = 2;
           msgBuffer[1] = STATUS_CMD_OK;
-          break;
-
-        case CMD_PROGRAM_FLASH_ISP:
-        case CMD_PROGRAM_EEPROM_ISP:
-          {
-            unsigned int  size = ((msgBuffer[1])<<8) | msgBuffer[2];
-            unsigned char  *p = msgBuffer+10;
-            unsigned int  data;
-            unsigned char  highByte, lowByte;
+      }
+      else if(ch == CMD_PROGRAM_FLASH_ISP ||
+              ch == CMD_PROGRAM_EEPROM_ISP)
+      {
+          register unsigned int  size = ((msgBuffer[1])<<8) | msgBuffer[2];
+          register unsigned char  *p = msgBuffer+10;
+//            unsigned int  data;
+//            unsigned char  highByte, lowByte;
 
 #ifdef RAMPZ
-            address_t    tempaddress = address;
+          address_t    tempaddress = address;
 
-            if(tempaddress >= 0x0800000)
-            {
-              tempaddress -= 0x0800000; // the absolute address of the NVRAM in 'programmer' space
-                                        // if the address was based from THIS, must subtract it
-                                        // this is documented in the D manual Figure 25-3 and elsewhere
-            }
+          if(tempaddress >= 0x0800000)
+          {
+            tempaddress -= 0x0800000; // the absolute address of the NVRAM in 'programmer' space
+                                      // if the address was based from THIS, must subtract it
+                                      // this is documented in the D manual Figure 25-3 and elsewhere
+          }
 #endif // RAMPZ
 
-            if ( msgBuffer[0] == CMD_PROGRAM_FLASH_ISP )
-            {
+          if ( ch == CMD_PROGRAM_FLASH_ISP )
+          {
 // old code (for reference)
 //              // erase only main section (bootloader protection)
 //              if (eraseAddress < APP_END )
@@ -1549,146 +1811,151 @@ skip_clock:  // go here if clock cannot be assigned for some reason or is alread
 //                size  -= 2;        // Reduce number of bytes to write by two
 //              } while (size);          // Loop until all bytes written
 
-              if(size & 1)
-              {
-                size++; // make sure it's even (but it should be)
-              }
+            if(size & 1)
+            {
+              size++; // make sure it's even (but it should be)
+            }
 
 #ifdef RAMPZ
-              if(tempaddress < BOOT_SECTION_START) // do NOT overwrite the bootloader!
+            if(tempaddress < BOOT_SECTION_START) // do NOT overwrite the bootloader!
 #else // RAMPZ
-              if(address < BOOT_SECTION_START) // do NOT overwrite the bootloader!
+            if(address < BOOT_SECTION_START) // do NOT overwrite the bootloader!
 #endif // RAMPZ
-              {
-                SP_WaitForSPM();
-                SP_EraseFlashBuffer();
-                SP_WaitForSPM();
-                SP_LoadFlashPage(p, size);
-                SP_WaitForSPM();
+            {
+              SP_WaitForSPM();
+              SP_EraseFlashBuffer();
+              SP_WaitForSPM();
+              SP_LoadFlashPage(p, size);
+              SP_WaitForSPM();
 #ifdef RAMPZ
-                SP_WriteApplicationPage(tempaddress);
+              SP_WriteApplicationPage(tempaddress);
 #else // RAMPZ
-                SP_WriteApplicationPage(address);
+              SP_WriteApplicationPage(address);
 #endif // RAMPZ
-                SP_WaitForSPM();
-              }
+              SP_WaitForSPM();
+            }
 
-              p += size; // for compatibility
-              address += size; // same here
+            p += size; // for compatibility
+            address += size; // same here
 
 //              boot_page_write(tempaddress);
 //              boot_spm_busy_wait();
 //              boot_rww_enable();        // Re-enable the RWW section
-            }
-            else
-            {
-              //*  issue 543, this should work, It has not been tested.
-
-              // NOTE:  why are we writing the EEPROM as WORD values?  I need to fix this.  Again.
-
-              uint16_t w2 = address >> 1;
-              /* write EEPROM */
-              while (size)
-              {
-                eeprom_write_byte((uint8_t*)w2, *p++);
-                address+=2;            // Select next EEPROM byte
-                w2++;
-                size--;
-              }
-            }
-
-            msgLength = 2;
-            msgBuffer[1] = STATUS_CMD_OK;
           }
-          break;
-
-        case CMD_READ_FLASH_ISP:
-        case CMD_READ_EEPROM_ISP:
+          else
           {
-            unsigned int  size = ((msgBuffer[1])<<8) | msgBuffer[2];
-            unsigned char  *p = msgBuffer+1;
-            msgLength = size+3;
+            //*  issue 543, this should work, It has not been tested.
+
+            // NOTE:  why are we writing the EEPROM as WORD values?  I need to fix this.  Again.
+
+            uint16_t w2 = address >> 1;
+            /* write EEPROM */
+            while (size)
+            {
+              eeprom_write_byte((uint8_t*)w2, *p++);
+              address+=2;            // Select next EEPROM byte
+              w2++;
+              size--;
+            }
+          }
+
+          msgLength = 2;
+          msgBuffer[1] = STATUS_CMD_OK;
+      }
+      else if(ch == CMD_READ_FLASH_ISP ||
+              ch == CMD_READ_EEPROM_ISP)
+      {
+          register unsigned int  size = ((msgBuffer[1])<<8) | msgBuffer[2];
+          register unsigned char  *p = msgBuffer+1;
+          msgLength = size+3;
 
 #ifdef RAMPZ
-            address_t    tempaddress = address;
+          address_t    tempaddress = address;
 
-            if(tempaddress >= 0x0800000)
-            {
-              tempaddress -= 0x0800000; // the absolute address of the NVRAM in 'programmer' space
-                                        // if the address was based from THIS, must subtract it
-                                        // this is documented in the D manual Figure 25-3 and elsewhere
-            }
+          if(tempaddress >= 0x0800000)
+          {
+            tempaddress -= 0x0800000; // the absolute address of the NVRAM in 'programmer' space
+                                      // if the address was based from THIS, must subtract it
+                                      // this is documented in the D manual Figure 25-3 and elsewhere
+          }
 #endif // RAMPZ
 
-            *p++ = STATUS_CMD_OK;
-            if (msgBuffer[0] == CMD_READ_FLASH_ISP )
-            {
-              unsigned int data;
+          *p++ = STATUS_CMD_OK;
+          if (ch == CMD_READ_FLASH_ISP )
+          {
+            register unsigned int data;
 
-              // Read FLASH
-              do
-              {
+            // Read FLASH
+            do
+            {
 //#if defined(RAMPZ)
 #if (FLASHEND > 0x10000)
-                if(tempaddress >= BOOT_SECTION_START)
-                {
-                  data = 0; // assume boot section is all 0's for the sake of flash verification
-                }
-                else
-                {
-                  data = pgm_read_word_far(tempaddress);
-                  tempaddress += 2;
-                }
-#else
-                if(address >= BOOT_SECTION_START)
-                {
-                  data = 0; // assume boot section is all 0's for the sake of flash verification
-                }
-                else
-                {
-                  data = pgm_read_word_near(address);
-                }
-#endif
-                *p++ = (unsigned char)data;    //LSB
-                *p++ = (unsigned char)(data >> 8);  //MSB
-                address  += 2;              // Select next word in memory (less efficient when RAMPZ defined, oh well)
-                size  -= 2;
-              } while (size);
-            }
-            else
-            {
-              /* Read EEPROM */
-              uint16_t w2 = address >> 1;
-              do
+              if(tempaddress >= BOOT_SECTION_START)
               {
+                data = 0; // assume boot section is all 0's for the sake of flash verification
+              }
+              else
+              {
+                data = pgm_read_word_far(tempaddress);
+                tempaddress += 2;
+              }
+#else
+              if(address >= BOOT_SECTION_START)
+              {
+                data = 0; // assume boot section is all 0's for the sake of flash verification
+              }
+              else
+              {
+                data = pgm_read_word_near(address);
+              }
+#endif
+              *p++ = (unsigned char)data;    //LSB
+              *p++ = (unsigned char)(data >> 8);  //MSB
+              address  += 2;              // Select next word in memory (less efficient when RAMPZ defined, oh well)
+              size  -= 2;
+            } while (size);
+          }
+          else
+          {
+            /* Read EEPROM */
+            register uint16_t w2 = address >> 1;
+            do
+            {
 //                EEARL = address;      // Setup EEPROM address
 //                EEARH = ((address >> 8));
 //                address++;          // Select next EEPROM byte
 //                EECR  |= (1<<EERE);      // Read EEPROM
 //                *p++ = EEDR;        // Send EEPROM data
 //                size--;
-                *(p++) = eeprom_read_byte((uint8_t*)w2); // VERIFY THIS IS CORRECT (it is likely NOT to be)
-                address+=2;            // Select next EEPROM byte (add 2 to the address?  really?)
-                w2++;
-                size--;                // MAKE SURE THIS WORKS
-              } while (size);
-            }
-
-            *p++ = STATUS_CMD_OK;
+              *(p++) = eeprom_read_byte((uint8_t*)w2); // VERIFY THIS IS CORRECT (it is likely NOT to be)
+              address+=2;            // Select next EEPROM byte (add 2 to the address?  really?)
+              w2++;
+              size--;                // MAKE SURE THIS WORKS
+            } while (size);
           }
-          break;
 
-        default:
+          *p++ = STATUS_CMD_OK;
+      }
+      else if(!ch)
+      {
+          msgLength = 4;
+          msgBuffer[1] = STATUS_CMD_FAILED;
+          msgBuffer[2] = ch;
+          msgBuffer[3] = STATUS_CMD_FAILED;
+      }
+      else
+      {
           msgLength = 2;
           msgBuffer[1] = STATUS_CMD_FAILED;
-          break;
       }
 
+send_the_reply:
       /*
        * Now send answer message back
        */
+
       putch(MESSAGE_START);
-      checksum = MESSAGE_START^0;
+      checksum = MESSAGE_START ^ 0;
 
       putch(seqNum);
       checksum ^= seqNum;
@@ -1704,31 +1971,43 @@ skip_clock:  // go here if clock cannot be assigned for some reason or is alread
       putch(TOKEN);
       checksum ^= TOKEN;
 
-      p1 = msgBuffer;
+//      putstr(&(msgBuffer[0]), msgLength);
 
-      while ( msgLength )
       {
-        ch = *(p1++);
-        putch(ch);
-        checksum ^=ch;
-        msgLength--;
+        register unsigned char *p1;
+        p1 = &(msgBuffer[0]);
+
+//        while(msgLength)
+//        {
+//          checksum ^= msgBuffer[--msgLength];
+//        }
+
+        while ( msgLength )
+        {
+          ch = *(p1++);
+          putch(ch);
+          checksum ^= ch;
+          msgLength--;
+        }
+
       }
 
       putch(checksum);
-      seqNum++;
-  
-//    #ifndef REMOVE_BOOTLOADER_LED
-//      //*  <MLS>  toggle the LED
-//      PROGLED_PORT ^= (1<<PROGLED_PIN);  // active high LED ON
-//    #endif
 
+      flush();
+
+      seqNum++;
     }
 
     // if I get here, I guess I'm done doing the stk500v2 protocol stuff
 
     if(error_count)
     {
-      app_start();
+      if(pgm_read_byte(0) != 0xff)
+      {
+        app_start();
+      }
+
       soft_boot();
     }
 
@@ -1817,27 +2096,86 @@ void puthex(char ch)
 
 void putch(char ch)
 {
+  while (!( (SERIAL_USART_STATUS) & USART_DREIF_bm)) // bit 5 is the DRE bit (6 is the 'transmitted' bit)
+  {  } // wait forever for DRE flag
 
-  while (!(SERIAL_USART_STATUS & _BV(5))) // bit 5 is the DRE bit (6 is the 'transmitted' bit)
-  { } // wait for DRE flag
+// POOBAH
+// A series CPUs seem to have trouble without this delay
+  __builtin_avr_delay_cycles(128); // stick a delay in here
 
-  SERIAL_USART_DATA = ch;
+  (SERIAL_USART_DATA) = ch;
 }
 
+void putstr(unsigned char *pBuf, char nBytes)
+{
+  while(nBytes--)
+  {
+    putch(*(pBuf++));
+  }
+}
 
-char getch(void)
+void flush(void)
+{
+  uint32_t count = 0;
+
+  while (!( (SERIAL_USART_STATUS) & USART_DREIF_bm)) // bit 5 is the DRE bit (6 is the 'transmitted' bit)
+  {
+    count++;
+    if(count > (uint32_t)(F_CPU / 256))
+    {
+      return; // safety
+    }
+  } // wait forever for DRE flag
+
+  while (!( (SERIAL_USART_STATUS) & USART_TXCIF_bm))
+  {
+    count++;
+    if(count > (uint32_t)(F_CPU / 256))
+    {
+      return; // safety
+    }
+  }
+}
+
+void flushin(void)
+{
+//  uint32_t count = 0;
+  volatile uint8_t x1;
+
+  LED_PORT &= ~LED_PIN_BIT;          // turn off the LED to indicate receiving data
+
+  while(1)
+  {
+    while(!((SERIAL_USART_STATUS) & USART_RXCIF_bm)) // wait for RX data
+    {
+//      /* 20060803 DojoCorp:: Addon coming from the previous Bootloader*/
+//      /* HACKME:: here is a good place to count times*/
+//      count++;
+//
+//      if (count > (uint32_t)(F_CPU / 128)) // delay period for flushing - about 0.05 sec
+//      {
+//        return; // nothing left
+//      }
+    }
+
+    x1 = SERIAL_USART_DATA; // burn it
+  }
+  
+}
+
+volatile char getch(void)
 {
   uint32_t count = 0;
 
   LED_PORT &= ~LED_PIN_BIT;          // turn off the LED to indicate receiving data
 
-  while(!(SERIAL_USART_STATUS & _BV(7))) // wait for RX data
+  while(!((SERIAL_USART_STATUS) & USART_RXCIF_bm)) // wait for RX data
   {
     /* 20060803 DojoCorp:: Addon coming from the previous Bootloader*/
     /* HACKME:: here is a good place to count times*/
     count++;
 
-    if (count > (uint32_t)(MAX_TIME_COUNT)) // delay period for flashing
+    if (count > (uint32_t)(MAX_TIME_COUNT)) // delay period for firmware flashing
     {
       app_start();
       soft_boot();
