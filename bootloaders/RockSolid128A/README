@@ -1,10 +1,10 @@
-ATXMega128A1 bootloader (currently NOT tested, does not support >64k images)
+Rock Solid XMega 128A bootloader
 
 This is a modification of the Arduino bootloader, which is derived from the
 Adafruit bootloader 'as downloaded' that builds on POSIX-compatible systems 
 and uses an AVRISPmkII to program the target.
 
-  make xmega; make flash
+  make xmega; make flashboot
 
 
 original source:
