@@ -1,6 +1,6 @@
 --- hardware/arduino/boards.txt	2013-05-17 12:48:38.000000000 -0700
-+++ hardware/arduino/boards.txt	2014-10-11 19:55:41.000000000 -0700
-@@ -563,5 +563,76 @@
++++ hardware/arduino/boards.txt	2014-10-25 01:23:03.000000000 -0700
+@@ -563,5 +563,96 @@
  robotMotor.build.vid=0x2341
  robotMotor.build.pid=0x8039
  robotMotor.build.core=robot
@@ -44,25 +44,6 @@
 +xmega32e5.build.core=xmega
 +xmega32e5.build.variant=xmega32e5
 +
-+##############################################################
-+
-+xmega128a1.name=ATXMega128A1
-+
-+xmega128a1.upload.protocol=arduino
-+xmega128a1.upload.maximum_size=131072
-+xmega128a1.upload.speed=115200
-+#xmega128a1.bootloader.low_fuses=0xff
-+#xmega128a1.bootloader.high_fuses=0xde
-+#xmega128a1.bootloader.extended_fuses=0x05
-+#xmega128a1.bootloader.path=xmega128a1
-+#xmega128a1.bootloader.file=xmegaBOOT_xmega0.hex
-+#xmega128a1.bootloader.unlock_bits=0x3F
-+#xmega128a1.bootloader.lock_bits=0x0F
-+xmega128a1.build.mcu=atxmega128a1
-+xmega128a1.build.f_cpu=32000000L
-+xmega128a1.build.core=xmega
-+xmega128a1.build.variant=xmega128a1
-+
 +
 +##############################################################
 +
@@ -75,5 +56,44 @@
 +cc0x32e5.build.f_cpu=32000000L
 +cc0x32e5.build.core=xmega
 +cc0x32e5.build.variant=cc0_atxmega_e5
++
++
++##############################################################
++
++xmega128a1.name=ATXMega128A1
++
++xmega128a1.upload.protocol=wiring
++xmega128a1.upload.maximum_size=131072
++xmega128a1.upload.speed=115200
++xmega128a1.build.mcu=atxmega128a1
++xmega128a1.build.f_cpu=32000000L
++xmega128a1.build.core=xmega
++xmega128a1.build.variant=xmega128a1
++
++
++##############################################################
++
++xmega128a1u.name=ATXmega128A1U
++
++xmega128a1u.upload.protocol=wiring
++xmega128a1u.upload.maximum_size=131072
++xmega128a1u.upload.speed=115200
++xmega128a1u.build.mcu=atxmega128a1u
++xmega128a1u.build.f_cpu=32000000L
++xmega128a1u.build.core=xmega
++xmega128a1u.build.variant=xmega128a1
++
++
++##############################################################
++
++RockSolid128A.name=Rock Solid XMega 128A
++
++RockSolid128A.upload.protocol=wiring
++RockSolid128A.upload.maximum_size=131072
++RockSolid128A.upload.speed=115200
++RockSolid128A.build.mcu=atxmega128a1u
++RockSolid128A.build.f_cpu=32000000L
++RockSolid128A.build.core=xmega
++RockSolid128A.build.variant=RockSolid128A
 +
 +
