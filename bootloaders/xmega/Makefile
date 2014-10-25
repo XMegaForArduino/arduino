@@ -26,6 +26,15 @@ BOOTLOADER_SUFFIX ?=
 USE_STK500V2 ?=
 GREP_LINE ?=
 
+# some defaults
+# AVR frequency - normally 32Mhz
+AVR_FREQ ?= 32000000L
+# max time count - how long to wait after blinking
+MAX_TIME_COUNT ?= F_CPU>>3
+# LED flashes - default is 3
+NUM_LED_FLASHES ?= 3
+
+
 # known targets
 # standard targets:
 #    xmega16d4 xmega32d4 xmega64d4 xmega128d4
@@ -62,18 +71,26 @@ ifeq ($(strip $(TRGMEM)),128)
 START_ADDR := 0x20000
 USE_STK500V2 := 1
 GREP_LINE := ":020000022000DC"
+# increase the maximum timeout
+MAX_TIME_COUNT := F_CPU>>2
 endif
 ifeq ($(strip $(TRGMEM)),192)
 START_ADDR := 0x30000
 USE_STK500V2 := 1
+# increase the maximum timeout
+MAX_TIME_COUNT := F_CPU>>2
 endif
 ifeq ($(strip $(TRGMEM)),256)
 START_ADDR := 0x40000
 USE_STK500V2 := 1
+# increase the maximum timeout
+MAX_TIME_COUNT := F_CPU>>2
 endif
 ifeq ($(strip $(TRGMEM)),384)
 START_ADDR := 0x60000
 USE_STK500V2 := 1
+# increase the maximum timeout
+MAX_TIME_COUNT := F_CPU>>2
 endif
 
 # others are pretty much the same for everything
@@ -116,6 +133,8 @@ LED_BUILTIN_PIN := 3
 # this one has more than 64k, so it needs STK500V2
 USE_STK500V2 := 1
 GREP_LINE := ":020000022000DC"
+# increase the maximum timeout
+MAX_TIME_COUNT := F_CPU>>2
 
 #BOOTLOADER_SUFFIX=$(TARGET)
 
@@ -147,6 +166,9 @@ LED_BUILTIN_PIN := 1
 # testing STK500V2 with this one
 USE_STK500V2 := 1
 GREP_LINE := ":020000021000EC"
+
+# increase the maximum timeout
+MAX_TIME_COUNT := F_CPU>>2
 
 endif
 
@@ -269,14 +291,13 @@ LDFLAGS       = -Wl,$(LDSECTION)
 #override LDFLAGS       = -Wl,-Map,$(PROGRAM).map,$(LDSECTION)
 
 
-#TARGET = xmega
-AVR_FREQ ?= 32000000L
 
 # this next part should be modified as needed
 # I set the max time count to 1/8 the CPU frequency, 3 flashes on the LED,
 # and flash baud rate fixed at 115200 (just like the Uno, actually)
 
-CFLAGS += '-DMAX_TIME_COUNT=F_CPU>>3' '-DNUM_LED_FLASHES=3' '-DWATCHDOG_MODS' '-DDOUBLE_SPEED'
+CFLAGS += '-DMAX_TIME_COUNT=$(MAX_TIME_COUNT)' '-DNUM_LED_FLASHES=$(NUM_LED_FLASHES)' \
+          '-DWATCHDOG_MODS' '-DDOUBLE_SPEED'
 
 # stk500v2 protocol
 ifneq ($(strip $(USE_STK500V2)),)
