@@ -59,6 +59,8 @@ const u16 STRING_IPRODUCT[17] = {
 	'A','r','d','u','i','n','o',' ','E','s','p','l','o','r','a',' '
 #elif USB_PID == 0x9208
 	'L','i','l','y','P','a','d','U','S','B',' ',' ',' ',' ',' ',' '
+#elif USB_PID == 0x0010 // added for 'mega' clone (testing only)
+	'A','r','d','u','i','n','o',' ','M','e','g','a','2','5','6','0'
 #else
 	'U','S','B',' ','I','O',' ','B','o','a','r','d',' ',' ',' ',' '
 #endif
@@ -68,8 +70,13 @@ const u16 STRING_IMANUFACTURER[12] = {
 	(3<<8) | (2+2*11),
 #if USB_VID == 0x2341
 	'A','r','d','u','i','n','o',' ','L','L','C'
+#warning using Arduino USB Vendor ID - do NOT ship product with this ID!!!
 #elif USB_VID == 0x1b4f
 	'S','p','a','r','k','F','u','n',' ',' ',' '
+#warning using SparkFun USB Vendor ID - do NOT ship product with this ID!!!
+#elif USB_VID == 0x1d50 // Openmoko - see http://wiki.openmoko.org/wiki/USB_Product_IDs
+	'O','p','e','n','m','o','k','o',' ',' ',' '
+#warning make sure you have obtained a proper product ID from Openmoko - see http://wiki.openmoko.org/wiki/USB_Product_IDs
 #else
 	'U','n','k','n','o','w','n',' ',' ',' ',' '
 #endif
@@ -91,11 +98,15 @@ const DeviceDescriptor USB_DeviceDescriptorA =
 //==================================================================
 //==================================================================
 
+
+// NOTE:  PR_PRGEN should have PR_USB_bm bit cleared to enable the USB
+
 volatile u8 _usbConfiguration = 0;
 
 static inline void WaitIN(void)
 {
-	while (!(UEINTX & (1<<TXINI)));
+//	while (!(UEINTX & (1<<TXINI)));
+  while(!((USB_STATUS) & 
 }
 
 static inline void ClearIN(void)
@@ -645,6 +656,22 @@ USBDevice_::USBDevice_()
 void USBDevice_::attach()
 {
 	_usbConfiguration = 0;
+
+  // enable the USB clock using the 32mhz RC oscillator
+  // assume either slow (6mhz) or fast (48mhz)
+  // and of course the pre-scaler must be assigned accordingly
+  // Also, assume that the oscillator is *SET UP* *PROPERLY* already
+
+  CCP = CCP_IOREG_gc; // 0xd8 - see D manual, sect 3.14.1 (protected I/O)
+#ifdef FAST_USB
+  CLK_USBCTRL = CLK_USBSRC_RC32M_gc | CLK_USBSEN_bm;
+#else // SLOW
+  CLK_USBCTRL = CLK_USBPSDIV_8_gc // divide by 8 for 6mhz operation
+              | CLK_USBSRC_RC32M_gc | CLK_USBSEN_bm;
+#endif // FAST_USB or SLOW
+
+
+#if 0 /* old code for mega */
 	UHWCON = 0x01;						// power internal reg
 	USBCON = (1<<USBE)|(1<<FRZCLK);		// clock frozen, usb enabled
 #if F_CPU == 16000000UL
@@ -665,6 +692,8 @@ void USBDevice_::attach()
 	UDCON = 0;							// enable attach resistor
 	
 	TX_RX_LED_INIT;
+#endif // 0
+
 }
 
 void USBDevice_::detach()

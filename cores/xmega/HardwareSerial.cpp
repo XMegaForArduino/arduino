@@ -1327,10 +1327,15 @@ HardwareSerial::operator bool()
 
 // Preinstantiate Objects //////////////////////////////////////////////////////
 
+#ifdef USBCON
+HardwareSerial Serial1(&rx_buffer, &tx_buffer, (uint16_t)&(SERIAL_0_USART_NAME)); // name changes to 'Serial1' when USB present
+#else // normal
 HardwareSerial Serial(&rx_buffer, &tx_buffer, (uint16_t)&(SERIAL_0_USART_NAME));
+#endif // USBCON or normal
+
 HardwareSerial Serial2(&rx_buffer2, &tx_buffer2, (uint16_t)&(SERIAL_1_USART_NAME));
 
-#ifdef SERIAL_2_PORT_NAME
+#ifdef SERIAL_2_PORT_NAME  /* note these names are off by 1 with the 'Serial_N_' objects */
 HardwareSerial Serial3(&rx_buffer3, &tx_buffer3, (uint16_t)&(SERIAL_2_USART_NAME));
 #endif // SERIAL_2_PORT_NAME
 

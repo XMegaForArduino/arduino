@@ -499,6 +499,10 @@ void init()
 
   NVM_INTCTRL = 0; // disable interrupts in the NVM subsystem
 
+#ifdef WEXC_OUTOVDIS
+  WEXC_OUTOVDIS = 0xff; // disable ALL pin overrides from the Waveform Extension module
+#endif // WEXC_OUTOVDIS
+
 
   // -------------------
   // TIMER CONFIGURATION

@@ -97,9 +97,20 @@ class HardwareSerial : public Stream
 #define SERIAL_7O2 (SERIAL_7N2 | SERIAL_ODD_PARITY)
 #define SERIAL_8O2 (SERIAL_8N2 | SERIAL_ODD_PARITY)
 
-extern HardwareSerial Serial;
+// DEFAULT SERIAL or 'SERIAL 1'
+#if defined(USBCON)
+  // NOTE:  'Serial1' will be the hardware serial and 'Serial' the USB serial
+  //        whenever 'USBCON' is defined in pins_arduino.h
+
+  #include "USBAPI.h"
+  extern HardwareSerial Serial1;
+#else // normal hardware serial
+  extern HardwareSerial Serial;
+#endif
+
 extern HardwareSerial Serial2;
-#ifdef SERIAL_2_PORT_NAME
+
+#ifdef SERIAL_2_PORT_NAME /* note these names are off by 1 with the 'Serial_N_' objects */
 extern HardwareSerial Serial3;
 #endif // SERIAL_2_PORT_NAME
 #ifdef SERIAL_3_PORT_NAME

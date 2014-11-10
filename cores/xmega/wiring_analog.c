@@ -116,6 +116,7 @@ void adc_setup(void)
 
   analogRead(0); // do a single conversion so that everything stabilizes
 
+// these are taken care of at the beginning of the function, as a 16-bit register assignment to ADCA_CAL
 // ADCA.CALL = readCalibrationData(&PRODSIGNATURES_ADCACAL0);
 // ADCA.CALH = readCalibrationData(&PRODSIGNATURES_ADCACAL1);
 }

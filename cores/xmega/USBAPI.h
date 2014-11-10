@@ -44,7 +44,7 @@ public:
 	using Print::write; // pull in write(str) and write(buf, size) from Print
 	operator bool();
 };
-extern Serial_ Serial;
+extern Serial_ Serial; // NOTE: HardwareSerial.h defines the 1st port as 'Serial1' whenever USBCON defined
 
 //================================================================================
 //================================================================================
@@ -196,3 +196,4 @@ void USB_Flush(uint8_t ep);
 #endif
 
 #endif /* if defined(USBCON) */
+

@@ -250,7 +250,7 @@
 // break out the additional pins, with appropriate labeling.  Additionally, there should
 // be an LED on PORTR pin 1 for 'LED_BUILTIN'.
 //
-// This layout is based on the 'Rev C' Arduino.
+// This layout is based on the 'Rev 3' Arduino.
 //
 // NOTE - NO AREF:  AREF is not connected.  AREF is a bit of an issue on xmega because
 // it DOES! NOT! WORK! THE! SAME! as it does on the ATmegaXXX and so you would need to

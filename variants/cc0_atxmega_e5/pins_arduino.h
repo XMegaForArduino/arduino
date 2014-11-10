@@ -155,7 +155,7 @@
 // '#define'ing DIGITAL_IO_PIN_SHIFT shifts this down by 2, and places PC0-1 on 16-17
 // and PD0-1 on 6-7. This is for Arduino 'atmega' compatibility with respect to existing shields,
 // so that you don't have to re-map pin numbers with #defines in existing software that hard-codes
-// them or makes assumptions about pin numbers vs functionality.  On Rev 'C' you can map TWI to
+// them or makes assumptions about pin numbers vs functionality.  On Rev 3 you can map TWI to
 // the additional 2 SDA/SCL pins (see below), though they won't map to A4 and A5 like the Uno.
 //
 // ALL PORT REMAP registers must be assigned to 0 (default mappings for pins) except when explicitly
@@ -239,7 +239,7 @@
 // break out the additional pins, with appropriate labeling.  Additionally, there should
 // be an LED on PORTR pin 1 for 'LED_BUILTIN'.
 //
-// This layout is based on the 'Rev C' Arduino.
+// This layout is based on the 'Rev 3' Arduino.
 //
 // NOTE - NO AREF:  AREF is not connected.  AREF is a bit of an issue on xmega because
 // it DOES! NOT! WORK! THE! SAME! as it does on the ATmegaXXX and so you would need to
