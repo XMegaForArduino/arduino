@@ -272,11 +272,11 @@ void clock_setup(void)
 unsigned short sCtr;
 register unsigned char c1;
 
-  // TODO:  get rid of magic bit numbers, and use bit value constants from iox64d4.h
+  // TODO:  get rid of magic bit numbers, and use bit value constants from iox64d4.h etc.
 
   // enable BOTH the 32Mhz and 32.768KHz internal clocks [ignore what else might be set for now]
 
-  OSC_CTRL |= CLK_SCLKSEL_RC32M_gc | CLK_SCLKSEL_RC32K_gc;
+  OSC_CTRL |= OSC_RC32KEN_bm | OSC_RC32MEN_bm; // CLK_SCLKSEL_RC32M_gc | CLK_SCLKSEL_RC32K_gc;
 
   if(!(CLK_LOCK & CLK_LOCK_bm)) // clock lock bit NOT set, so I can muck with the clock
   {
@@ -288,7 +288,7 @@ register unsigned char c1;
       {
         // spin on oscillator status bit for 32Mhz oscillator
 
-        if(OSC_STATUS & CLK_SCLKSEL_RC32M_gc) // 32Mhz oscillator is 'ready' (6.10.2)
+        if(OSC_STATUS & OSC_RC32MRDY_bm/*CLK_SCLKSEL_RC32M_gc*/) // 32Mhz oscillator is 'ready' (6.10.2)
         {
           break;
         }
@@ -297,7 +297,7 @@ register unsigned char c1;
       // for now, I can allow the clock to NOT be changed if it's
       // not ready.  This prevents infinite loop inside startup code
 
-      if(!(OSC_STATUS & CLK_SCLKSEL_RC32M_gc)) // is my oscillator 'ready' ?
+      if(!(OSC_STATUS & OSC_RC32MRDY_bm/*CLK_SCLKSEL_RC32M_gc*/)) // is my oscillator 'ready' ?
       {
         return; // exit - don't change anything
       }
@@ -311,15 +311,15 @@ register unsigned char c1;
     if(CLK_PSCTRL != 0)
     {
       CCP = CCP_IOREG_gc; // 0xd8 - see D manual, sect 3.14.1 (protected I/O)
-      CLK_PSCTRL = 0; // set the clock divider(s) to 1:1 (6.9.2)
+      CLK_PSCTRL = CLK_PSADIV_1_gc | CLK_PSBCDIV_1_1_gc/*0*/; // set the clock divider(s) to 1:1 (6.9.2)
     }
 
     // now that I've changed the clock, disable 2Mhz, PLL, and external clocks
     // 32.768KHz should remain active, but I need to make sure it's stable
     OSC_CTRL &= // ~(_BV(4) | _BV(3) | _BV(0)); // sect 6.10.1 - disable PLL, external, 2Mhz clocks
-      ~(CLK_SCLKSEL_RC2M_gc | CLK_SCLKSEL_XOSC_gc | CLK_SCLKSEL_PLL_gc
+      ~(OSC_PLLEN_bm | OSC_XOSCEN_bm | OSC_RC2MEN_bm
 #ifdef OSC_RC8MCAL // only present in 'E' series
-        | CLK_SCLKSEL_RC8M_gc
+        | OSC_RC8MEN_bm
 #endif // OSC_RC8MCAL
         );
 
@@ -330,7 +330,7 @@ register unsigned char c1;
     {
       for(c1=255; c1 > 0; c1--)
       {
-        if(OSC_STATUS & CLK_SCLKSEL_RC32K_gc) // 32.768KHz oscillator is 'ready' (6.10.2)
+        if(OSC_STATUS & OSC_RC32KRDY_bm/*CLK_SCLKSEL_RC32K_gc*/) // 32.768KHz oscillator is 'ready' (6.10.2)
         {
           sCtr = 1; // this will bail out of the outer loop
           break;
@@ -354,7 +354,7 @@ register unsigned char c1;
   {
     for(c1=255; c1 > 0; c1--)
     {
-      if(OSC_STATUS & CLK_SCLKSEL_RC32K_gc) // 32.768KHz oscillator is 'ready' (6.10.2)
+      if(OSC_STATUS & OSC_RC32KRDY_bm/*CLK_SCLKSEL_RC32K_gc*/) // 32.768KHz oscillator is 'ready' (6.10.2)
       {
         sCtr = 1; // this will bail out of the outer loop
         break;
@@ -362,14 +362,14 @@ register unsigned char c1;
     }
   }
 
-  if(!(OSC_STATUS & CLK_SCLKSEL_RC32K_gc)) // is my oscillator 'ready' ?
+  if(!(OSC_STATUS & OSC_RC32KRDY_bm/*CLK_SCLKSEL_RC32K_gc*/)) // is my oscillator 'ready' ?
   {
     return; // exit - don't change anything else
   }
 
 
-  // RUN-TIME clock - use internal 1.024 khz source.  32khz needed for this
-  CLK_RTCCTRL = 2; // section 6.9.4
+  // RUN-TIME clock - use internal 1.024 khz source.  cal'd 32khz needed for this (but it's running)
+  CLK_RTCCTRL = CLK_RTCSRC_RCOSC_gc; // section 6.9.4
 }
 
 

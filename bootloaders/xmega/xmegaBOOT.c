@@ -210,7 +210,13 @@ uint8_t readNVMData(uint8_t cmd, uint16_t iIndex);
 #define SERIAL_PORT_REMAP_REG ((&(SERIAL_PORT))->REMAP)
 #endif // PORTC_REMAP
 
+#ifdef USARTC0_CTRLD
+#define SERIAL_USART_CTRLD  (*((volatile uint8_t *) &((&(SERIAL_USART))->CTRLD) ))
+#endif // USARTC0_CTRLD
+
+
 #if 0
+// legacy testing code, currently commented out
 // NOTE:  if I don't cast the address as 'volatile uint8_t *' some processors won't work properly
 #define SERIAL_PORT_PIN2CTRL (*((volatile uint8_t *) &((&(SERIAL_PORT))->PIN2CTRL) ))
 #define SERIAL_PORT_PIN3CTRL (*((volatile uint8_t *) &((&(SERIAL_PORT))->PIN3CTRL) ))
@@ -224,11 +230,9 @@ uint8_t readNVMData(uint8_t cmd, uint16_t iIndex);
 #define SERIAL_USART_CTRLA  (*((volatile uint8_t *) &((&(SERIAL_USART))->CTRLA) ))
 #define SERIAL_USART_CTRLB  (*((volatile uint8_t *) &((&(SERIAL_USART))->CTRLB) ))
 #define SERIAL_USART_CTRLC  (*((volatile uint8_t *) &((&(SERIAL_USART))->CTRLC) ))
-#ifdef USARTC0_CTRLD
-#define SERIAL_USART_CTRLD  (*((volatile uint8_t *) &((&(SERIAL_USART))->CTRLD) ))
-#endif // USARTC0_CTRLD
 #define SERIAL_USART_BAUDCTRLA (*((volatile uint8_t *) &((&(SERIAL_USART))->BAUDCTRLA) ))
 #define SERIAL_USART_BAUDCTRLB (*((volatile uint8_t *) &((&(SERIAL_USART))->BAUDCTRLB) ))
+
 #else
 
 #define SERIAL_PORT_PIN2CTRL PORTD_PIN2CTRL
@@ -504,15 +508,19 @@ unsigned char *p1;
 
   // this part needs to be done right away
 
-  bod = RST_STATUS & 0x3f; // bits 6 and 7 aren't used
+  bod = RST_STATUS & 0x3f; // bits 6 and 7 aren't used according to the manual (note bit 6 is defined as RST_SDRF_bm in nearly every header)
+#ifdef RST_SDRF_bm
+  RST_STATUS = 0x7f; // bit 6 also
+#else // RST_SDRF_bm
   RST_STATUS = 0x3f; // write 1 bits to clear everything (so I don't loop)
+#endif // RST_SDRF_bm
 
   // disable watchdog timer NOW
 
-  CCP = CCP_IOREG_gc;// 0xd8 - see D manual, sect 3.14.1 (protected I/O)
-  WDT_CTRL = 1; // sets watchdog timer "enable" bit to zero - bit 0 must be set to change bit 1 - section 9.7.1
-  CCP = CCP_IOREG_gc; // 0xd8 - see D manual, sect 3.14.1 (protected I/O)
-  WDT_WINCTRL = 1; // sets watchdog 'window' timer "enable" bit to zero - bit 0 must be set to change bit 1 - section 9.7.2
+  CCP = CCP_IOREG_gc;        // 0xd8 - see D manual, sect 3.14.1 (protected I/O)
+  WDT_CTRL = WDT_CEN_bm;     // sets watchdog timer "enable" bit to zero - bit 0 must be set to change bit 1 - section 9.7.1
+  CCP = CCP_IOREG_gc;        // 0xd8 - see D manual, sect 3.14.1 (protected I/O)
+  WDT_WINCTRL = WDT_WCEN_bm; // sets watchdog 'window' timer "enable" bit to zero - bit 0 must be set to change bit 1 - section 9.7.2
 
   // the 'bod' value will be non-zero if I did a normal reboot, or had the WDT time out,
   // or had a brownout, or soft reboot, or hard reboot.  But if I merely jump here, it's
@@ -529,8 +537,8 @@ unsigned char *p1;
   // NOW assign 'ch' to the watchdog bit (3) and bod to the B.O.D. bit (2)
   // TODO:  other flags?  I might want to do a soft boot into a special feature, like bootloader flashing
 
-  ch = bod & _BV(3); // watchdog bit, D manual sect 8.5.1
-  bod &= _BV(2); // brown out detector (8.5.1)
+  ch = bod & RST_WDRF_bm /*_BV(3)*/; // watchdog bit, D manual sect 8.5.1
+  bod &= RST_BORF_bm /*_BV(2)*/; // brown out detector (8.5.1)
 
   // TODO:  add other "skip the bootloader flash check" flags to this?  like soft boot?
   //        if I soft boot here, it might be an INTERNAL call to 'soft_boot' so another
@@ -571,13 +579,15 @@ unsigned char *p1;
 
   // enable BOTH the 32Mhz and 32.768KHz internal clocks [ignore what else might be set for now]
 
-  OSC_CTRL |= _BV(2) | _BV(1); // sect 6.10.1 - enable 32.768KHz (2), 32Mhz (1).  2Mhz is _BV(0)
-                               //               _BV(3) and _BV(4) are for PLL and external - will set to 0 later
+//  OSC_CTRL |= _BV(2) | _BV(1); // sect 6.10.1 - enable 32.768KHz (2), 32Mhz (1).  2Mhz is _BV(0)
+//                               //               _BV(3) and _BV(4) are for PLL and external - will set to 0 later
 
-  if(!(CLK_LOCK & 1)) // clock lock bit NOT set, so I can muck with the clock
+  OSC_CTRL |= OSC_RC32KEN_bm | OSC_RC32MEN_bm; // enable 32khz osc, 32mhz osc - 'D4' manual sect 6.10.1
+
+  if(!(CLK_LOCK & CLK_LOCK_bm/*1*/)) // clock lock bit NOT set, so I can muck with the clock
   {                   // note that in the bootloader this should NEVER happen.  check anyway.
 
-    if((CLK_CTRL & 0x7) != 1) // it's not already 32 Mhz (D manual 6.9.1)
+    if((CLK_CTRL & CLK_SCLKSEL_gm/*7*/) != CLK_SCLKSEL_RC32M_gc/*1*/) // it's not already 32 Mhz (D manual 6.9.1)
     {
       // wait until 32mhz clock is 'stable'
 
@@ -585,7 +595,7 @@ unsigned char *p1;
       {
         // spin on oscillator status bit for 32Mhz oscillator
 
-        if(OSC_STATUS & _BV(1)) // 32Mhz oscillator is 'ready' (6.10.2)
+        if(OSC_STATUS & OSC_RC32MRDY_bm/*_BV(1)*/) // 32Mhz oscillator is 'ready' (6.10.2)
         {
           break;
         }
@@ -594,7 +604,7 @@ unsigned char *p1;
       // for now, I can allow the clock to NOT be changed if it's
       // not ready.  This prevents infinite loop inside startup code
 
-      if(!(OSC_STATUS & _BV(1))) // is my oscillator 'ready' ?
+      if(!(OSC_STATUS & OSC_RC32MRDY_bm/*_BV(1)*/)) // is my oscillator 'ready' ?
       {
         goto skip_clock; // exit - don't change anything
       }
@@ -602,19 +612,24 @@ unsigned char *p1;
       // switch to 32Mhz clock using internal source
 
       CCP = CCP_IOREG_gc;// 0xd8 - see D manual, sect 3.14.1 (protected I/O)
-      CLK_CTRL = 1; // set the clock to 32Mhz (6.9.1)
+      CLK_CTRL = CLK_SCLKSEL_RC32M_gc/*1*/; // set the clock to 32Mhz (6.9.1)
     }
 
     if(CLK_PSCTRL != 0)
     {
       CCP = CCP_IOREG_gc;// 0xd8 - see D manual, sect 3.14.1 (protected I/O)
-      CLK_PSCTRL = 0; // set the clock divider(s) to 1:1 (6.9.2)
+      CLK_PSCTRL = CLK_PSADIV_1_gc | CLK_PSBCDIV_1_1_gc/*0*/; // set the clock divider(s) to 1:1 (6.9.2)
     }
 
 
     // now that I've changed the clock, disable 2Mhz, PLL, and external clocks
     // 32.768KHz should remain active, but I need to make sure it's stable
-    OSC_CTRL &= ~(_BV(4) | _BV(3) | _BV(0)); // sect 6.10.1 - disable PLL, external, 2Mhz clocks
+//    OSC_CTRL &= ~(_BV(4) | _BV(3) | _BV(0)); // sect 6.10.1 - disable PLL, external, 2Mhz clocks
+    OSC_CTRL &= ~(OSC_PLLEN_bm | OSC_XOSCEN_bm | OSC_RC2MEN_bm
+#ifdef OSC_RC8MCAL // only present in 'E' series
+                  | OSC_RC8MEN_bm
+#endif // OSC_RC8MCAL
+                  ); 
 
     // wait until 32.768KHz clock is 'stable'.  this one goes for a while
     // in case it doesn't stabilize in a reasonable time.  I figure about
@@ -623,7 +638,7 @@ unsigned char *p1;
     {
       for(ch2=255; ch2 > 0; ch2--) // this waits up to 256 times longer than just the outer loop
       {
-        if(OSC_STATUS & _BV(2)) // 32.768KHz oscillator is 'ready' (6.10.2)
+        if(OSC_STATUS & OSC_RC32KRDY_bm/*_BV(2)*/) // 32.768KHz oscillator is 'ready' (6.10.2)
         {
           goto done_waiting_for_osc_status;
         }
@@ -636,8 +651,8 @@ done_waiting_for_osc_status:
     // (it uses the reasonably precise 32.768KHz clock to do it)
     // This is the BEST clock strategy to use for 32Mhz.
 
-    OSC_DFLLCTRL = 0; // sect 6.10.7 - select 32.768KHz osc for everything, basically
-    DFLLRC32M_CTRL = 1; // set the bit to enable DFLL calibration - section 6.11.1
+    OSC_DFLLCTRL = OSC_RC32MCREF_RC32K_gc/*0*/; // sect 6.10.7 - select 32.768KHz osc for everything, basically
+    DFLLRC32M_CTRL = DFLL_ENABLE_bm/*1*/; // set the bit to enable DFLL calibration - section 6.11.1
   }
 
   // I'll be using the 1.024khz clock (from the 32.768KHz clock) for the real-time counter
@@ -649,7 +664,7 @@ done_waiting_for_osc_status:
   {
     for(ch2=255; ch2 > 0; ch2--)
     {
-      if(OSC_STATUS & _BV(2)) // 32.768KHz oscillator is 'ready' (6.10.2)
+      if(OSC_STATUS & OSC_RC32KRDY_bm/*_BV(2)*/) // 32.768KHz oscillator is 'ready' (6.10.2)
       {
         goto done_waiting_again_osc_status;
       }
@@ -658,7 +673,7 @@ done_waiting_for_osc_status:
 
 done_waiting_again_osc_status:
 
-  if(!(OSC_STATUS & _BV(2))) // is my oscillator 'ready' ?
+  if(!(OSC_STATUS & OSC_RC32KRDY_bm/*_BV(2)*/)) // is my oscillator 'ready' ?
   {
     goto skip_clock; // exit - don't change anything else
   }
@@ -695,7 +710,7 @@ skip_clock:  // go here if clock cannot be assigned for some reason or is alread
   // TODO:  allow this to be used for the A1 series with SERIAL1 ?
 
 #ifdef SERIAL_PORT_REMAP_REG
-  SERIAL_PORT_REMAP_REG = _BV(4); // see 12.13.13 in 'E' manual
+  SERIAL_PORT_REMAP_REG = PORT_USART0_bm/*_BV(4)*/; // see 12.13.13 in 'E' manual
 #endif // SERIAL_PORT_REMAP_REG
 
   // PD6 (GPIO 6) must have input pullup resistor (for serial I/O)
@@ -732,45 +747,51 @@ skip_clock:  // go here if clock cannot be assigned for some reason or is alread
 #if BAUD_RATE == 115200
 
 // section 19.4.4 - 'double speed' flag
+// since this is set below, maybe it's not needed here?
 #ifdef DOUBLE_SPEED
 #define BAUD_SETTING  ((-2 << 12) | 135)
-  // section 19.4.4
-  SERIAL_USART_CTRLB = _BV(2); // enable clock 2x (everything else disabled)
+//  // section 19.4.4
+//  SERIAL_USART_CTRLB = USART_CLK2X_bm/*_BV(2)*/; // enable clock 2x (everything else disabled)
 #else // DOUBLE_SPEED
 #define BAUD_SETTING ((-3 << 12) | 131)
-  SERIAL_USART_CTRLB = 0; // DISable clock 2x
+//  SERIAL_USART_CTRLB = 0; // DISable clock 2x
 #endif // DOUBLE_SPEED
 
 
 #else // BAUD_RATE != 115200
 
-  // section 19.4.4 - 'double speed' flag
+// section 19.4.4 - 'double speed' flag
+// since this is set below, maybe it's not needed here?
 #ifdef DOUBLE_SPEED
-  // section 19.4.4
-  SERIAL_USART_CTRLB = _BV(2); // enable clock 2x (everything else disabled)
+//  // section 19.4.4
+//  SERIAL_USART_CTRLB = USART_CLK2X_bm/*_BV(2)*/; // enable clock 2x (everything else disabled)
 #else   // DOUBLE_SPEED
-  SERIAL_USART_CTRLB = 0; // DISable clock 2x
+//  SERIAL_USART_CTRLB = 0; // DISable clock 2x
 #endif  // DOUBLE_SPEED
 
-
-
-// for now only 115k supported, and error if I try to compile this
+// for now only 115k supported, so it's an error if I try to compile this for different baud rates
 #error baud rate BAUD_RATE is NOT supported (for now)
-
 
 #endif // BAUD_RATE == 115200
 
-  // section 19.14.5 - USART mode, parity, bits
-  // CMODE 7:6 = 00 [async]  PMODE 5:4 = 00 [none]  SBMODE 3 = 0 [1 bit]   CHSIZE 2:0 = 3 (8-bit)
-  SERIAL_USART_CTRLC = 0x03; // SERIAL_8N1 - see HardwareSerial.h
-#ifdef USARTD0_CTRLD // which means we have a CTRLD - E5's do
-  SERIAL_USART_CTRLD = 0; // always set to zero (E5 special)
-#endif // USARTD0_CTRLD
 
   // assign the baud_setting, a.k.a. ubbr (USART Baud Rate Register)
 
   SERIAL_USART_BAUDCTRLA = ((uint8_t)BAUD_SETTING) & 0xff;
   SERIAL_USART_BAUDCTRLB = (uint8_t)(BAUD_SETTING >> 8);
+
+  // CTRLA settings - no interrupts
+  SERIAL_USART_CTRLA = 0; // NO! SERIAL! PORT! INTERRUPTS!
+
+  // section 19.14.5 - USART mode, parity, bits
+  // CMODE 7:6 = 00 [async]  PMODE 5:4 = 00 [none]  SBMODE 3 = 0 [1 bit]   CHSIZE 2:0 = 3 (8-bit)
+  SERIAL_USART_CTRLC = USART_CHSIZE_8BIT_gc/*0x03*/; // SERIAL_8N1 - see HardwareSerial.h
+
+#ifdef USARTD0_CTRLD // which means we have a CTRLD - E5's do
+  SERIAL_USART_CTRLD = 0; // always set to zero (E5 special)
+#endif // USARTD0_CTRLD
+
+  // last of all, assign CTRLB which switches on the right pins
 
   // section 19.4.4
 #ifdef DOUBLE_SPEED
@@ -779,7 +800,6 @@ skip_clock:  // go here if clock cannot be assigned for some reason or is alread
   SERIAL_USART_CTRLB = USART_RXEN_bm | USART_TXEN_bm;  // enable RX, TX, disable other stuff
 #endif  // DOUBLE_SPEED
 
-  SERIAL_USART_CTRLA = 0; // NO! SERIAL! PORT! INTERRUPTS!
 
   // before enabling interrupts, make sure that 'certain hardware' isn't possibly messing things up
 

@@ -1,9 +1,9 @@
-
-
 #ifndef __USBAPI__
 #define __USBAPI__
 
 #if defined(USBCON)
+
+#include "USBCore.h" /* make sure since I use its definitions here */
 
 //================================================================================
 //================================================================================
@@ -18,7 +18,11 @@ public:
 	void attach();
 	void detach();	// Serial port goes down too...
 	void poll();
+
+protected:
+  static XMegaEPDataStruct *GetEPData(); // necessary
 };
+
 extern USBDevice_ USBDevice;
 
 //================================================================================
@@ -27,7 +31,7 @@ extern USBDevice_ USBDevice;
 
 class Serial_ : public Stream
 {
-private:
+protected:
 	int peek_buffer;
 public:
 	Serial_() { peek_buffer = -1; };
@@ -57,7 +61,7 @@ extern Serial_ Serial; // NOTE: HardwareSerial.h defines the 1st port as 'Serial
 
 class Mouse_
 {
-private:
+protected:
 	uint8_t _buttons;
 	void buttons(uint8_t b);
 public:
@@ -123,7 +127,7 @@ typedef struct
 
 class Keyboard_ : public Print
 {
-private:
+protected:
 	KeyReport _keyReport;
 	void sendReport(KeyReport* keys);
 public:

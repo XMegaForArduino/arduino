@@ -34,13 +34,41 @@
 
 // things that need to be defined in order for the code to compile
 
-#ifndef PRODSIGNATURES_ADCACAL0 /* A1 headers don't define this properly */
+// definitions for ADC-related product signature row entries
+#ifndef PRODSIGNATURES_ADCACAL0 /* _MOST_ headers don't define this properly - see ATMel Studio headers */
 #define PRODSIGNATURES_ADCACAL0  _SFR_MEM8(0x0020)
 #endif // PRODSIGNATURES_ADCACAL0
 
-#ifndef PRODSIGNATURES_ADCACAL1 /* A1 headers don't define this properly */
+#ifndef PRODSIGNATURES_ADCACAL1 /* _MOST_ headers don't define this properly - see ATMel Studio headers */
 #define PRODSIGNATURES_ADCACAL1  _SFR_MEM8(0x0021)
 #endif // PRODSIGNATURES_ADCACAL1
+
+#ifndef PRODSIGNATURES_ADCBCAL0 /* _MOST_ headers don't define this properly - see ATMel Studio headers */
+#define PRODSIGNATURES_ADCBCAL0  _SFR_MEM8(0x0024)
+#endif // PRODSIGNATURES_ADCBCAL0
+
+#ifndef PRODSIGNATURES_ADCBCAL1 /* _MOST_ headers don't define this properly - see ATMel Studio headers */
+#define PRODSIGNATURES_ADCBCAL1  _SFR_MEM8(0x0025)
+#endif // PRODSIGNATURES_ADCBCAL1
+
+// definitions for USB-related product signature row entries
+#ifndef PRODSIGNATURES_USBCAL0 /* _MOST_ headers don't define this properly - see ATMel Studio headers */
+#define PRODSIGNATURES_USBCAL0  _SFR_MEM8(0x001a)
+#endif // PRODSIGNATURES_USBCAL0
+
+#ifndef PRODSIGNATURES_USBCAL1 /* _MOST_ headers don't define this properly - see ATMel Studio headers */
+#define PRODSIGNATURES_USBCAL1  _SFR_MEM8(0x001b)
+#endif // PRODSIGNATURES_USBCAL1
+
+#ifndef PRODSIGNATURES_USBRCOSC /* _MOST_ headers don't define this properly - see ATMel Studio headers */
+#define PRODSIGNATURES_USBRCOSC  _SFR_MEM8(0x001c)
+#endif // PRODSIGNATURES_USBRCOSC
+
+#ifndef PRODSIGNATURES_USBRCOSCA /* _MOST_ headers don't define this properly - see ATMel Studio headers */
+#define PRODSIGNATURES_USBRCOSCA  _SFR_MEM8(0x001d)
+#endif // PRODSIGNATURES_USBRCOSCA
+
+
 
 #ifndef ADCA_CH0_SCAN           /* A1 headers don't define this properly */
 #define ADCA_CH0_SCAN  _SFR_MEM8(0x0226)

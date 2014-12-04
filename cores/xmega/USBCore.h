@@ -1,4 +1,3 @@
-
 // Copyright (c) 2010, Peter Barrett 
 /*
 ** Permission to use, copy, modify, and/or distribute this software for  
@@ -278,6 +277,61 @@ typedef struct
 } HIDDescriptor;
 
 
+// XMEGA STRUCTURES
+
+#define MAXEP 5 /*15*/ /* 4 bit value, 0-15 - see 20.14.1 'CTRLA register' in AU manual */
+// I assigned this to '5' because there are only 5 endpoints being used by THIS code.
+// The 'mega' code could only have a total of 6 and 0 was always the 'control' endpoint
+
+
+typedef union
+{
+  struct
+  {
+    u8 h, l;
+  };
+  u16 heW; // high endian word
+} XMegaFIFOEntry;
+
+typedef union
+{
+  struct
+  {
+    u8 l,h;
+  };
+  u16 w;
+} HLByteWord;
+
+// see AU manual, pg 231 section 20.4
+typedef struct
+{
+  u8 status;
+  u8 ctrl;
+  HLByteWord cnt; // so, cnt.w is the 16-bit value, cnt.l and cnt.h the 8-bit low/high
+                  // it is the 'data count' value.  it may be zero.
+                  // only bits 1:0 of cnt.h are valid.  cnt.w should be 'and'd with 0x3ff
+                  // the high bit of cnt.w and cnt.h is the 'AZLP' (auto zero length packet) bit
+                  // see AU manual section 20.15.4
+  HLByteWord dataptr; // pointer to data buffer.  max packet length assigned to CTRL [1:0] or [2:0]
+                      // see table 20-5 in AU manual for max packet length.  may need 2 buffers "that long"
+  HLByteWord auxdata; // used for multi-packet transfers
+} XMegaEndpointDescriptor; // NOTE:  2 per channel (one 'out', one 'in') pointed by EPPTR
+
+typedef struct
+{
+  XMegaEndpointDescriptor out;
+  XMegaEndpointDescriptor in;
+} XMegaEndpointChannel __attribute__ ((aligned (2), packed));
+
+// also section 20.4 in AU manual
+typedef struct _XMegaEPDataStruct_
+{
+  XMegaFIFOEntry          ep_addr[MAXEP + 1];
+  XMegaEndpointChannel    endpoint[MAXEP + 1];  // point EPPTR to THIS 
+  HLByteWord              framenum;             // 1 word frame number, high endian
+} XMegaEPDataStruct __attribute__ ((packed));   // note:  point EPPTR to &endpoint[0], word alignment needed
+
+
 #define D_DEVICE(_class,_subClass,_proto,_packetSize0,_vid,_pid,_version,_im,_ip,_is,_configs) \
 	{ 18, 1, 0x200, _class,_subClass,_proto,_packetSize0,_vid,_pid,_version,_im,_ip,_is,_configs }
 
@@ -301,3 +355,4 @@ typedef struct
 
 
 #endif
+
