@@ -37,7 +37,12 @@
 
 // the prescaler is set so that timer0 ticks every 64 clock cycles, and the
 // the overflow handler is called every 256 ticks.
+// (NOTE:  for 'E' series, it's 32 clock sycles)
+//#ifdef TCC4 /* using timer 4,5 rather than 0,2 - 'E' series */
+//#define MICROSECONDS_PER_TIMER0_OVERFLOW (clockCyclesToMicroseconds(32 * 256))
+//#else // TCC4
 #define MICROSECONDS_PER_TIMER0_OVERFLOW (clockCyclesToMicroseconds(64 * 256))
+//#endif // TCC4
 
 // the whole number of milliseconds per timer0 overflow
 #define MILLIS_INC (MICROSECONDS_PER_TIMER0_OVERFLOW / 1000)
@@ -65,6 +70,18 @@ static unsigned char timer0_fract = 0;
 // the timer prescaler MUST tick every 64 clock cycles for this to work, just like the mega TIMER 0
 // NOTE:  at 32Mhz MICROSECONDS_PER_TIMER0_OVERFLOW will be 512 - consider a divider of 128 instead
 //        unless you want 2khz for the PWM (which is actually a good idea, for servos etc.)
+
+
+//////////////////////////////////////////////////////////////////////////////
+//                                                                          //
+//            _____  _                          ___  ____   ____            //
+//           |_   _|(_) _ __ ___    ___  _ __  |_ _|/ ___| |  _ \           //
+//             | |  | || '_ ` _ \  / _ \| '__|  | | \___ \ | |_) |          //
+//             | |  | || | | | | ||  __/| |     | |  ___) ||  _ <           //
+//             |_|  |_||_| |_| |_| \___||_|    |___||____/ |_| \_\          //
+//                                                                          //
+//                                                                          //
+//////////////////////////////////////////////////////////////////////////////
 
 #ifdef TCC4 // 'E' series or later that has TCC4 and TCD5
 ISR(TCD5_OVF_vect)
@@ -264,6 +281,17 @@ void delayMicroseconds(unsigned int us)
 }
 
 
+///////////////////////////////////////////////////////////////////////////////////////////////////////////////
+//                                                                                                           //
+//   ____               _                      ____  _               _      ____         _                   //
+//  / ___|  _   _  ___ | |_  ___  _ __ ___    / ___|| |  ___    ___ | | __ / ___|   ___ | |_  _   _  _ __    //
+//  \___ \ | | | |/ __|| __|/ _ \| '_ ` _ \  | |    | | / _ \  / __|| |/ / \___ \  / _ \| __|| | | || '_ \   //
+//   ___) || |_| |\__ \| |_|  __/| | | | | | | |___ | || (_) || (__ |   <   ___) ||  __/| |_ | |_| || |_) |  //
+//  |____/  \__, ||___/ \__|\___||_| |_| |_|  \____||_| \___/  \___||_|\_\ |____/  \___| \__| \__,_|| .__/   //
+//          |___/                                                                                   |_|      //
+//                                                                                                           //
+///////////////////////////////////////////////////////////////////////////////////////////////////////////////
+
 // this function is separate since it provides a specific functionality
 // and aids in readability by separating it from the main 'init()' code
 // regardless of the extra bytes needed to make the function call
@@ -272,9 +300,16 @@ void clock_setup(void)
 unsigned short sCtr;
 register unsigned char c1;
 
-  // TODO:  get rid of magic bit numbers, and use bit value constants from iox64d4.h etc.
+  // TODO:  get rid of magic bit numbers, and use bit value constants from iox64d4.h etc. (ongoing)
 
+  // TODO:  consider clock setup using PLL and 2Mhz multiplied by 16, to free up the 32Mhz to be
+  //        used by the USB at 48Mhz (sync on SOF).  this would be an alternate config for USB devices.
+
+  // --------------------------------------------------------------------------------------------
+  //                                         CLOCK SETUP
+  //
   // enable BOTH the 32Mhz and 32.768KHz internal clocks [ignore what else might be set for now]
+  // --------------------------------------------------------------------------------------------
 
   OSC_CTRL |= OSC_RC32KEN_bm | OSC_RC32MEN_bm; // CLK_SCLKSEL_RC32M_gc | CLK_SCLKSEL_RC32K_gc;
 
@@ -317,15 +352,17 @@ register unsigned char c1;
     // now that I've changed the clock, disable 2Mhz, PLL, and external clocks
     // 32.768KHz should remain active, but I need to make sure it's stable
     OSC_CTRL &= // ~(_BV(4) | _BV(3) | _BV(0)); // sect 6.10.1 - disable PLL, external, 2Mhz clocks
-      ~(OSC_PLLEN_bm | OSC_XOSCEN_bm | OSC_RC2MEN_bm
-#ifdef OSC_RC8MCAL // only present in 'E' series
-        | OSC_RC8MEN_bm
+      ~(OSC_PLLEN_bm | OSC_XOSCEN_bm
+        | OSC_RC2MEN_bm    /* disable the 2Mhz oscillator - startup code *DOES* do this, boot code does NOT */
+#ifdef OSC_RC8MCAL // only present in 'E' series - for now shut it off
+        | OSC_RC8MEN_bm    /* disable the 8M oscillator (when present) */
 #endif // OSC_RC8MCAL
         );
 
     // wait until 32.768KHz clock is 'stable'.  this one goes for a while
     // in case it doesn't stabilize in a reasonable time.  I figure about
-    // 64*255 clock cycles should be enough, ya think?
+    // 64*255 clock cycles should be enough, ya think?  Timeout if it's not
+    // actually ready, I don't want infinite loops.  TODO:  re-consider?
     for(sCtr=65535; sCtr > 0; sCtr--)
     {
       for(c1=255; c1 > 0; c1--)
@@ -364,33 +401,48 @@ register unsigned char c1;
 
   if(!(OSC_STATUS & OSC_RC32KRDY_bm/*CLK_SCLKSEL_RC32K_gc*/)) // is my oscillator 'ready' ?
   {
-    return; // exit - don't change anything else
+    return; // exit - don't change anything else.  Better to fail than to hang
   }
 
 
   // RUN-TIME clock - use internal 1.024 khz source.  cal'd 32khz needed for this (but it's running)
+  // The RTC can be used to wake up the CPU.  It uses VERY little current.
+
   CLK_RTCCTRL = CLK_RTCSRC_RCOSC_gc; // section 6.9.4
 }
 
 
-// this was obtained from a message board.  The function is public to make it easy to
+// this was derived from a message board post.  The function is public to make it easy to
 // use the 'Production Signature Row'.  There is a unique identifier for the CPU as well as
-// calibration data for the ADC available.  See sect. 4.14 "Production Signature Row"
+// calibration data for the ADC available, and also USB settings (for USB-capable devices)
+// See sect. 4.14 "Production Signature Row" in 'D' manual.  
 uint8_t readCalibrationData(uint16_t iIndex)
 {
   uint8_t rVal;
 
   /* Load the NVM Command register to read the calibration row. */
-  NVM_CMD = NVM_CMD_READ_CALIB_ROW_gc;
+  NVM_CMD = NVM_CMD_READ_CALIB_ROW_gc; // see the section on NVM operations and lpm instruction
 
-//  rVal = pgm_read_byte_near(iIndex); // this should work correctly
-  __asm__ ("lpm %0, Z\n" : "=r" (rVal) : "z" (iIndex));
+//  rVal = pgm_read_byte_near(iIndex); // effectively the same thing as the inline assembler
+  __asm__ ("lpm %0, Z\n" : "=r" (rVal) : "z" (iIndex)); // do it THIS way instead
 
   /* Clean up NVM Command register. */
   NVM_CMD = NVM_CMD_NO_OPERATION_gc;
 
   return(rVal);
 }
+
+
+///////////////////////////////////////////////////////////////////////////////////////////////////////////////
+//                                                                                                           //
+//   _____  _                          ___         _  _    _         _  _             _    _                 //
+//  |_   _|(_) _ __ ___    ___  _ __  |_ _| _ __  (_)| |_ (_)  __ _ | |(_) ____ __ _ | |_ (_)  ___   _ __    //
+//    | |  | || '_ ` _ \  / _ \| '__|  | | | '_ \ | || __|| | / _` || || ||_  // _` || __|| | / _ \ | '_ \   //
+//    | |  | || | | | | ||  __/| |     | | | | | || || |_ | || (_| || || | / /| (_| || |_ | || (_) || | | |  //
+//    |_|  |_||_| |_| |_| \___||_|    |___||_| |_||_| \__||_| \__,_||_||_|/___|\__,_| \__||_| \___/ |_| |_|  //
+//                                                                                                           //
+//                                                                                                           //
+///////////////////////////////////////////////////////////////////////////////////////////////////////////////
 
 #ifdef TCC2
 static void Timer2Init(TC2_t *port)
@@ -472,6 +524,17 @@ static void Timer2Init(TC0_t *port)
 #endif // TCC2
 
 
+//////////////////////////////////////////////////////////////////////////////
+//                                                                          //
+//        ____               _                     ___         _  _         //
+//       / ___|  _   _  ___ | |_  ___  _ __ ___   |_ _| _ __  (_)| |_       //
+//       \___ \ | | | |/ __|| __|/ _ \| '_ ` _ \   | | | '_ \ | || __|      //
+//        ___) || |_| |\__ \| |_|  __/| | | | | |  | | | | | || || |_       //
+//       |____/  \__, ||___/ \__|\___||_| |_| |_| |___||_| |_||_| \__|      //
+//               |___/                                                      //
+//                                                                          //
+//////////////////////////////////////////////////////////////////////////////
+
 // NOTE:  calibration data for ADC must be loaded BEFORE it's initialized
 // ADCA.CALL = readCalibrationData(&PRODSIGNATURES_ADCACAL0);
 // ADCA.CALH = readCalibrationData(&PRODSIGNATURES_ADCACAL1);
@@ -500,33 +563,48 @@ void init()
   NVM_INTCTRL = 0; // disable interrupts in the NVM subsystem
 
 #ifdef WEXC_OUTOVDIS
-  WEXC_OUTOVDIS = 0xff; // disable ALL pin overrides from the Waveform Extension module
+  WEXC_OUTOVDIS = 0; // in essence, it should allow waveform output on all pins (default value)
+                     // assigning this to FFH prevents PWM output on PORTC - does not appear to affect PORTD
+
+  WEXC_CTRL = 0;     // hopefully disabling everything
+  WEXC_SWAP = 0;     // no bit swapping
+  WEXC_PGO = 0;      // disable PGV output on all bits
+
 #endif // WEXC_OUTOVDIS
 
+#ifdef HIRESC_CTRLA
+  HIRESC_CTRLA = 0; // disable hi-res timer extension
+#endif // HIRESC_CTRLA
 
-  // -------------------
-  // TIMER CONFIGURATION
-  // -------------------
 
+  // --------------------------------
+  //   INITIAL TIMER CONFIGURATION
+  // --------------------------------
 
-  // set up timers TCC2 and TCD2 and TCE0.  Use pre-scale of 64.  For 32Mhz
-  // clock this will run them at 2Khz.  For PWM out, use the comparison
-  // result to drive the appropriate pins.
+  // For the E series, set up timers TCC4, TCC5, and TCD5 in 'normal' mode with a pre-scale of 64.
+  // TODO:  consider CC ISR for PWM and manual bit-flip, if it's even possible.
+  //
+  // For everything else, set up timers TCC2 and TCD2 and TCE0.  Use pre-scale of 64.
+  // If other timers exist (like 'A' series) initialize them as well.
+  //
+  // For a 32Mhz clock they will run at 2Khz with the appropriate pre-scale + divide.
+  // For PWM out, use the comparison result to drive the appropriate pins.
 
-  // If you don't need PWM, or want 'other than 2khz', you can re-configure TCC0/2 and TCE0/2
-  // but leave TCD2 alone because it's needed for the system clock (via TCD2_LUNF_vect)
+  // If you don't need PWM, or want 'other than 2khz', you can re-configure the other timers,
+  // but leave TCD2 (or TCD5) alone because it's needed for the system clock (via TCD2_LUNF_vect, etc.)
 
-  // on the 'E' series (and anything with timers 4 and 5), this will be TCD5
 
 #ifdef TCC4 /* this is my trigger for 'E' series */
 
-  // TCD5 first
+  // TCD5 first (the system timer)
   TCD5_INTCTRLA = 0;   // no underflow interrupts
   TCD5_INTCTRLB = 0;   // no comparison interrupts
 
   TCD5_CTRLA = 5; // b0101 - divide by 64 - E manual 13.13.1
-  TCD5_CTRLB = TC45_BYTEM_BYTEMODE_gc | TC45_WGMODE_SINGLESLOPE_gc; // byte mode
-//  TCD5_CTRLC = 0; // when timer not running, sets compare (13.9.3)
+//  TCD5_CTRLB = TC45_BYTEM_BYTEMODE_gc; // byte mode, normal mode
+  TCD5_CTRLB = TC45_BYTEM_BYTEMODE_gc | TC45_WGMODE_SINGLESLOPE_gc; // byte mode, single slope
+//  TCD5_CTRLB = TC45_BYTEM_BYTEMODE_gc | TC45_WGMODE_DSBOTH_gc; // byte mode, dual slope, ovf on bottom AND top
+////  TCD5_CTRLC = 0; // when timer not running, sets compare (13.9.3)
   TCD5_CTRLD = 0; // events off
   TCD5_CTRLE = 0; // no output on L pins
   TCD5_CTRLF = 0; // no output on H pins
@@ -563,8 +641,9 @@ void init()
   // TCC4
   // first the clock selection
   TCC4_CTRLA = 5; // b0101 - divide by 64 - E manual 13.13.1
-  TCC4_CTRLB = TC45_BYTEM_BYTEMODE_gc | TC45_WGMODE_SINGLESLOPE_gc; // byte mode
-//  TCC5_CTRLC = 0; // when timer not running, sets compare (13.9.3)
+  TCC4_CTRLB = TC45_BYTEM_BYTEMODE_gc | TC45_WGMODE_SINGLESLOPE_gc; // byte mode, single slope
+//  TCC4_CTRLB = TC45_BYTEM_BYTEMODE_gc | TC45_WGMODE_DSBOTH_gc; // byte mode, dual slope, ovf on bottom AND top
+////  TCC4_CTRLC = 0; // when timer not running, sets compare (13.9.3)
   TCC4_CTRLD = 0; // events off
   TCC4_CTRLE = 0; // no output on L pins
   TCC4_CTRLF = 0; // no output on H pins
@@ -595,8 +674,8 @@ void init()
   TCC5_INTCTRLB = 0;   // no comparison interrupts
 
   TCC5_CTRLA = 5; // b0101 - divide by 64 - E manual 13.13.1
-  TCC5_CTRLB = 0; // 'normal' mode, 16-bit mode
-//  TCC5_CTRLC = 0; // when timer not running, sets compare (13.9.3)
+  TCC5_CTRLB = TC45_WGMODE_NORMAL_gc; // 'normal' mode, 16-bit mode
+////  TCC5_CTRLC = 0; // when timer not running, sets compare (13.9.3)
   TCC5_CTRLD = 0; // events off
   TCC5_CTRLE = 0; // no output on L pins
   TCC5_CTRLF = 0; // no output on H pins
@@ -616,7 +695,7 @@ void init()
 #endif // TCC5
 
 
-#else // everything else uses TCD2
+#else // everything else uses TCD2 for system timer
 
 #ifndef TCC2 /* A1 series doesn't define this properly, so use TCC0 and TCD0, etc. */
 
@@ -637,21 +716,11 @@ void init()
 //  TCD2_HPER = 255;
 
   // pre-assign comparison registers to 'zero' (for PWM out) which is actually 255
-  // 'timer 2' counts DOWN.
-
-//  ((uint8_t *)&(TCD0_CCA))[0] = 255; // low bytes
-//  ((uint8_t *)&(TCD0_CCB))[0] = 255;
-//  ((uint8_t *)&(TCD0_CCC))[0] = 255;
-//  ((uint8_t *)&(TCD0_CCD))[0] = 255;
-//
-//  ((uint8_t *)&(TCD0_CCA))[1] = 255; // high bytes
-//  ((uint8_t *)&(TCD0_CCB))[1] = 255;
-//  ((uint8_t *)&(TCD0_CCC))[1] = 255;
-//  ((uint8_t *)&(TCD0_CCD))[1] = 255;
+  // 'timer 2' counts DOWN.  use FFFFH in the compare registers.
 
   // NOTE:  according to the docs, 16-bit registers MUST be accessed
   //        low byte first, then high byte, before the actual value
-  //        is transferred to the register.  THIS code will.
+  //        is transferred to the register.  THIS code will do that.
   //        see A1U manual sect. 3.11 (and others as well)
 
   TCD0_CCA = 0xffff;
@@ -679,7 +748,7 @@ void init()
   TCD2_HPER = 255;
 
   // pre-assign comparison registers to 'zero' (for PWM out) which is actually 255
-  // 'timer 2' counts DOWN.
+  // 'timer 2' counts DOWN.  Timer 2 regs are 8-bit.
 
   TCD2_LCMPA = 255;
   TCD2_LCMPB = 255;
@@ -767,6 +836,7 @@ void init()
 
   // in case the bootloader enabled serial or TWI, disable it
   // and make sure the associated port input pins are inputs
+  //
   // NOTE:  Port R pins 0 and 1 will be outputs, but all others should be inputs
   //        PR0 and PR1 are designated LED output pins for this design.  PR1 is
   //        the blinking LED pin used by the bootloader.  These will NOT be re-assigned
@@ -827,68 +897,124 @@ void init()
 
 
 
-  //---------------------------------
-  // all pins on all ports are inputs
-  //---------------------------------
+  //--------------------------------------------------------------
+  // all pins on all ports are inputs except for the LEDs on PR0,1
+  //--------------------------------------------------------------
 
   PORTC_DIR = 0; // all 'port C' pins are now inputs
   PORTD_DIR = 0; // all 'port D' pins are now inputs
-#if NUM_DIGITAL_PINS > 18 /* meaning there is a PORT E available */
+#ifdef PORTE_DIR
   PORTE_DIR = 0; // all 'port E' pins are now inputs
-#endif // NUM_DIGITAL_PINS > 18
+#endif // PORTE_DIR
 
+#ifdef PORTF_DIR
+  PORTF_DIR = 0;
+#endif // PORTF_DIR
+
+#ifdef PORTF_DIR
+  PORTF_DIR = 0;
+#endif // PORTF_DIR
+
+#ifdef PORTG_DIR
+  PORTG_DIR = 0;
+#endif // PORTF_DIR
+
+#ifdef PORTH_DIR
+  PORTH_DIR = 0;
+#endif // PORTF_DIR
+
+// TODO:  external ram support for A series?
+
+#ifdef PORTJ_DIR
+  PORTJ_DIR = 0;
+#endif // PORTF_DIR
+
+#ifdef PORTK_DIR
+  PORTK_DIR = 0;
+#endif // PORTF_DIR
+
+#ifdef PORTQ_DIR
+  PORTQ_DIR = 0;
+#endif // PORTF_DIR
+
+// port R - outputs on pin 1 if LED_BUILTIN defined as 'PR1'
+
+  PORTR_OUT = 0; // turn them off
+#ifdef LED_BUILTIN
+#if LED_BUILTIN == PR1
+  PORTR_DIR = 2; // define as output
+#else
+  PORTR_DIR = 0;
+#endif // LED_BUILTIN == PR1
+#else
+  PORTR_DIR = 0;
+#endif // LED_BUILTIN not defined
 
   // Added code to pre-set input pins also - note PIN0CTRL through PIN7CTRL are like an array
   // also, 'PORT_ISC_BOTHEDGES_gc | PORT_OPC_TOTEM_gc' evaluates to '0' and is the normal default
   memset((void *)&(PORTC.PIN0CTRL), PORT_ISC_BOTHEDGES_gc | PORT_OPC_TOTEM_gc, 8);
   memset((void *)&(PORTD.PIN0CTRL), PORT_ISC_BOTHEDGES_gc | PORT_OPC_TOTEM_gc, 8);
-#if NUM_DIGITAL_PINS > 18 /* meaning there is a PORT E available */
+
+#ifdef PORTE 
+#if NUM_DIGITAL_PINS > 22 /* meaning there is a PORT E available and it has 8 pins */
+  memset((void *)&(PORTE.PIN0CTRL), PORT_ISC_BOTHEDGES_gc | PORT_OPC_TOTEM_gc, 8);
+#else // NUM_DIGITAL_PINS <= 22
   memset((void *)&(PORTE.PIN0CTRL), PORT_ISC_BOTHEDGES_gc | PORT_OPC_TOTEM_gc, 4);
-#endif // NUM_DIGITAL_PINS > 18
+#endif // NUM_DIGITAL_PINS > 22
+#endif // PORTE defined
+
+#ifdef PORTF_DIR
+  memset((void *)&(PORTF.PIN0CTRL), PORT_ISC_BOTHEDGES_gc | PORT_OPC_TOTEM_gc, 8);
+#endif // PORTF_DIR
+
+#ifdef PORTG_DIR
+  memset((void *)&(PORTG.PIN0CTRL), PORT_ISC_BOTHEDGES_gc | PORT_OPC_TOTEM_gc, 8);
+#endif // PORTG_DIR
+
+#ifdef PORTH_DIR
+  memset((void *)&(PORTH.PIN0CTRL), PORT_ISC_BOTHEDGES_gc | PORT_OPC_TOTEM_gc, 8);
+#endif // PORTH_DIR
+
+// TODO:  external ram support for A series?
+
+#ifdef PORTJ_DIR
+  memset((void *)&(PORTJ.PIN0CTRL), PORT_ISC_BOTHEDGES_gc | PORT_OPC_TOTEM_gc, 8);
+#endif // PORTJ_DIR
+
+#ifdef PORTK_DIR
+  memset((void *)&(PORTK.PIN0CTRL), PORT_ISC_BOTHEDGES_gc | PORT_OPC_TOTEM_gc, 8);
+#endif // PORTK_DIR
+
+#ifdef PORTQ_DIR /* PORTQ only has 4 pins */
+  memset((void *)&(PORTQ.PIN0CTRL), PORT_ISC_BOTHEDGES_gc | PORT_OPC_TOTEM_gc, 4); // always 4?
+#endif // PORTQ_DIR
+
+  // PORT R (which is typically an output on both pins)
+  PORTR.PIN0CTRL = PORT_ISC_BOTHEDGES_gc | PORT_OPC_TOTEM_gc;
+  PORTR.PIN1CTRL = PORT_ISC_BOTHEDGES_gc | PORT_OPC_TOTEM_gc;
+
 
   // ---------------------------------------------------
   // ANALOG INPUT PINS - 'INPUT_DISABLED' (recommended)
   // ---------------------------------------------------
 
   PORTA_DIR = 0; // direction bits - set all of them as input
-#if NUM_ANALOG_PINS > 8 /* meaning there is a PORT B */
+#if defined(PORTB_DIR)// NUM_ANALOG_PINS > 8 /* meaning there is a PORT B */
   PORTB_DIR = 0;
 #endif // NUM_ANALOG_PINS > 8
 
-
-#if 1
   // all analog pins set up for 'INPUT_DISABLED' which is recommended for analog read
   memset((void *)&(PORTA.PIN0CTRL), PORT_ISC_INPUT_DISABLE_gc | PORT_OPC_TOTEM_gc, 8);
+#ifdef PORTB
 #if NUM_ANALOG_INPUTS > 12
   memset((void *)&(PORTB.PIN0CTRL), PORT_ISC_INPUT_DISABLE_gc | PORT_OPC_TOTEM_gc, 8);
 #elif NUM_ANALOG_INPUTS > 8
   memset((void *)&(PORTB.PIN0CTRL), PORT_ISC_INPUT_DISABLE_gc | PORT_OPC_TOTEM_gc, 4);
 #endif // NUM_ANALOG_INPUTS > 8, 12
-#else // 1
-  // older code (for reference, modified to use constants and not '_BV(2) | _BV(1) | _BV(0)'
-  PORTA_PIN0CTRL = PORT_ISC_INPUT_DISABLE_gc | PORT_OPC_TOTEM_gc;
-  PORTA_PIN1CTRL = PORT_ISC_INPUT_DISABLE_gc | PORT_OPC_TOTEM_gc;
-  PORTA_PIN2CTRL = PORT_ISC_INPUT_DISABLE_gc | PORT_OPC_TOTEM_gc;
-  PORTA_PIN3CTRL = PORT_ISC_INPUT_DISABLE_gc | PORT_OPC_TOTEM_gc;
-  PORTA_PIN4CTRL = PORT_ISC_INPUT_DISABLE_gc | PORT_OPC_TOTEM_gc;
-  PORTA_PIN5CTRL = PORT_ISC_INPUT_DISABLE_gc | PORT_OPC_TOTEM_gc;
-  PORTA_PIN6CTRL = PORT_ISC_INPUT_DISABLE_gc | PORT_OPC_TOTEM_gc;
-  PORTA_PIN7CTRL = PORT_ISC_INPUT_DISABLE_gc | PORT_OPC_TOTEM_gc;
+#endif // PORTB
 
-#if NUM_ANALOG_INPUTS > 8
-  PORTB_PIN0CTRL = PORT_ISC_INPUT_DISABLE_gc | PORT_OPC_TOTEM_gc;
-  PORTB_PIN1CTRL = PORT_ISC_INPUT_DISABLE_gc | PORT_OPC_TOTEM_gc;
-  PORTB_PIN2CTRL = PORT_ISC_INPUT_DISABLE_gc | PORT_OPC_TOTEM_gc;
-  PORTB_PIN3CTRL = PORT_ISC_INPUT_DISABLE_gc | PORT_OPC_TOTEM_gc;
-#if NUM_ANALOG_INPUTS > 12
-  PORTB_PIN4CTRL = PORT_ISC_INPUT_DISABLE_gc | PORT_OPC_TOTEM_gc;
-  PORTB_PIN5CTRL = PORT_ISC_INPUT_DISABLE_gc | PORT_OPC_TOTEM_gc;
-  PORTB_PIN6CTRL = PORT_ISC_INPUT_DISABLE_gc | PORT_OPC_TOTEM_gc;
-  PORTB_PIN7CTRL = PORT_ISC_INPUT_DISABLE_gc | PORT_OPC_TOTEM_gc;
-#endif // NUM_ANALOG_INPUTS > 12
-#endif // NUM_ANALOG_INPUTS > 8
-#endif // 1
 
+  // TODO:  handling PORTC as analog input for 'E' series?
 
   // --------------------
   // INTERRUPT CONTROLLER
@@ -896,7 +1022,10 @@ void init()
 
   // FINALLY, set up the interrupt controller for priority-based interrupts
   // _AND_ enable them.  Important.  See 10.8.3 in D manual.
+  //
   // This also makes sure the IVT is at the bottom of NVRAM, not the boot section
+  // It's very important to make sure the IVT is pointed at 00:0000 and not someplace else
+  // *BEFORE* I enable interrupts.
 
   *((volatile uint8_t *)&(CCP)) = CCP_IOREG_gc; // 0xd8 - see D manual, sect 3.14.1 (protected I/O)
   *((volatile uint8_t *)&(PMIC_CTRL)) = PMIC_RREN_bm | PMIC_HILVLEN_bm | PMIC_MEDLVLEN_bm | PMIC_LOLVLEN_bm;
@@ -904,8 +1033,10 @@ void init()
 
   adc_setup(); // set up the ADC (function exported from wiring_analog.c)
 
-  // this needs to be called before setup() or some functions won't
-  // work there
+  // this needs to be called before setup() or some functions won't work there
+  // but it's safe to enable interrupts so I shall simply do it!
+
   sei();
 }
+
 

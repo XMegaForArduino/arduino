@@ -237,6 +237,7 @@
 #define SERIAL_0_REMAP_BIT 4    /* the bit needed to remap the port if SERIAL_0_REMAP is defined */
 #define SERIAL_0_RX_PIN_INDEX 2 /* the pin number on the port, not the mapped digital pin number */
 #define SERIAL_0_TX_PIN_INDEX 3 /* the pin number on the port, not the mapped digital pin number */
+#define USARTD0_VECTOR_EXISTS
 
 // serial port 1
 #define SERIAL_1_PORT_NAME PORTC
@@ -248,6 +249,7 @@
 #define SERIAL_1_REMAP_BIT 4    /* the bit needed to remap the port if SERIAL_1_REMAP is defined */
 #define SERIAL_1_RX_PIN_INDEX 2 /* the pin number on the port, not the mapped digital pin number */
 #define SERIAL_1_TX_PIN_INDEX 3 /* the pin number on the port, not the mapped digital pin number */
+#define USARTC0_VECTOR_EXISTS
 
 // serial port 2
 #define SERIAL_2_PORT_NAME PORTE
@@ -259,6 +261,7 @@
 #define SERIAL_2_REMAP_BIT 4    /* the bit needed to remap the port if SERIAL_1_REMAP is defined */
 #define SERIAL_2_RX_PIN_INDEX 2 /* the pin number on the port, not the mapped digital pin number */
 #define SERIAL_2_TX_PIN_INDEX 3 /* the pin number on the port, not the mapped digital pin number */
+#define USARTE0_VECTOR_EXISTS
 
 // serial port 3
 #define SERIAL_3_PORT_NAME PORTF
@@ -270,6 +273,7 @@
 #define SERIAL_3_REMAP_BIT 4    /* the bit needed to remap the port if SERIAL_1_REMAP is defined */
 #define SERIAL_3_RX_PIN_INDEX 2 /* the pin number on the port, not the mapped digital pin number */
 #define SERIAL_3_TX_PIN_INDEX 3 /* the pin number on the port, not the mapped digital pin number */
+#define USARTF0_VECTOR_EXISTS
 
 
 

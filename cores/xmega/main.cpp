@@ -17,7 +17,9 @@
   Foundation, Inc., 51 Franklin St, Fifth Floor, Boston, MA  02110-1301  USA
 */
 
-#include <Arduino.h>
+//#include <Arduino.h> Platform.h includes Arduino.h
+#include <Platform.h> /* to make sure that Arduino.h is included, as well as pins_arduino.h and other things */
+
 
 #ifdef EIND
 // if I have an EIND register, I want it pre-loaded with the correct value
@@ -49,12 +51,13 @@ int main(void)
 
 	initVariant();
 
-#if defined(USBCON)
-  USBDevice.attach();
-#endif
+// TEMPORARY - moved [so I can debug it]
+//#if defined(USBCON)
+//  USBDevice.attach();
+//#endif
 	
 	setup();
-    
+
 	for (;;) {
 		loop();
 		if (serialEventRun) serialEventRun();

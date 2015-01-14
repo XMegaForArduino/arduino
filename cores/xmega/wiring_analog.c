@@ -31,6 +31,12 @@
 #include "wiring_private.h"
 #include "pins_arduino.h"
 
+#define DEBUG_CODE
+#ifdef DEBUG_CODE
+extern void DebugOutL(unsigned long lVal);
+extern void DebugOutP(const void * PROGMEM pStr);
+#endif // DEBUG_CODE
+
 #ifndef ADCA_SAMPCTRL
 #define ADCA_SAMPCTRL  _SFR_MEM8(0x0208) /* missing from header for some reason, struct defines it as reserved_0x08 */
 #endif // ADCA_SAMPCTRL
@@ -269,6 +275,14 @@ void analogWrite(uint8_t pin, int val)
 #ifdef TCC4 /* 'E' series and later that have TCC4 */
 
       case TIMERC4:
+#ifdef DEBUG_CODE
+        DebugOutP(PSTR("TIMERC4 "));
+        DebugOutL(bit);
+        DebugOutP(PSTR(","));
+        DebugOutL(val);
+        DebugOutP(PSTR("\r\n"));
+#endif // DEBUG_CODE
+
         DoAnalogWriteForPort(&TCC4, bit, val); // TODO: smaller if inlined here?
         break;
 
@@ -276,22 +290,22 @@ void analogWrite(uint8_t pin, int val)
         // THIS code is unique to the E5, most likely, so it's inlined
         if(bit == 1 || bit == 16) // TODO:  either bit?  not sure if I can re-map these to 0-3
         {
-          TCD5_CCA = (TCD5_CCA & 0xff00) | (val & 0xff);
+          *((volatile uint16_t *)&(TCD5_CCA)) = (TCD5_CCA & 0xff00) | (val & 0xff);
           mode = (TCD5_CTRLE & ~TC5_LCCAMODE_gm) | TC5_LCCAMODE0_bm;
         }
         else if(bit == 2 || bit == 32)
         {
-          TCD5_CCB = (TCD5_CCB & 0xff00) | (val & 0xff);
+          *((volatile uint16_t *)&(TCD5_CCB)) = (TCD5_CCB & 0xff00) | (val & 0xff);
           mode = (TCD5_CTRLE & ~TC5_LCCBMODE_gm) | TC5_LCCBMODE0_bm;
         }
         else if(bit == 4 || bit == 64)
         {
-          TCD5_CCA = (TCD5_CCA & 0xff) | ((val << 8) & 0xff00);
+          *((volatile uint16_t *)&(TCD5_CCA)) = (TCD5_CCA & 0xff) | ((val << 8) & 0xff00);
           mode = (TCD5_CTRLF & ~TC5_HCCAMODE_gm) | TC5_HCCAMODE0_bm;
         }
         else if(bit == 8 || bit == 128)
         {
-          TCD5_CCB = (TCD5_CCB & 0xff) | ((val << 8) & 0xff00);
+          *((volatile uint16_t *)&(TCD5_CCB)) = (TCD5_CCB & 0xff) | ((val << 8) & 0xff00);
           mode = (TCD5_CTRLF & ~TC5_HCCBMODE_gm) | TC5_HCCBMODE0_bm;
         }
         else
@@ -299,13 +313,33 @@ void analogWrite(uint8_t pin, int val)
           break;
         }
 
+#ifdef DEBUG_CODE
+        DebugOutP(PSTR("TIMERD5 "));
+        DebugOutL(bit);
+        DebugOutP(PSTR(","));
+        DebugOutL(val);
+        DebugOutP(PSTR(","));
+        DebugOutL(TCD5_CCA);
+        DebugOutP(PSTR(","));
+        DebugOutL(TCD5_CCB);
+        DebugOutP(PSTR(","));
+        DebugOutL(mode);
+        DebugOutP(PSTR("\r\n"));
+#endif // DEBUG_CODE
+
         if(bit == 1 || bit == 2 ||  bit == 16 || bit == 32)
         {
-          TCD5_CTRLE = mode;
+          *((volatile uint8_t *)&(TCD5_CTRLE)) = mode;
+#ifdef DEBUG_CODE
+          DebugOutP(PSTR("E!\r\n"));
+#endif // DEBUG_CODE
         }
         else
         {
-          TCD5_CTRLF = mode;
+          *((volatile uint8_t *)&(TCD5_CTRLF)) = mode;
+#ifdef DEBUG_CODE
+          DebugOutP(PSTR("F!\r\n"));
+#endif // DEBUG_CODE
         }
 
         break;

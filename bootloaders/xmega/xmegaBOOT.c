@@ -299,7 +299,6 @@ uint8_t readNVMData(uint8_t cmd, uint16_t iIndex);
 void putch(char);
 void putstr(unsigned char *pBuf, char nBytes);
 void flush(void);
-void flushin(void);
 char getch(void);
 void getNch(uint8_t);
 void byte_response(uint8_t);
@@ -307,7 +306,13 @@ void nothing_response(void);
 char gethex(void);
 void puthex(char);
 void soft_boot(void);
-void smart_delay_ms(uint16_t ms);
+char smart_delay_ms(uint16_t ms);
+
+#ifdef USE_STK500V2
+void flushin(void);
+uint8_t do_getch_and_checksum(void);
+void do_putch_and_checksum(uint8_t chPut);
+#endif USE_STK500V2
 
 
 // DEBUG STUFF
@@ -326,6 +331,8 @@ typedef uint16_t address_t;
 #endif
 
 address_t address = 0;
+static uint8_t checksum; // used by 'do_XXXch_and_checksum'
+
 #else // USE_STK500V2
 
 volatile union address_union
@@ -383,12 +390,14 @@ uint8_t buff[PAGE_SIZE + 2]; // was 512 - largest page size 0x200 on XMEGA
 
 #endif // USE_STK500V2
 
-uint8_t address_high;
-uint8_t i;
 uint8_t error_count;
 
 
+/////////////////////////////////////////////////////////////////////////////////////////////////////
+// APP START - different definitions for >64K NVRAM and <=64K
+
 #if defined(EIND) && defined(__AVR_3_BYTE_PC__) // need to re-do the way we call the application
+
 void app_start(void)
 {
   // first, assign 0 to EIND (I'm jumping to 128k-page 0)
@@ -415,70 +424,12 @@ void app_start(void)
 //}
 
 #else // no EIND or 3-byte PC, we're fine
-void (*app_start)(void) = 0x0000;
+
+void (*app_start)(void) = 0x0000; // here it's a function pointer with an address of 0000H
+
 #endif // EIND+3-byte PC vs "not"
 
-
-// put functions here, see if location makes a difference... yeah probably not
-char getch(void)
-{
-  uint32_t count = 0;
-  register char rVal;
-
-  LED_PORT &= ~LED_PIN_BIT;          // turn off the LED to indicate receiving data
-
-//  __builtin_avr_delay_cycles(F_CPU / 20000); // delay approximately 50 microsec
-
-  while(!((SERIAL_USART_STATUS) & USART_RXCIF_bm)) // wait for RX data
-  {
-    /* 20060803 DojoCorp:: Addon coming from the previous Bootloader*/
-    /* HACKME:: here is a good place to count times*/
-    count++;
-
-    if (count > (uint32_t)(MAX_TIME_COUNT)) // delay period for firmware flashing
-    {
-      app_start();
-      soft_boot();
-    }
-  }
-
-  SERIAL_USART_STATUS = USART_RXCIF_bm; // forcibly clear the bit
-  rVal = SERIAL_USART_DATA;
-
-  LED_PORT |= LED_PIN_BIT;          // turn on the LED to indicate receiving data
-
-  return rVal;
-}
-
-void putch(char ch)
-{
-  while (!( (SERIAL_USART_STATUS) & USART_DREIF_bm)) // bit 5 is the DRE bit (6 is the 'transmitted' bit)
-  {  } // wait forever for DRE flag
-
-  SERIAL_USART_STATUS = USART_DREIF_bm; // set the bit to clear it
-
-  (SERIAL_USART_DATA) = ch; // and assign the data
-}
-
-
-#ifdef USE_STK500V2
-static uint8_t checksum;
-
-uint8_t do_getch_and_checksum(void)
-{
-  register uint8_t chRval = getch();
-  checksum ^= chRval;
-
-  return chRval;
-}
-
-void do_putch_and_checksum(uint8_t chPut)
-{
-  putch(chPut);
-  checksum ^= chPut;
-}
-
-#endif // USE_STK500V2
+/////////////////////////////////////////////////////////////////////////////////////////////////////
 
 
 /* main program starts here */
@@ -486,15 +437,11 @@ int main(void)
 {
 uint8_t ch, ch2, bod;
 uint16_t w1;
-#if !defined(USE_STK500V2) || defined(ENABLE_BANG)
-uint8_t firstchar = 0; // make sure we dont start bootloader by accident
-#endif // USE_STK500V2
+uint8_t firstchar;
 #ifdef USE_STK500V2
 unsigned char *p1;
 #endif // USE_STK500V2
 
-
-  error_count = 0;
 
 //#if defined(WATCHDOG_MODS)  ALWAYS, now
 
@@ -625,11 +572,11 @@ unsigned char *p1;
     // now that I've changed the clock, disable 2Mhz, PLL, and external clocks
     // 32.768KHz should remain active, but I need to make sure it's stable
 //    OSC_CTRL &= ~(_BV(4) | _BV(3) | _BV(0)); // sect 6.10.1 - disable PLL, external, 2Mhz clocks
-    OSC_CTRL &= ~(OSC_PLLEN_bm | OSC_XOSCEN_bm | OSC_RC2MEN_bm
+    OSC_CTRL &= ~(OSC_PLLEN_bm | OSC_XOSCEN_bm // | OSC_RC2MEN_bm (don't disable 2M oscillator in bootloader)
 #ifdef OSC_RC8MCAL // only present in 'E' series
                   | OSC_RC8MEN_bm
 #endif // OSC_RC8MCAL
-                  ); 
+                  );
 
     // wait until 32.768KHz clock is 'stable'.  this one goes for a while
     // in case it doesn't stabilize in a reasonable time.  I figure about
@@ -687,7 +634,7 @@ skip_clock:  // go here if clock cannot be assigned for some reason or is alread
 
   // regular 'WATCHDOG_MODS' code starts back up here (NOTE: 'WATCHDOG_MODS' are always active now)
 
-  // Check if the WDT was used to reset, in which case we dont bootload and skip straight to the code. woot.
+  // Check if the WDT was used to reset, in which case we don't bootload and skip straight to the code. w00t.
   if (ch)   // if it's not an external reset... (in this case, JUST checking for watchdog, later BOD as well?)
   {
     app_start();  // skip bootloader (NOTE:  function call WAY smaller than goto)
@@ -793,6 +740,11 @@ skip_clock:  // go here if clock cannot be assigned for some reason or is alread
 
   // last of all, assign CTRLB which switches on the right pins
 
+#ifdef USE_STK500V2
+  __builtin_avr_delay_cycles(F_CPU / 200); // delay approximately 5 msec before enabling serial port for STK500V2
+                                           // this is to allow things to settle a bit beforehand
+#endif // USE_STK500V2
+
   // section 19.4.4
 #ifdef DOUBLE_SPEED
   SERIAL_USART_CTRLB = USART_RXEN_bm | USART_TXEN_bm | USART_CLK2X_bm; // enable double-speed, RX, TX, and disable other stuff
@@ -801,7 +753,7 @@ skip_clock:  // go here if clock cannot be assigned for some reason or is alread
 #endif  // DOUBLE_SPEED
 
 
-  // before enabling interrupts, make sure that 'certain hardware' isn't possibly messing things up
+  // before globally enabling interrupts, make sure that 'certain hardware' isn't possibly messing things up
 
 #ifdef USB_INTCTRLA
   USB_INTCTRLA = 0;
@@ -809,7 +761,7 @@ skip_clock:  // go here if clock cannot be assigned for some reason or is alread
 #endif // USB_INTCTRLA
 
 
-  sei();  // ok to enable global interrupts now
+  sei();  // ok to globally enable interrupts now
 
 
   // assign pin mode to LED output pin
@@ -818,25 +770,37 @@ skip_clock:  // go here if clock cannot be assigned for some reason or is alread
 
   /* flash onboard LED to signal entering of bootloader */
 #if NUM_LED_FLASHES == 0
-  ch2 = 3;
+  ch2 = 6; //3;
 #else
-  ch2 = NUM_LED_FLASHES;
+  ch2 = NUM_LED_FLASHES << 1;
 #endif // NUM_LED_FLASHES
 
   while (ch2--) // inlined, may be smaller this way
   {
-    LED_PORT |= LED_PIN_BIT;
-    smart_delay_ms(100);
+    // this requires ch2 to be twice the loop count
+    if(!(ch2 & 1))
+    {
+      LED_PORT |= LED_PIN_BIT;
+    }
+    else
+    {
+      LED_PORT &= ~LED_PIN_BIT;
+    }
 
-    LED_PORT &= ~LED_PIN_BIT;
-    smart_delay_ms(100);
+    if(smart_delay_ms(100))
+    {
+      break;
+    }
   }
 
+  // NOTE:  call to 'getch' turns off the LED
 
+  firstchar = 0; // to make sure we don't start the app by accident
+                 // detect whether the first character is being received or not
 
-  /* 20050803: by DojoCorp, this is one of the parts provoking the
-     system to stop listening, cancelled from the original */
-  //putch('\0');
+  // and before anything else, zero out the error counter
+  error_count = 0;
+
 
   /* forever loop */
   for (;;)
@@ -871,9 +835,9 @@ skip_clock:  // go here if clock cannot be assigned for some reason or is alread
     else if (firstchar == 0) // 1st char is NOT a '0'
     {
       // the first character we got is not '0', lets bail!
-      // autoreset via watchdog (sneaky!)
+
       app_start(); // start the app (NOTE:  this is WAY smaller than using a goto)
-      soft_boot(); // it's what I do when the application returns - soft boot
+      soft_boot(); // it's what I do when/if the application returns - soft boot
     }
 
 
@@ -1012,13 +976,13 @@ skip_clock:  // go here if clock cannot be assigned for some reason or is alread
       nothing_response();
     }
 
-    // TODO:  add support for stk500v2 which has 3-byte addresses??
-
     /* Universal SPI programming command, disabled.  Would be used for fuses and lock bits.  */
     else if(ch=='V')
     {
       if (getch() == 0x30)
       {
+        // this command gets the chip signature bytes
+
         getch();
 
         ch = getch();
@@ -1296,8 +1260,7 @@ skip_clock:  // go here if clock cannot be assigned for some reason or is alread
 
 
     checksum = 0;
-    ch = do_getch_and_checksum();
-
+    ch = do_getch_and_checksum(); // all messages start here
 
     // this code is borrowed (and adapted) from 'stk500boot.c', under GPL license, part of Arduino IDE
     // use protocol 'wiring' in boards.txt (same as mega2560)
@@ -1334,18 +1297,13 @@ skip_clock:  // go here if clock cannot be assigned for some reason or is alread
 
       LED_PORT &= ~LED_PIN_BIT;          // turn OFF the led
 
-      error_count = 127;
+      error_count = MAX_ERROR_COUNT; // always bail out
 
       goto send_the_reply;
     }    
-
 #endif // ENABLE_BANG
 
     {
-
-#ifdef ENABLE_BANG
-      firstchar = 1; // TEMPORARY, for testing
-#endif // ENABLE_BANG
 
       /*
        * Collect received bytes to a complete message
@@ -1356,10 +1314,28 @@ skip_clock:  // go here if clock cannot be assigned for some reason or is alread
         // TODO:  flush the input?
         msgLength = 2;
         msgBuffer[1] = STATUS_CKSUM_ERROR;
+
+error_flush_send_reply:
         flushin();
 
-        goto send_the_reply;
+        error_count++;
+
+        if(firstchar)
+        {
+          goto send_the_reply;
+        }
+
+        firstchar = 1;
+
+        // THIS code *REALLY* only applies the *VERY* first time
+        // wait up to 6 seconds for more serial input.  this is to accomodate AVRDUDE 'wiring' protocol behavior
+
+        smart_delay_ms(6000); // smart_delay_ms waits for 'n' msecs OR serial input (whichever)
+
+        continue; // continues with the 'forever loop'
       }
+
+      firstchar = 1; // mark first character was received
 
       ch = do_getch_and_checksum();  // seq number
       seqNum = ch;
@@ -1377,9 +1353,7 @@ skip_clock:  // go here if clock cannot be assigned for some reason or is alread
         msgLength = 2;
         msgBuffer[1] = STATUS_CKSUM_ERROR;
 
-        flushin();
-
-        goto send_the_reply;
+        goto error_flush_send_reply;
       }
 
       // 'msgLength' bytes up to PAGE_SIZE
@@ -1396,9 +1370,7 @@ skip_clock:  // go here if clock cannot be assigned for some reason or is alread
         msgLength = 2;
         msgBuffer[1] = STATUS_CKSUM_ERROR;
 
-        flushin();
-
-        goto send_the_reply;
+        goto error_flush_send_reply;
       }
 
       /*
@@ -1410,478 +1382,482 @@ skip_clock:  // go here if clock cannot be assigned for some reason or is alread
 #ifndef REMOVE_CMD_SPI_MULTI
       if(ch == CMD_SPI_MULTI) // 0x1d
       {
-          // the implementation in stk500boot.c is WRONG FREAKING WRONG!  OK it was a pretty
-          // good HACK, and 'works', but it's still WRONG.
-          //
-          // So I read the documentation (STK500v2 Manual aka 'doc2591.pdf'), and also the ATmega328 manual section 28.8.3
-          //
-          // These are the correct message pseudo-structures for command and reply:
-          //
-          // struct cmd_spi_multi_thing
-          // {
-          //   uint8_t command; // 1dH
-          //   uint8_t numTx;   // # bytes to transmit
-          //   uint8_t numRx:   // # bytes to receive startign at offset 'rxStartAddr'
-          //   uint8_t rxStartAddr; // start offset within returned data to place into rxData[]
-          //   uint8_t txData[0];   // actual data sent to the SPI bus (numTx bytes)
-          // };
-          // struct cmd_spi_multi_thing_reply
-          // {
-          //   uint8_t command;   // 1dH again
-          //   uint8_t Status1;   // STATUS_CMD_OK (0)
-          //   uint8_t rxData[n]; // 'n' bytes of data padded with 0 bytes if fewer received
-          //   uint8_t Status2;   // STATUS_CMD_OK (0)
-          // };
-          //
-          // This pseudo structure is the command sent in 'msgBuffer'.  the returned data is
-          // sent BACK after doing the SPI command, using the bytes transmitted by the SPI command.
-          //
-          // The SPI commands are for the ATMega processors, and NOT the xmega.  They can still be translated
-          // into the equivalent functions. I'll do a small number, enough to make things work, and verify the
-          // existing 'hack' to make sure it's 'correct enough'.
-          //
-          // Just to complicate things, it uses WORD addresses for SPI instructions.  'low byte' and
-          // 'high byte' access handle addresses ending in 0 or 1, respectively.
+        // the implementation in stk500boot.c is WRONG FREAKING WRONG!  OK it was a pretty
+        // good HACK, and 'works', but it's still WRONG.
+        //
+        // So I read the documentation (STK500v2 Manual aka 'doc2591.pdf'), and also the ATmega328 manual section 28.8.3
+        //
+        // These are the correct message pseudo-structures for command and reply:
+        //
+        // struct cmd_spi_multi_thing
+        // {
+        //   uint8_t command; // 1dH
+        //   uint8_t numTx;   // # bytes to transmit
+        //   uint8_t numRx:   // # bytes to receive startign at offset 'rxStartAddr'
+        //   uint8_t rxStartAddr; // start offset within returned data to place into rxData[]
+        //   uint8_t txData[0];   // actual data sent to the SPI bus (numTx bytes)
+        // };
+        // struct cmd_spi_multi_thing_reply
+        // {
+        //   uint8_t command;   // 1dH again
+        //   uint8_t Status1;   // STATUS_CMD_OK (0)
+        //   uint8_t rxData[n]; // 'n' bytes of data padded with 0 bytes if fewer received
+        //   uint8_t Status2;   // STATUS_CMD_OK (0)
+        // };
+        //
+        // This pseudo structure is the command sent in 'msgBuffer'.  the returned data is
+        // sent BACK after doing the SPI command, using the bytes transmitted by the SPI command.
+        //
+        // The SPI commands are for the ATMega processors, and NOT the xmega.  They can still be translated
+        // into the equivalent functions. I'll do a small number, enough to make things work, and verify the
+        // existing 'hack' to make sure it's 'correct enough'.
+        //
+        // Just to complicate things, it uses WORD addresses for SPI instructions.  'low byte' and
+        // 'high byte' access handle addresses ending in 0 or 1, respectively.
 
+        {
+          register unsigned char answerByte=0;
+          register unsigned char flag=0;
+
+          if ( msgBuffer[4]== 0x30 ) // read signature byte (this turns out to be ok, actually)
           {
-            register unsigned char answerByte=0;
-            register unsigned char flag=0;
+            register unsigned char signatureIndex = msgBuffer[6];
 
-            if ( msgBuffer[4]== 0x30 ) // read signature byte (this turns out to be ok, actually)
+            if ( signatureIndex == 0 )
             {
-              register unsigned char signatureIndex = msgBuffer[6];
-
-              if ( signatureIndex == 0 )
-              {
-                answerByte = (SIGNATURE_BYTES >> 16) & 0x000000FF;
-              }
-              else if ( signatureIndex == 1 )
-              {
-                answerByte = (SIGNATURE_BYTES >> 8) & 0x000000FF;
-              }
-              else
-              {
-                answerByte = SIGNATURE_BYTES & 0x000000FF;
-              }
+              answerByte = (SIGNATURE_BYTES >> 16) & 0x000000FF;
             }
-            else if ( msgBuffer[4] == 0x20 || msgBuffer[4] == 0x28 ) // read memory location
+            else if ( signatureIndex == 1 )
             {
-              register uint32_t addr = (uint32_t)address * PAGE_SIZE;
-
-              // 'address' contains the page address?  msgBuffer[7] is the rxStartAddr?
-              // and it expects msgBuffer[6] bytes in response
-
-              flag = 1; // meaning I don't populate this
-              w1 = msgBuffer[2]; // number of bytes to receive
-
-              addr += ((uint16_t)msgBuffer[5] << 9)  // MSB from SPI command, WORD address
-                    + ((uint16_t)msgBuffer[6] << 1); // LSB from SPI command, WORD address
-
-              if(msgBuffer[4] == 0x28)
-              {
-                addr++; // high byte
-              }
-
-              // TODO:  do I add msgBuffer[3] (the original offset) to this?
-
-              msgLength = 3 + w1;
-              msgBuffer[1] = STATUS_CMD_OK;
-              msgBuffer[2 + w1] = STATUS_CMD_OK;
-
-#ifdef RAMPZ
-              msgBuffer[1 + w1] = pgm_read_byte_far(addr);  // last byte in sequence
-#else // RAMPZ
-              msgBuffer[1 + w1] = pgm_read_byte(addr);
-#endif // RAMPZ
-
-              while(w1 > 0)
-              {
-                w1--;
-                msgBuffer[1 + w1] = 0; // zero everything else
-              }
-            }
-            else if ( msgBuffer[4] & 0x50 ) // that would be 4xH or 5xH or 1xH - 50 read fuse bits, 58 read lock bits 
-            {
-            //*  Issue 544:   stk500v2 bootloader doesn't support reading fuses
-            //*  I cant find the docs that say what these are supposed to be but this was figured out by trial and error
-            //  answerByte = boot_lock_fuse_bits_get(GET_LOW_FUSE_BITS);
-            //  answerByte = boot_lock_fuse_bits_get(GET_HIGH_FUSE_BITS);
-            //  answerByte = boot_lock_fuse_bits_get(GET_EXTENDED_FUSE_BITS);
-
-              // NOTE:  these are really mega2560 features, NOT XMEGA
-              // TODO:  come up with an XMEGA equivalent?
-
-              // the docs say it's sending SPI commands.  So a typical sequence (that fails) might be:
-              // 1d 04 04 00 4d 00 00 00 12  [this replies 1d 00 00 4d 00 00 00 1d 1b]
-              // 1d 04 04 00 20 00 55 00 15  [this fails]
-
-              if (msgBuffer[4] == 0x50)
-              {
-                answerByte = readNVMData(NVM_CMD_READ_FUSES_gc, 0);
-//                answerByte = boot_lock_fuse_bits_get(GET_LOW_FUSE_BITS);
-              }
-              else if (msgBuffer[4] == 0x58)
-              {
-                answerByte = readNVMData(NVM_CMD_READ_FUSES_gc, 1); // low/high fuse byte is wrong; xmega has up to 6 of them
-//                answerByte = boot_lock_fuse_bits_get(GET_HIGH_FUSE_BITS);
-              }
-              else if (msgBuffer[4] == 0x40) // load memory page low byte
-              {
-                address &= ~(address_t)0xff00;
-                address |= msgBuffer[7];
-                answerByte = 0;
-              }
-              else if (msgBuffer[4] == 0x48) // load memory page high byte
-              {
-                address &= ~(address_t)0xff00;
-                address |= ((address_t)(msgBuffer[7])<<8);
-                answerByte = 0;
-              }
-#if defined(RAMPZ)
-              else if (msgBuffer[4] == 0x4d) // load memory page extended address
-              {
-                address &= ~(address_t)0xff0000;
-                address |= ((address_t)(msgBuffer[7])<<16);
-                answerByte = 0;
-              }
-#endif
-              else
-              {
-                answerByte = 0;
-              }
+              answerByte = (SIGNATURE_BYTES >> 8) & 0x000000FF;
             }
             else
             {
-              // NOTE:  this is a hack and should be properly implemented.
-
-              answerByte = 0; // for all others command are not implemented, return dummy value for AVRDUDE happy <Worapoht>
-            }
-
-            if ( !flag )
-            {
-              // these are simple 1-byte returns
-              msgLength = 7;
-              msgBuffer[1] = STATUS_CMD_OK;
-              msgBuffer[2] = 0;
-              msgBuffer[3] = msgBuffer[4]; // not sure why, but I think it should be zero - I'll leave it alone just in case
-              msgBuffer[4] = 0;
-              msgBuffer[5] = answerByte;
-              msgBuffer[6] = STATUS_CMD_OK;
+              answerByte = SIGNATURE_BYTES & 0x000000FF;
             }
           }
+          else if ( msgBuffer[4] == 0x20 || msgBuffer[4] == 0x28 ) // read memory location
+          {
+            register uint32_t addr = (uint32_t)address * PAGE_SIZE;
 
-          goto send_the_reply;
+            // 'address' contains the page address?  msgBuffer[7] is the rxStartAddr?
+            // and it expects msgBuffer[6] bytes in response
+
+            flag = 1; // meaning I don't populate this
+            w1 = msgBuffer[2]; // number of bytes to receive
+
+            addr += ((uint16_t)msgBuffer[5] << 9)  // MSB from SPI command, WORD address
+                  + ((uint16_t)msgBuffer[6] << 1); // LSB from SPI command, WORD address
+
+            if(msgBuffer[4] == 0x28)
+            {
+              addr++; // high byte
+            }
+
+            // TODO:  do I add msgBuffer[3] (the original offset) to this?
+
+            msgLength = 3 + w1;
+            msgBuffer[1] = STATUS_CMD_OK;
+            msgBuffer[2 + w1] = STATUS_CMD_OK;
+
+#ifdef RAMPZ
+            msgBuffer[1 + w1] = pgm_read_byte_far(addr);  // last byte in sequence
+#else // RAMPZ
+            msgBuffer[1 + w1] = pgm_read_byte(addr);
+#endif // RAMPZ
+
+            while(w1 > 0)
+            {
+              w1--;
+              msgBuffer[1 + w1] = 0; // zero everything else
+            }
+          }
+          else if ( msgBuffer[4] & 0x50 ) // that would be 4xH or 5xH or 1xH - 50 read fuse bits, 58 read lock bits 
+          {
+          //*  Issue 544:   stk500v2 bootloader doesn't support reading fuses
+          //*  I cant find the docs that say what these are supposed to be but this was figured out by trial and error
+          //  answerByte = boot_lock_fuse_bits_get(GET_LOW_FUSE_BITS);
+          //  answerByte = boot_lock_fuse_bits_get(GET_HIGH_FUSE_BITS);
+          //  answerByte = boot_lock_fuse_bits_get(GET_EXTENDED_FUSE_BITS);
+
+            // NOTE:  these are really mega2560 features, NOT XMEGA
+            // TODO:  come up with an XMEGA equivalent?
+
+            // the docs say it's sending SPI commands.  So a typical sequence (that fails) might be:
+            // 1d 04 04 00 4d 00 00 00 12  [this replies 1d 00 00 4d 00 00 00 1d 1b]
+            // 1d 04 04 00 20 00 55 00 15  [this fails]
+
+            if (msgBuffer[4] == 0x50)
+            {
+              answerByte = readNVMData(NVM_CMD_READ_FUSES_gc, 0);
+//                answerByte = boot_lock_fuse_bits_get(GET_LOW_FUSE_BITS);
+            }
+            else if (msgBuffer[4] == 0x58)
+            {
+              answerByte = readNVMData(NVM_CMD_READ_FUSES_gc, 1); // low/high fuse byte is wrong; xmega has up to 6 of them
+//                answerByte = boot_lock_fuse_bits_get(GET_HIGH_FUSE_BITS);
+            }
+            else if (msgBuffer[4] == 0x40) // load memory page low byte
+            {
+              address &= ~(address_t)0xff00;
+              address |= msgBuffer[7];
+              answerByte = 0;
+            }
+            else if (msgBuffer[4] == 0x48) // load memory page high byte
+            {
+              address &= ~(address_t)0xff00;
+              address |= ((address_t)(msgBuffer[7])<<8);
+              answerByte = 0;
+            }
+#if defined(RAMPZ)
+            else if (msgBuffer[4] == 0x4d) // load memory page extended address
+            {
+              address &= ~(address_t)0xff0000;
+              address |= ((address_t)(msgBuffer[7])<<16);
+              answerByte = 0;
+            }
+#endif
+            else
+            {
+              answerByte = 0;
+            }
+          }
+          else
+          {
+            // NOTE:  this is a hack and should be properly implemented.
+
+            answerByte = 0; // for all others command are not implemented, return dummy value for AVRDUDE happy <Worapoht>
+          }
+
+          if ( !flag )
+          {
+            // these are simple 1-byte returns
+            msgLength = 7;
+            msgBuffer[1] = STATUS_CMD_OK;
+            msgBuffer[2] = 0;
+            msgBuffer[3] = msgBuffer[4]; // not sure why, but I think it should be zero - I'll leave it alone just in case
+            msgBuffer[4] = 0;
+            msgBuffer[5] = answerByte;
+            msgBuffer[6] = STATUS_CMD_OK;
+          }
+        }
+
+        goto send_the_reply;
       }
 
 #endif
       if(ch == CMD_SIGN_ON)
       {
-          msgLength = 17; // was 11, I added ' XMega' to it just for grins
+        msgLength = 17; // was 11, I added ' XMega' to it just for grins
 
-          msgBuffer[1] = STATUS_CMD_OK;
-          msgBuffer[2] = 8;
-          msgBuffer[3] = 'A';
-          msgBuffer[4] = 'V';
-          msgBuffer[5] = 'R';
-          msgBuffer[6] = 'I';
-          msgBuffer[7] = 'S';
-          msgBuffer[8] = 'P';
-          msgBuffer[9] = '_';
-          msgBuffer[10] = '2';
-          msgBuffer[11] = ' ';
-          msgBuffer[12] = 'X';
-          msgBuffer[13] = 'M';
-          msgBuffer[14] = 'e';
-          msgBuffer[15] = 'g';
-          msgBuffer[16] = 'a';
+        msgBuffer[1] = STATUS_CMD_OK;
+        msgBuffer[2] = 8;
+        msgBuffer[3] = 'A';
+        msgBuffer[4] = 'V';
+        msgBuffer[5] = 'R';
+        msgBuffer[6] = 'I';
+        msgBuffer[7] = 'S';
+        msgBuffer[8] = 'P';
+        msgBuffer[9] = '_';
+        msgBuffer[10] = '2';
+        msgBuffer[11] = ' ';
+        msgBuffer[12] = 'X';
+        msgBuffer[13] = 'M';
+        msgBuffer[14] = 'e';
+        msgBuffer[15] = 'g';
+        msgBuffer[16] = 'a';
       }
       else if(ch == CMD_GET_PARAMETER)
       {
-          register unsigned char value;
+        register unsigned char value;
 
-          if(msgBuffer[1] == PARAM_BUILD_NUMBER_LOW)
-          {
-            value = CONFIG_PARAM_BUILD_NUMBER_LOW;
-          }
-          else if(msgBuffer[1] == PARAM_BUILD_NUMBER_HIGH)
-          {
-            value = CONFIG_PARAM_BUILD_NUMBER_HIGH;
-          }
-          else if(msgBuffer[1] == PARAM_HW_VER)
-          {
-            value = CONFIG_PARAM_HW_VER;
-          }
-          else if(msgBuffer[1] == PARAM_SW_MAJOR)
-          {
-            value = CONFIG_PARAM_SW_MAJOR;
-          }
-          else if(msgBuffer[1] == PARAM_SW_MINOR)
-          {
-            value = CONFIG_PARAM_SW_MINOR;
-          }
-          else
-          {
-            value = 0;
-          }
+        if(msgBuffer[1] == PARAM_BUILD_NUMBER_LOW)
+        {
+          value = CONFIG_PARAM_BUILD_NUMBER_LOW;
+        }
+        else if(msgBuffer[1] == PARAM_BUILD_NUMBER_HIGH)
+        {
+          value = CONFIG_PARAM_BUILD_NUMBER_HIGH;
+        }
+        else if(msgBuffer[1] == PARAM_HW_VER)
+        {
+          value = CONFIG_PARAM_HW_VER;
+        }
+        else if(msgBuffer[1] == PARAM_SW_MAJOR)
+        {
+          value = CONFIG_PARAM_SW_MAJOR;
+        }
+        else if(msgBuffer[1] == PARAM_SW_MINOR)
+        {
+          value = CONFIG_PARAM_SW_MINOR;
+        }
+        else
+        {
+          value = 0;
+        }
 
-          msgLength = 3;
-          msgBuffer[1] = STATUS_CMD_OK;
-          msgBuffer[2] = value;
+        msgLength = 3;
+        msgBuffer[1] = STATUS_CMD_OK;
+        msgBuffer[2] = value;
       }
       else if(ch == CMD_LEAVE_PROGMODE_ISP) // I call this at various times, not just at the end
       {
-          msgLength = 2;
-          msgBuffer[1] = STATUS_CMD_OK;
+        msgLength = 2;
+        msgBuffer[1] = STATUS_CMD_OK;
       }
       else if(ch ==CMD_SET_PARAMETER ||
               ch == CMD_ENTER_PROGMODE_ISP)
       {
-          msgLength = 2;
-          msgBuffer[1] = STATUS_CMD_OK;
+        msgLength = 2;
+        msgBuffer[1] = STATUS_CMD_OK;
       }
       else if(ch == CMD_READ_SIGNATURE_ISP)
       {
-          register unsigned char signatureIndex = msgBuffer[4];
-          register unsigned char signature;
+        register unsigned char signatureIndex = msgBuffer[4];
+        register unsigned char signature;
 
-          if ( signatureIndex == 0 )
-          {
-            signature = (SIGNATURE_BYTES >>16) & 0x000000FF;
-          }
-          else if ( signatureIndex == 1 )
-          {
-            signature = (SIGNATURE_BYTES >> 8) & 0x000000FF;
-          }
-          else
-          {
-            signature = SIGNATURE_BYTES & 0x000000FF;
-          }
+        if ( signatureIndex == 0 )
+        {
+          signature = (SIGNATURE_BYTES >>16) & 0x000000FF;
+        }
+        else if ( signatureIndex == 1 )
+        {
+          signature = (SIGNATURE_BYTES >> 8) & 0x000000FF;
+        }
+        else
+        {
+          signature = SIGNATURE_BYTES & 0x000000FF;
+        }
 
-          msgLength = 4;
-          msgBuffer[1] = STATUS_CMD_OK;
-          msgBuffer[2] = signature;
-          msgBuffer[3] = STATUS_CMD_OK;
+        msgLength = 4;
+        msgBuffer[1] = STATUS_CMD_OK;
+        msgBuffer[2] = signature;
+        msgBuffer[3] = STATUS_CMD_OK;
       }
       else if(ch ==  CMD_READ_LOCK_ISP)
       {
-          msgLength = 4;
-          msgBuffer[1] = STATUS_CMD_OK;
+        msgLength = 4;
+        msgBuffer[1] = STATUS_CMD_OK;
 #ifdef LOCKBIT_LOCKBITS
-          msgBuffer[2] = LOCKBIT_LOCKBITS; // boot_lock_fuse_bits_get( GET_LOCK_BITS );
+        msgBuffer[2] = LOCKBIT_LOCKBITS; // boot_lock_fuse_bits_get( GET_LOCK_BITS );
 #else // no LOCKBIT_LOCKBITS
-          msgBuffer[2] = NVM_LOCKBITS; // this is how it's defined in the A1 files
+        msgBuffer[2] = NVM_LOCKBITS; // this is how it's defined in the A1 files
 #endif // LOCKBIT_LOCKBITS
-          msgBuffer[3] = STATUS_CMD_OK;
+        msgBuffer[3] = STATUS_CMD_OK;
       }
       else if(ch == CMD_READ_FUSE_ISP)
       {
-          register unsigned char fuseBits;
+        register unsigned char fuseBits;
 
-          if ( msgBuffer[2] == 0x50 )
+        if ( msgBuffer[2] == 0x50 )
+        {
+          if ( msgBuffer[3] == 0x08 )
           {
-            if ( msgBuffer[3] == 0x08 )
-            {
-              fuseBits = readNVMData(NVM_CMD_READ_FUSES_gc, 2); // extended fuse byte is wrong; xmega has up to 6 of them
-            }
-            else
-            {
-              fuseBits = readNVMData(NVM_CMD_READ_FUSES_gc, 0); // low fuse byte is wrong; xmega has up to 6 of them
-            }
+            fuseBits = readNVMData(NVM_CMD_READ_FUSES_gc, 2); // extended fuse byte is wrong; xmega has up to 6 of them
           }
           else
           {
-            fuseBits = readNVMData(NVM_CMD_READ_FUSES_gc, 1); // high fuse byte is wrong; xmega has up to 6 of them
+            fuseBits = readNVMData(NVM_CMD_READ_FUSES_gc, 0); // low fuse byte is wrong; xmega has up to 6 of them
           }
-          msgLength = 4;
-          msgBuffer[1] = STATUS_CMD_OK;
-          msgBuffer[2] = fuseBits;
-          msgBuffer[3] = STATUS_CMD_OK;
+        }
+        else
+        {
+          fuseBits = readNVMData(NVM_CMD_READ_FUSES_gc, 1); // high fuse byte is wrong; xmega has up to 6 of them
+        }
+        msgLength = 4;
+        msgBuffer[1] = STATUS_CMD_OK;
+        msgBuffer[2] = fuseBits;
+        msgBuffer[3] = STATUS_CMD_OK;
       }
 #ifndef REMOVE_PROGRAM_LOCK_BIT_SUPPORT
       else if(ch == CMD_PROGRAM_LOCK_ISP)
       {
-            // NOTE:  this is the old 'lock bits' code.  activating lock bits on an xmega is a one-way operation
-            //        that requires using the PDI interface to change them back, once locked.  So don't do it here.
+          // NOTE:  this is the old 'lock bits' code.  activating lock bits on an xmega is a one-way operation
+          //        that requires using the PDI interface to change them back, once locked.  So don't do it here.
 //            unsigned char lockBits = msgBuffer[4];
 //
 //            lockBits = (~lockBits) & 0x3C;  // mask BLBxx bits
 //            boot_lock_bits_set(lockBits);    // and program it
 //            boot_spm_busy_wait();
 
-            // fake like it worked, though I didn't do anything.  this is probably NOT compatible but avrdude didn't gripe
+          // fake like it worked, though I didn't do anything.  this is probably NOT compatible but avrdude didn't gripe
 
-            msgLength = 3;
-            msgBuffer[1] = STATUS_CMD_OK;
-            msgBuffer[2] = STATUS_CMD_OK;
+          msgLength = 3;
+          msgBuffer[1] = STATUS_CMD_OK;
+          msgBuffer[2] = STATUS_CMD_OK;
       }
 #endif
       else if(ch == CMD_CHIP_ERASE_ISP)
       {
-          msgLength = 2;
+        msgLength = 2;
 
-          // performing a 'chip erase' is probably NOT a good idea on the xmega.
-          // an alternate way would be to write blocks of 'FF' into the application area, and optionally
-          // into the EEPROM area (based on fuse settings), excluding the bootloader [of course].
-          // Since I don't want to write the code, I'll just indicate 'failed' as before.
+        // performing a 'chip erase' is probably NOT a good idea on the xmega.
+        // an alternate way would be to write blocks of 'FF' into the application area, and optionally
+        // into the EEPROM area (based on fuse settings), excluding the bootloader [of course].
+        // Since I don't want to write the code, I'll just indicate 'failed' as before.
 
-          // msgBuffer[1] = STATUS_CMD_OK;
-          msgBuffer[1] = STATUS_CMD_FAILED;  //*  isue 543, return FAILED instead of OK
+        // msgBuffer[1] = STATUS_CMD_OK;
+        msgBuffer[1] = STATUS_CMD_FAILED;  //*  isue 543, return FAILED instead of OK
       }
       else if(ch == CMD_LOAD_ADDRESS)
       {
 #if defined(RAMPZ)
-          address = ( ((address_t)(msgBuffer[1])<<24)|((address_t)(msgBuffer[2])<<16)|((address_t)(msgBuffer[3])<<8)|(msgBuffer[4]) )<<1;
+        address = ( ((address_t)(msgBuffer[1])<<24)|((address_t)(msgBuffer[2])<<16)|((address_t)(msgBuffer[3])<<8)|(msgBuffer[4]) )<<1;
 #else
-          address = ( ((msgBuffer[3])<<8)|(msgBuffer[4]) )<<1;    //convert word to byte address
+        address = ( ((msgBuffer[3])<<8)|(msgBuffer[4]) )<<1;    //convert word to byte address
 #endif
-          msgLength = 2;
-          msgBuffer[1] = STATUS_CMD_OK;
+        msgLength = 2;
+        msgBuffer[1] = STATUS_CMD_OK;
       }
       else if(ch == CMD_PROGRAM_FLASH_ISP ||
               ch == CMD_PROGRAM_EEPROM_ISP)
       {
-          address_t tempaddress;
+        address_t tempaddress;
 
-          w1 = ((msgBuffer[1])<<8) | msgBuffer[2]; // the size
+        w1 = ((msgBuffer[1])<<8) | msgBuffer[2]; // the size
 
-          p1 = &(msgBuffer[10]);
+        p1 = &(msgBuffer[10]);
 
-          tempaddress = address;
+        tempaddress = address;
 
 #ifdef RAMPZ
-          if(tempaddress >= 0x0800000)
-          {
-            tempaddress -= 0x0800000; // the absolute address of the NVRAM in 'programmer' space
-                                      // if the address was based from THIS, must subtract it
-                                      // this is documented in the D manual Figure 25-3 and elsewhere
-          }
+        if(tempaddress >= 0x0800000)
+        {
+          tempaddress -= 0x0800000; // the absolute address of the NVRAM in 'programmer' space
+                                    // if the address was based from THIS, must subtract it
+                                    // this is documented in the D manual Figure 25-3 and elsewhere
+        }
 #endif // RAMPZ
 
-          if ( ch == CMD_PROGRAM_FLASH_ISP )
+        if ( ch == CMD_PROGRAM_FLASH_ISP )
+        {
+          if(w1 & 1)
           {
-            if(w1 & 1)
-            {
-              w1++; // make sure it's even (but it should be)
-            }
-
-            if(tempaddress < BOOT_SECTION_START) // do NOT overwrite the bootloader!
-            {
-              SP_WaitForSPM();
-              SP_EraseFlashBuffer();
-              SP_WaitForSPM();
-              SP_LoadFlashPage(p1, w1);
-              SP_WaitForSPM();
-              SP_WriteApplicationPage(tempaddress);
-              SP_WaitForSPM();
-            }
-
-            address += w1; // increment address by the size (for next loop)
-          }
-          else
-          {
-            //*  issue 543, this should work, It has not been tested.
-
-            // NOTE:  why are we writing the EEPROM as WORD values?  I need to fix this.  Again.
-
-            uint16_t w2 = address >> 1;
-            /* write EEPROM */
-            while (w1) // count down the size
-            {
-              eeprom_write_byte((uint8_t*)w2, *p1++);
-              address+=2;            // Select next EEPROM byte
-              w2++;
-              w1--;
-            }
+            w1++; // make sure it's even (but it should be)
           }
 
-          msgLength = 2;
-          msgBuffer[1] = STATUS_CMD_OK;
+          if(tempaddress < BOOT_SECTION_START) // do NOT overwrite the bootloader!
+          {
+            SP_WaitForSPM();
+            SP_EraseFlashBuffer();
+            SP_WaitForSPM();
+            SP_LoadFlashPage(p1, w1);
+            SP_WaitForSPM();
+            SP_WriteApplicationPage(tempaddress);
+            SP_WaitForSPM();
+          }
+
+          address += w1; // increment address by the size (for next loop)
+        }
+        else
+        {
+          //*  issue 543, this should work, It has not been tested.
+
+          // NOTE:  why are we writing the EEPROM as WORD values?  I need to fix this.  Again.
+
+          uint16_t w2 = address >> 1;
+          /* write EEPROM */
+          while (w1) // count down the size
+          {
+            eeprom_write_byte((uint8_t*)w2, *p1++);
+            address+=2;            // Select next EEPROM byte
+            w2++;
+            w1--;
+          }
+        }
+
+        msgLength = 2;
+        msgBuffer[1] = STATUS_CMD_OK;
       }
       else if(ch == CMD_READ_FLASH_ISP ||
               ch == CMD_READ_EEPROM_ISP)
       {
-          address_t tempaddress;
+        address_t tempaddress;
 
-          w1 = ((msgBuffer[1])<<8) | msgBuffer[2]; // the size
-          p1 = &(msgBuffer[1]);
+        w1 = ((msgBuffer[1])<<8) | msgBuffer[2]; // the size
+        p1 = &(msgBuffer[1]);
 
-          msgLength = w1 + 3;
+        msgLength = w1 + 3;
 
-          tempaddress = address; // so I can do maths with it
+        tempaddress = address; // so I can do maths with it
 
 #ifdef RAMPZ
-          if(tempaddress >= 0x0800000)
-          {
-            tempaddress -= 0x0800000; // the absolute address of the NVRAM in 'programmer' space
-                                      // if the address was based from THIS, must subtract it
-                                      // this is documented in the D manual Figure 25-3 and elsewhere
-          }
+        if(tempaddress >= 0x0800000)
+        {
+          tempaddress -= 0x0800000; // the absolute address of the NVRAM in 'programmer' space
+                                    // if the address was based from THIS, must subtract it
+                                    // this is documented in the D manual Figure 25-3 and elsewhere
+        }
 #endif // RAMPZ
 
-          *(p1++) = STATUS_CMD_OK;
+        *(p1++) = STATUS_CMD_OK;
 
-          if (ch == CMD_READ_FLASH_ISP )
+        if (ch == CMD_READ_FLASH_ISP )
+        {
+          register unsigned int data;
+
+          address += w1; // pre-add size - will mess with 'tempaddress' later
+
+          // Read FLASH
+          do
           {
-            register unsigned int data;
-
-            address += w1; // pre-add size - will mess with 'tempaddress' later
-
-            // Read FLASH
-            do
-            {
 //#if defined(RAMPZ)
 #ifdef RAMPZ // (FLASHEND > 0x10000)
-              if(tempaddress >= BOOT_SECTION_START)
-              {
-                data = 0; // assume boot section is all 0's for the sake of flash verification
-              }
-              else
-              {
-                data = pgm_read_word_far(tempaddress);
-              }
-#else // FLASHEND > 0x10000
-              if(address >= BOOT_SECTION_START)
-              {
-                data = 0; // assume boot section is all 0's for the sake of flash verification
-              }
-              else
-              {
-                data = pgm_read_word_near(tempaddress);
-              }
-#endif // FLASHEND > 0x10000
-              *(p1++) = (unsigned char)data;    //LSB
-              *(p1++) = (unsigned char)(data >> 8);  //MSB
-
-              tempaddress += 2; // increment address by 2 bytes
-              w1 -= 2;          // decrement size by 2
-            } while (w1); // while size > 0
-          }
-          else
-          {
-            /* Read EEPROM */
-            register uint16_t w2 = address >> 1;
-            do
+            if(tempaddress >= BOOT_SECTION_START)
             {
-              *(p1++) = eeprom_read_byte((uint8_t*)w2); // VERIFY THIS IS CORRECT (it is likely NOT to be)
-              address+=2;            // Select next EEPROM byte (add 2 to the address?  really?)
-              w2++;
-              w1--;                // MAKE SURE THIS WORKS
-            } while (w1); // while size > 0
-          }
+              data = 0; // assume boot section is all 0's for the sake of flash verification
+            }
+            else
+            {
+              data = pgm_read_word_far(tempaddress);
+            }
+#else // FLASHEND > 0x10000
+            if(address >= BOOT_SECTION_START)
+            {
+              data = 0; // assume boot section is all 0's for the sake of flash verification
+            }
+            else
+            {
+              data = pgm_read_word_near(tempaddress);
+            }
+#endif // FLASHEND > 0x10000
+            *(p1++) = (unsigned char)data;    //LSB
+            *(p1++) = (unsigned char)(data >> 8);  //MSB
 
-          *(p1++) = STATUS_CMD_OK;
+            tempaddress += 2; // increment address by 2 bytes
+            w1 -= 2;          // decrement size by 2
+          } while (w1); // while size > 0
+        }
+        else
+        {
+          /* Read EEPROM */
+          register uint16_t w2 = address >> 1;
+          do
+          {
+            *(p1++) = eeprom_read_byte((uint8_t*)w2); // VERIFY THIS IS CORRECT (it is likely NOT to be)
+            address+=2;            // Select next EEPROM byte (add 2 to the address?  really?)
+            w2++;
+            w1--;                // MAKE SURE THIS WORKS
+          } while (w1); // while size > 0
+        }
+
+        *(p1++) = STATUS_CMD_OK;
       }
       else if(!ch) // this is my "error trap" for a strange problem
       {
-          msgLength = 4;
-          msgBuffer[1] = STATUS_CMD_FAILED;
-          msgBuffer[2] = ch;
-          msgBuffer[3] = STATUS_CMD_FAILED;
+        msgLength = 4;
+        msgBuffer[1] = STATUS_CMD_FAILED;
+        msgBuffer[2] = ch;
+        msgBuffer[3] = STATUS_CMD_FAILED;
+
+        error_count++;
       }
       else
       {
-          msgLength = 2;
-          msgBuffer[1] = STATUS_CMD_FAILED;
+        msgLength = 2;
+        msgBuffer[1] = STATUS_CMD_FAILED;
+
+        error_count++;
       }
 
 send_the_reply:
@@ -1923,8 +1899,21 @@ send_the_reply:
 
     // if I get here, I guess I'm done doing the stk500v2 protocol stuff
 
-    if(error_count)
+    if(error_count >= MAX_ERROR_COUNT)
     {
+#if 1 /* testing only */
+      ch2 = 9;
+
+      while (ch2--) // inlined, may be smaller this way
+      {
+        LED_PORT |= LED_PIN_BIT;
+        smart_delay_ms(100);
+
+        LED_PORT &= ~LED_PIN_BIT;
+        smart_delay_ms(100);
+      }
+#endif // 0,1
+
       if(pgm_read_byte(0) != 0xff)
       {
         app_start();
@@ -1952,21 +1941,81 @@ void soft_boot(void)
 
 extern void __builtin_avr_delay_cycles(unsigned long); // see util/delay.h
 
-void smart_delay_ms(uint16_t ms)
+char smart_delay_ms(uint16_t ms)
 {
   while(ms)
   {
 #ifdef USE_STK500V2
     if((SERIAL_USART_STATUS) & USART_RXCIF_bm) // is there RX data ??
     {
-      return; // exit now (this avoids delays in startup for STK500V2 protocol)
+      return 1; // exit now (this avoids delays in startup for STK500V2 protocol)
+                // it's basically a workaround for intolerance by the protocol
     }
 #endif // USE_STK500V2
     ms--;
 
     __builtin_avr_delay_cycles(F_CPU / 1000); // delay approximately 1 msec
   }
+
+  return 0; // was not early-terminated
 }
+
+// 'getch()' and 'putch()' - basic serial I/O functions
+char getch(void)
+{
+  uint32_t count = 0;
+  register char rVal;
+
+  LED_PORT &= ~LED_PIN_BIT;          // turn off the LED to indicate receiving data
+
+  while(!((SERIAL_USART_STATUS) & USART_RXCIF_bm)) // wait for RX data
+  {
+    /* 20060803 DojoCorp:: Addon coming from the previous Bootloader*/
+    /* HACKME:: here is a good place to count times*/
+    count++;
+
+    if (count > (uint32_t)(MAX_TIME_COUNT)) // delay period for firmware flashing
+    {
+      app_start();
+      soft_boot();
+    }
+  }
+
+  SERIAL_USART_STATUS = USART_RXCIF_bm; // forcibly clear the bit
+  rVal = SERIAL_USART_DATA;
+
+  LED_PORT |= LED_PIN_BIT;          // turn on the LED to indicate receiving data
+
+  return rVal;
+}
+
+void putch(char ch)
+{
+  while (!( (SERIAL_USART_STATUS) & USART_DREIF_bm)) // bit 5 is the DRE bit (6 is the 'transmitted' bit)
+  {  } // wait forever for DRE flag
+
+  SERIAL_USART_STATUS = USART_DREIF_bm; // set the bit to clear it
+
+  (SERIAL_USART_DATA) = ch; // and assign the data
+}
+
+
+#ifdef USE_STK500V2
+uint8_t do_getch_and_checksum(void)
+{
+  register uint8_t chRval = getch();
+  checksum ^= chRval;
+
+  return chRval;
+}
+
+void do_putch_and_checksum(uint8_t chPut)
+{
+  putch(chPut);
+  checksum ^= chPut;
+}
+#endif // USE_STK500V2
+
 
 char gethexnib(void)
 {
@@ -2030,6 +2079,7 @@ void putstr(unsigned char *pBuf, char nBytes)
   }
 }
 
+
 void flush(void)
 {
   uint32_t count = 0;
@@ -2037,24 +2087,26 @@ void flush(void)
   while (!( (SERIAL_USART_STATUS) & USART_DREIF_bm)) // bit 5 is the DRE bit (6 is the 'transmitted' bit)
   {
     count++;
-    if(count > (uint32_t)(F_CPU / 256))
+    if(count > (uint32_t)(F_CPU / 256)) // this works out to about 1/256'th of a second times the loop cycles
     {
       return; // safety
     }
   } // wait forever for DRE flag
 
-  while (!( (SERIAL_USART_STATUS) & USART_TXCIF_bm))
+  while (!( (SERIAL_USART_STATUS) & USART_TXCIF_bm)) // and wait for 'transmitted' bit also
   {
     count++;
-    if(count > (uint32_t)(F_CPU / 256))
+    if(count > (uint32_t)(F_CPU / 256)) // this count is cumulative from the last loop
     {
       return; // safety
     }
   }
 
-  SERIAL_USART_STATUS = USART_TXCIF_bm | USART_DREIF_bm; // set the bits to clear them
+  SERIAL_USART_STATUS = USART_TXCIF_bm | USART_DREIF_bm; // set the bits to clear them (oxymoronic, but true)
 }
 
+
+#ifdef USE_STK500V2
 void flushin(void)
 {
   uint32_t count = 0;
@@ -2066,21 +2118,22 @@ void flushin(void)
   {
     while(!((SERIAL_USART_STATUS) & USART_RXCIF_bm)) // wait for RX data
     {
-      /* 20060803 DojoCorp:: Addon coming from the previous Bootloader*/
-      /* HACKME:: here is a good place to count times*/
       count++;
 
-      if (count > (uint32_t)(F_CPU / 128)) // delay period for flushing - about 0.05 sec
-      {
+      if (count > (uint32_t)(F_CPU / 128)) // delay period for flushing - about 0.05 sec (based on 8 cycles or so per loop)
+      {                                    // that of course would be 0.05 seconds of *SILENCE*, not total accumulation
         return; // nothing left after timeout
       }
     }
 
     SERIAL_USART_STATUS = USART_RXCIF_bm; // clear the bit
     x1 = SERIAL_USART_DATA; // burn the data
+
+    count = 0; // restart counter
   }
   
 }
+#endif // USE_STK500V2
 
 
 

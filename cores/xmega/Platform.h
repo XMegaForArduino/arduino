@@ -8,9 +8,13 @@
 #include <avr/interrupt.h>
 #include <util/delay.h>
 
+#ifndef _PLATFORM_H_TYPES_DEFINED_
+#define _PLATFORM_H_TYPES_DEFINED_
+// this is a temporary fix for USCore.h data types and header file include order issues
 typedef unsigned char u8;
 typedef unsigned short u16;
 typedef unsigned long u32;
+#endif // _PLATFORM_H_TYPES_DEFINED_
 
 #include "Arduino.h"
 

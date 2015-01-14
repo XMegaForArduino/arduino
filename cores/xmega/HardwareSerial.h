@@ -97,6 +97,10 @@ class HardwareSerial : public Stream
 #define SERIAL_7O2 (SERIAL_7N2 | SERIAL_ODD_PARITY)
 #define SERIAL_8O2 (SERIAL_8N2 | SERIAL_ODD_PARITY)
 
+
+// this is where I must include 'pins_arduino.h' to get the 'USBCON' definition
+#include "pins_arduino.h"
+
 // DEFAULT SERIAL or 'SERIAL 1'
 #if defined(USBCON)
   // NOTE:  'Serial1' will be the hardware serial and 'Serial' the USB serial
@@ -106,17 +110,32 @@ class HardwareSerial : public Stream
   extern HardwareSerial Serial1;
 #else // normal hardware serial
   extern HardwareSerial Serial;
+#define Serial1 Serial /* define as 'Serial' so compatible code won't break */
 #endif
 
-extern HardwareSerial Serial2;
+extern HardwareSerial Serial2; // this is the same regardless of USBCON (there will always be at least 2)
 
-#ifdef SERIAL_2_PORT_NAME /* note these names are off by 1 with the 'Serial_N_' objects */
+#ifdef SERIAL_2_PORT_NAME /* note these names are off by 1 with the 'Serial_N_' definitions */
 extern HardwareSerial Serial3;
 #endif // SERIAL_2_PORT_NAME
 #ifdef SERIAL_3_PORT_NAME
 extern HardwareSerial Serial4;
 #endif // SERIAL_3_PORT_NAME
+#ifdef SERIAL_4_PORT_NAME
+extern HardwareSerial Serial5;
+#endif // SERIAL_4_PORT_NAME
+#ifdef SERIAL_5_PORT_NAME
+extern HardwareSerial Serial6;
+#endif // SERIAL_5_PORT_NAME
+#ifdef SERIAL_6_PORT_NAME
+extern HardwareSerial Serial7;
+#endif // SERIAL_6_PORT_NAME
+#ifdef SERIAL_7_PORT_NAME
+extern HardwareSerial Serial8;
+#endif // SERIAL_7_PORT_NAME
 
+// this function calls the serial event handlers.  you can override them (hence 'weak')
+// the default implementation checks for data available and executes the callback if so
 extern void serialEventRun(void) __attribute__((weak));
 
 #endif // HardwareSerial_h

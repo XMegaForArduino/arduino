@@ -17,7 +17,7 @@
 */
 
 #define CDC_ENABLED
-#define HID_ENABLED
+//#define HID_ENABLED disabled because it causes crashes
 
 
 #ifdef CDC_ENABLED

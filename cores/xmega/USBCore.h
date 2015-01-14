@@ -17,6 +17,15 @@
 #ifndef __USBCORE_H__
 #define __USBCORE_H__
 
+#define FAST_USB /* necessary for 'FULL' speed operation - this is 12Mbit, not 480Mbit USB 2 'HIGH' speed - 'LOW' may not work properly */
+
+#ifndef _PLATFORM_H_TYPES_DEFINED_ /* TEMPORARY FIX, SEE Platform.h */
+#define _PLATFORM_H_TYPES_DEFINED_
+typedef unsigned char u8;
+typedef unsigned short u16;
+typedef unsigned long u32;
+#endif // _PLATFORM_H_TYPES_DEFINED_
+
 //	Standard requests
 #define GET_STATUS			0
 #define CLEAR_FEATURE		1
@@ -123,6 +132,10 @@
 #define HID_REPORT_DESCRIPTOR_TYPE				0x22
 #define HID_PHYSICAL_DESCRIPTOR_TYPE			0x23
 
+// A1U series needs 16-byte alignment for endpoint structure
+#if defined(__AVR_ATxmega64A1U__) || defined(__AVR_ATxmega128A1U__)
+#define A1U_SERIES
+#endif // A1U
 
 //	Device
 typedef struct {
@@ -288,48 +301,63 @@ typedef union
 {
   struct
   {
-    u8 h, l;
+    uint8_t h, l;
   };
-  u16 heW; // high endian word
+  uint16_t heW; // high endian word
 } XMegaFIFOEntry;
-
+typedef struct
+{
+  XMegaFIFOEntry in;
+  XMegaFIFOEntry out;
+} XMegaFIFO;
+/*
 typedef union
 {
   struct
   {
-    u8 l,h;
+    uint8_t l,h;
   };
-  u16 w;
+  uint16_t w;
 } HLByteWord;
-
+*/
 // see AU manual, pg 231 section 20.4
 typedef struct
 {
-  u8 status;
-  u8 ctrl;
-  HLByteWord cnt; // so, cnt.w is the 16-bit value, cnt.l and cnt.h the 8-bit low/high
-                  // it is the 'data count' value.  it may be zero.
-                  // only bits 1:0 of cnt.h are valid.  cnt.w should be 'and'd with 0x3ff
-                  // the high bit of cnt.w and cnt.h is the 'AZLP' (auto zero length packet) bit
-                  // see AU manual section 20.15.4
-  HLByteWord dataptr; // pointer to data buffer.  max packet length assigned to CTRL [1:0] or [2:0]
-                      // see table 20-5 in AU manual for max packet length.  may need 2 buffers "that long"
-  HLByteWord auxdata; // used for multi-packet transfers
+  volatile uint8_t status;
+  volatile uint8_t ctrl;
+  volatile uint16_t /*HLByteWord*/ cnt; // so, cnt.w is the 16-bit value, cnt.l and cnt.h the 8-bit low/high
+                           // it is the 'data count' value.  it may be zero.
+                           // only bits 1:0 of cnt.h are valid.  cnt.w should be 'and'd with 0x3ff
+                           // the high bit of cnt.w and cnt.h is the 'AZLP' (auto zero length packet) bit
+                           // see AU manual section 20.15.4
+  volatile uint16_t /*HLByteWord*/ dataptr; // pointer to data buffer.  max packet length assigned to CTRL [1:0] or [2:0]
+                               // see table 20-5 in AU manual for max packet length.  may need 2 buffers "that long"
+  volatile uint16_t /*HLByteWord*/ auxdata; // used for multi-packet transfers
 } XMegaEndpointDescriptor; // NOTE:  2 per channel (one 'out', one 'in') pointed by EPPTR
 
 typedef struct
 {
   XMegaEndpointDescriptor out;
   XMegaEndpointDescriptor in;
-} XMegaEndpointChannel __attribute__ ((aligned (2), packed));
+} XMegaEndpointChannel
+#ifdef A1U_SERIES
+ __attribute (( aligned (16) ));
+#else // not an A1U series
+ __attribute__ (( aligned (2) /*, packed*/));
+#endif // A1U or not
 
 // also section 20.4 in AU manual
 typedef struct _XMegaEPDataStruct_
 {
-  XMegaFIFOEntry          ep_addr[MAXEP + 1];
-  XMegaEndpointChannel    endpoint[MAXEP + 1];  // point EPPTR to THIS 
-  HLByteWord              framenum;             // 1 word frame number, high endian
-} XMegaEPDataStruct __attribute__ ((packed));   // note:  point EPPTR to &endpoint[0], word alignment needed
+#ifdef A1U_SERIES
+#if ((MAXEP+1)%4) != 0 // A1U needs 16-byte boundary, not merely word-aligned
+  uint8_t padding[sizeof(XMegaFIFO) * (4 - ((MAXEP+1)%4))]; // this should 16-byte align 'endpoint' as required
+#endif // needs padding
+#endif // XMEGA A1U series
+  XMegaFIFO               fifo[MAXEP + 1];
+  XMegaEndpointChannel    endpoint[MAXEP + 1];  // point EPPTR to THIS  (must be word boundary)
+  volatile uint16_t       framenum;             // 1 word frame number
+} XMegaEPDataStruct /*__attribute__ ((packed))*/;   // note:  point EPPTR to &endpoint[0], word alignment needed
 
 
 #define D_DEVICE(_class,_subClass,_proto,_packetSize0,_vid,_pid,_version,_im,_ip,_is,_configs) \

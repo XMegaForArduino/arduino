@@ -208,6 +208,7 @@
 #define SERIAL_0_REMAP_BIT 4    /* the bit needed to remap the port if SERIAL_0_REMAP is defined */
 #define SERIAL_0_RX_PIN_INDEX 2 /* the pin number on the port, not the mapped digital pin number */
 #define SERIAL_0_TX_PIN_INDEX 3 /* the pin number on the port, not the mapped digital pin number */
+#define USARTD0_VECTOR_EXISTS
 
 // serial port 1
 #define SERIAL_1_PORT_NAME PORTC
@@ -219,6 +220,7 @@
 #define SERIAL_1_REMAP_BIT 4    /* the bit needed to remap the port if SERIAL_1_REMAP is defined */
 #define SERIAL_1_RX_PIN_INDEX 2 /* the pin number on the port, not the mapped digital pin number */
 #define SERIAL_1_TX_PIN_INDEX 3 /* the pin number on the port, not the mapped digital pin number */
+#define USARTC0_VECTOR_EXISTS
 
 
 // For atmega/Arduino Uno shield compatibility, with DIGITAL_IO_PIN_SHIFT defined,
