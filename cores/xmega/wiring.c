@@ -28,6 +28,8 @@
 
 #include "wiring_private.h"
 
+#include <avr/sleep.h>      // Include for sleep mode (see 'wait_for_interrupt()')
+
 
 // The xmega architecture differs significantly from the mega in a number
 // of ways that render the existing code unworkable.  Therefore a complete
@@ -180,6 +182,39 @@ void delay(unsigned long ms)
     }
   }
 }
+
+// XMEGA-specific code
+void wait_for_interrupt(void)
+{
+  cli(); // disable interrupts
+
+  set_sleep_mode(SLEEP_MODE_IDLE); // everything on but CPU and NVRAM
+
+  sleep_enable();
+
+  sei(); // re-enable interrupts
+
+  sleep_cpu(); // go to sleep
+
+  sleep_disable(); // first thing to do out of sleep
+}
+
+void low_power_delay(unsigned long ms)
+{
+  uint16_t start = (uint16_t)micros();
+
+  while (ms > 0)
+  {
+    wait_for_interrupt(); // up to 1msec perhaps?
+
+    while (((uint16_t)micros() - start) >= 1000)
+    {
+      ms--;
+      start += 1000;
+    }
+  }
+}
+
 
 /* Delay for the given number of microseconds.  Assumes a 8 or 16 MHz clock. */
 // NOTE:  for XMEGA, you can have a 32mhz clock

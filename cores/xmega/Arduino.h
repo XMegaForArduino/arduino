@@ -209,6 +209,10 @@ unsigned long pulseIn(uint8_t pin, uint8_t state, unsigned long timeout);
 void shiftOut(uint8_t dataPin, uint8_t clockPin, uint8_t bitOrder, uint8_t val);
 uint8_t shiftIn(uint8_t dataPin, uint8_t clockPin, uint8_t bitOrder);
 
+// XMEGA specific
+void wait_for_interrupt(void); // uses 'IDLE' sleep mode to wait for an interrupt, then returns
+void low_power_delay(unsigned long ms); // similar to 'delay' but goes into low power 'IDLE sleep' state
+
 
 // X M E G A   X M E G A   X M E G A   X M E G A   X M E G A   X M E G A   X M E G A   X M E G A
 //
