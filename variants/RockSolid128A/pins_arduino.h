@@ -60,7 +60,7 @@
 
 #include <avr/pgmspace.h>
 
-#define USE_AREF 0x2 /* see 28.16.3 in 'AU' manual - this is the REFCTRL bits for the reference select, AREF on PORTA (PA0) */
+#define USE_AREF analogReference_PORTA0 /* see 28.16.3 in 'AU' manual - this is the REFCTRL bits for the reference select, AREF on PORTA (PA0) */
 
 
 #define NUM_DIGITAL_PINS            62
@@ -156,6 +156,7 @@
 
 
 #define DEFAULT_TWI TWID /* this is the TWI that is mapped to 20/21 */
+#define TWID_VECT_ENABLE /* use this to select the correct interrupt vectors */
 
 // serial port 0
 #define SERIAL_0_PORT_NAME PORTC

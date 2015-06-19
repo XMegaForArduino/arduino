@@ -91,7 +91,7 @@
 
 
 // NOTE:  'E' series can have analog inputs on PORTD.  It can also support ARef on PORTA pin 0, or PORTD pin 0
-#define USE_AREF 0x2 /* see 24.14.3 in 'E' manual - this is the REFCTRL bits for the reference select, AREF on PORTA (PA0) */
+#define USE_AREF analogReference_PORTA0 /* see 28.16.3 in 'AU' manual - this is the REFCTRL bits for the reference select, AREF on PORTA (PA0) */
 
 #define NUM_DIGITAL_PINS            18
 
@@ -196,6 +196,8 @@
 // --------------------------------------------
 
 #define DEFAULT_TWI TWIC
+#define TWIC_VECT_ENABLE /* use this to select the correct interrupt vectors */
+
 #define DEFAULT_SPI SPIC
 
 // serial port 0

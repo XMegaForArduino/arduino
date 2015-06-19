@@ -20,6 +20,7 @@
   Boston, MA  02111-1307  USA
 
   Updated for 'xmega' core by bob frazier, S.F.T. Inc. - http://mrp3.com/
+  for the XMegaForArduino project - http://github.com/XMegaForArduino
 
   In some cases, the xmega updates make assumptions about the pin assignments.
   See 'pins_arduino.h' for more detail.
@@ -152,8 +153,52 @@ void pinMode(uint8_t, uint8_t);
 void digitalWrite(uint8_t, uint8_t);
 int digitalRead(uint8_t);
 int analogRead(uint8_t);
-void analogReference(uint8_t mode); // somewhat different for xmega (default is Vcc/2)
+void analogReference(uint8_t mode); // somewhat different for xmega (default is Vcc/2) - see 'enum _analogReference_', below
+                                    // pass only one of THOSE values as 'mode'
 void analogWrite(uint8_t, int);
+
+// special XMEGA-specific functions for the analog inputs
+
+int analogReadDeltaWithGain(uint8_t pin, uint8_t negpin, uint8_t gain);
+// typically 'pin' can be A0 through An, 'negpin' may be restricted but typically A4-A7 or 'ANALOG_READ_DELTA_USE_GND' to use GND
+// NOTE:  On the A-series processors it is NOT possible to use 'diff input with gain' on MORE than A0-A7
+//        On later processors (like D series) it _IS_ possible.
+
+
+#define ANALOG_READ_DELTA_USE_GND 0xff
+
+// there is a bug in several headers for ADC_REFSEL_gm - should be 0x70, not 0x30 (and it gets re-defined, too)
+#ifdef ADC_REFSEL_gm
+#undef ADC_REFSEL_gm
+#endif // ADC_REFSEL_gm
+#define ADC_REFSEL_gm 0x70
+
+enum _analogReference_ // pass to 'analogReference' function - see D manual section 22.14.3, or 28.16.3 in 'AU' manual
+{
+  analogReference_INT1V = (ADC_REFSEL_INT1V_gc),
+  analogReference_PORTA0 = (ADC_REFSEL_AREFA_gc),   // PORT A pin 0 is the AREF
+
+#if !defined (__AVR_ATxmega8E5__) && !defined (__AVR_ATxmega16E5__) && !defined (__AVR_ATxmega32E5__)
+  // these 2 aren't valid for 'E' series
+  analogReference_PORTB0 = (ADC_REFSEL_AREFB_gc),   // PORT B pin 0 is the AREF
+
+  analogReference_VCC = (ADC_REFSEL_VCC_gc),        // VCC / 10, actually
+#endif // E series
+
+#if defined(__AVR_ATxmega64d4__) || defined(__AVR_ATxmega64a1u__) || defined(__AVR_ATxmega128a1u__)
+  analogReference_VCCDIV2 = (ADC_REFSEL_VCCDIV2_gc) // using THIS forces gain to 1/2, so it's rail-rail
+#else
+  analogReference_VCCDIV2 = (0x04<<4) // (ADC_REFSEL_VCCDIV2_gc)
+  // NOTE that for some processor headers, ADC_REFSEL_VCCDIV2_gc is not properly defined
+  // this definition '(0x04<<4)' is taken from the 64d4 header.  it's also THE DEFAULT for max compatibility
+#endif // processors that define ADC_REFSEL_VCCDIV2_gc correctly
+};  
+
+// NOTE: this constant isn't always defined, either
+#ifndef ADC_CH_GAIN_gm
+#define ADC_CH_GAIN_gm  0x1C  /* Gain Factor group mask. */
+#endif // ADC_CH_GAIN_gm
+
 
 unsigned long millis(void);
 unsigned long micros(void);

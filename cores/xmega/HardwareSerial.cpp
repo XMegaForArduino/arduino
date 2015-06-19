@@ -382,6 +382,26 @@ inline char set_not_rts(ring_buffer *buffer)
 //                                                                                                          //
 //////////////////////////////////////////////////////////////////////////////////////////////////////////////
 
+// TODO:  consider re-doing these to use a single ISR, via an ISR macro similar
+//        to the following:
+//
+//        ISR(USARTC0_RXC_vect)
+//        {
+//          ...
+//        }
+//
+//        ISR(USARTD0_RXC_vect, ISR_ALIASOF(USARTC0_RXC_vect));
+//
+//        etc.
+//
+//        then the ISR would figure out 'whatever' for registers, etc. by checking flags
+//        to see who triggered the interrupt.  such common code could more easily allow
+//        for ISR call as currently done via 'call_isr()'.  downside, might run a bit
+//        slower, but probably smaller code.  Alternative to single utility function being
+//        passed the address of the serial port register block in each ISR.
+//
+//        see http://www.nongnu.org/avr-libc/user-manual/group__avr__interrupts.html
+//
 
 SERIAL_0_RXC_ISR // ISR(USARTD0_RXC_vect)
 {

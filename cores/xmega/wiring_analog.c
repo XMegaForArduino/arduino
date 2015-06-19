@@ -31,7 +31,7 @@
 #include "wiring_private.h"
 #include "pins_arduino.h"
 
-#define DEBUG_CODE
+//#define DEBUG_CODE
 #ifdef DEBUG_CODE
 extern void DebugOutL(unsigned long lVal);
 extern void DebugOutP(const void * PROGMEM pStr);
@@ -42,7 +42,16 @@ extern void DebugOutP(const void * PROGMEM pStr);
 #endif // ADCA_SAMPCTRL
 
 
-uint8_t analog_reference = 4;// the default analog reference is Vcc / 2
+uint8_t analog_reference, muxctrl_muxneg; // = ADC_REFSEL2_bp;// the default analog reference is Vcc / 2 (now assigned in adc_setup)
+
+
+// NOTE:  On the A-series processors with more than a handful of inputs,
+//        it is NOT possible to use 'diff input with gain' on MORE than
+//        A0-A7.  On later processors (like D series) it _IS_ possible.
+//        Because of this, the 'hack' that allows rail-rail measurements
+//        is no longer possible on PB0-PB7.  PA0-PA7 will still work.
+//        IF PA0 or PB0 is used as VRef (see 28.16.3 in AU manual) via 'REFCTRL'
+//        then you can read all 15 remaining values with whatever VRef you want.
 
 // adc_setup() - call this from init() and whenever you wake up from sleep mode
 void adc_setup(void)
@@ -66,13 +75,15 @@ void adc_setup(void)
   //   _BV(6) | _BV(5);     // section 22.14.2, 'HIGH' current limit, no apparent bit value constants in iox64d4.h
              // NOTE:  all other bits are zero - no 'freerun', 12-bit right-justified unsigned mode
 
+  analog_reference = 1; // which is NONE of the possibilities
+  ADCA_REFCTRL = 0;     // pre-assign zero to this, as I'll OR bits into it
+
 #ifdef USE_AREF
-  ADCA_REFCTRL = (USE_AREF << ADC_REFSEL_gp) & ADC_REFSEL_gm; // USE_AREF will ALSO be the correct bit assignment for 'REFSEL'
-#else // USE_AREF
-  ADCA_REFCTRL = _BV(ADC_REFSEL2_bp);         // bit 100 --> Vcc/2 as reference
+  analogReference(USE_AREF);
+#else // everything else - NOTE:  do I want to do this different for 'A' series?
+  analogReference(analogReference_VCCDIV2);
 #endif // USE_AREF
-  // NOTE:  all other ADCA_REFCTRL bits are zero (bandgap, tempref) - section 22.14.3
-  // TODO:  use an adjustable 'analog_reference'? (see also 'analogReference()' below)
+
 
   // TODO:  is this actually a RESERVED functionality?
   ADCA_SAMPCTRL = 24; // sect 22.14.8 - this value + 1 is # of "half cycles" used for sampling
@@ -84,38 +95,6 @@ void adc_setup(void)
   ADCA_CH0_SCAN = 0;       // disable scan
   ADCA_CH0_INTCTRL = 0;    // no interrupts, flag on complete sect 22.15.3
 
-  // NOTE:  the E5 has a significant difference in how it handles 'DIFF WITH GAIN'
-  //        ADC_CH_INPUTMODE_DIFFWGAINL_gc uses A0-A3, GND, and internal GND (not same as D and earlier)
-  //        ADC_CH_INPUTMODE_DIFFWGAINH_gc uses A4-A7 and GND (see E manual table 24-16,17 pg 366-7) (similar to D and earlier)
-#if defined (__AVR_ATxmega16E5__) || defined (__AVR_ATxmega32E5__)
-
-#ifdef USE_AREF
-  // 'E' series has 2 modes for 'diff with gain', each using a different set of inputs (so A0-A3 for L, and A4-A7 for H mode)
-#define ASSIGN_ADCA_CH0_CTRL ADC_CH_INPUTMODE_DIFFWGAINH_gc | /* MUXNEG 111b aka '7' still picks "GND" for 'diff with gain' for this one */ \
-                             ADC_CH_GAIN_1X_gc;               /* 1X gain when I'm using 'AREF' */
-#define MUXCTRL_MUXNEG 7 /* bits 111 which is GND for MUXNEG - see E manual 24.15.2 */
-#else // USE_AREF
-  // 'E' series has 2 modes for 'diff with gain', each using a different set of inputs (so A0-A3 for L, and A4-A7 for H mode)
-#define ASSIGN_ADCA_CH0_CTRL ADC_CH_INPUTMODE_DIFFWGAINH_gc | /* MUXNEG 111b aka '7' still picks "GND" for 'diff with gain' for this one */ \
-                             ADC_CH_GAIN_DIV2_gc;             /* (see 24.15.1 in E manual) */
-#define MUXCTRL_MUXNEG 7 /* bits 111 which is GND for MUXNEG - see E manual 24.15.2 */
-#endif // USE_AREF
-
-#else // everything else not an 'E' series
-
-#ifdef USE_AREF /* this is the same for 'A' series and 'D' series - double-check others */
-#define ASSIGN_ADCA_CH0_CTRL ADC_CH_INPUTMODE_DIFF_gc | /* no gain if I use 'AREF' */ \
-                             ADC_CH_GAIN_1X_gc;         /* (see 22.15.1 in D manual, 28.17.1 in A manual) */
-#define MUXCTRL_MUXNEG 5 /* bits 101 which is GND for MUXNEG - see D manual 22.15.2, A manual 28.17.2 */
-#else // USE_AREF
-#define ASSIGN_ADCA_CH0_CTRL ADC_CH_INPUTMODE_DIFFWGAIN_gc | /* use gain of 1/2 if I don't use 'AREF' */ \
-                             ADC_CH_GAIN_DIV2_gc;            /* (see 22.15.1 in D manual, 28.17.1 in A manual) */
-#define MUXCTRL_MUXNEG 7 /* bits 111 which is GND for MUXNEG - see D manual 22.15.2, A manual 28.17.2 */
-#endif // USE_AREF
-
-#endif
-
-  ADCA_CH0_CTRL = ASSIGN_ADCA_CH0_CTRL;
 
   // clear interrupt flag (probably not needed)
   ADCA_INTFLAGS = _BV(ADC_CH0IF_bp); // write a 1 to the interrupt bit (which clears it - 22.14.6)
@@ -127,21 +106,96 @@ void adc_setup(void)
 // ADCA.CALH = readCalibrationData(&PRODSIGNATURES_ADCACAL1);
 }
 
-void analogReference(uint8_t mode)
+
+// see _analogReference_ enum
+
+static uint8_t normal_adca_ch0_ctrl_bits(void) // also assigns 'muxctrl_muxneg'
 {
-  // can't actually set the register here because the default setting
-  // will connect AVCC and the AREF pin, which would cause a short if
-  // there's something connected to AREF.
+#if defined (__AVR_ATxmega8E5__) || defined (__AVR_ATxmega16E5__) || defined (__AVR_ATxmega32E5__)
 
-  // NOTE: on atmega, this is definitely the case.  On xmega, there's no 'AREF' output.
+  // NOTE:  the E5 has a significant difference in how it handles 'DIFF WITH GAIN'
+  //        ADC_CH_INPUTMODE_DIFFWGAINL_gc uses A0-A3, GND, and internal GND (not same as D and earlier)
+  //        ADC_CH_INPUTMODE_DIFFWGAINH_gc uses A4-A7 and GND (see E manual table 24-16,17 pg 366-7) (similar to D and earlier)
 
-  analog_reference = mode;
+  if(analog_reference == analogReference_VCCDIV2)
+  {
+    return ADC_CH_INPUTMODE_DIFFWGAINH_gc | ADC_CH_GAIN_DIV2_gc; // gain of 1/2 for VCC/2
+  }
+  else
+  {
+    return ADC_CH_INPUTMODE_DIFFWGAINH_gc | ADC_CH_GAIN_1X_gc;
+  }
 
-  // valid xmega modes are 0-4 (5-7 are reserved)
+#else // everything NOT an 'E' series
 
-//  ADCA_REFCTRL = (ADCA_REFCTRL & ~ADC_REFSEL_gm)
-//               | ((mode & 7) << ADC_REFSEL_gp);         // section 22.14.3
+  if(analog_reference == analogReference_VCCDIV2)
+  {
+    // NOTE:  On the A-series processors with more than a handful of inputs,
+    //        it is NOT possible to use 'diff input with gain' on MORE than
+    //        A0-A7.  On later processors (like D series) it _IS_ possible.
+    //        Because of this, the 'hack' that allows rail-rail measurements
+    //        is no longer possible on PB0-PB7.  PA0-PA7 will still work.
+    //        IF PA0 or PB0 is used as VRef (see 28.16.3 in AU manual) via 'REFCTRL'
+    //        then you can read all 15 remaining values with whatever VRef you want.
+
+    return ADC_CH_INPUTMODE_DIFFWGAIN_gc | ADC_CH_GAIN_DIV2_gc; // gain of 1/2 for VCC/2
+  }
+  else
+  {
+    // NOTE:  this one uses a different 'muxneg' (see below, 'analogReference()')
+
+    return ADC_CH_INPUTMODE_DIFF_gc | ADC_CH_GAIN_1X_gc;
+  }
+
+#endif // E series or not
 }
+
+void analogReference(uint8_t bMode)
+{
+  if((bMode & ADC_REFSEL_gm) != bMode)
+  {
+    bMode &= ADC_REFSEL_gm;
+  }
+
+  if(bMode != analog_reference)
+  {
+    analog_reference = bMode;
+
+    // changes to this must be reflected in ADCA_REFCTRL and ADCA_CH0_MUXCTRL
+    // when I read a specific pin.  I assign the 'muxneg' bits according muxctrl_muxneg
+
+    ADCA_REFCTRL = (ADCA_REFCTRL & ~(ADC_REFSEL_gm))
+                 | analog_reference       // section 22.14.3, or 28.16.3 in 'AU' manual
+                 | ADC_BANDGAP_bm;        // enable 'bandgap' i.e. 1V reference
+
+    // NOTE:  all other ADCA_REFCTRL bits are zero (like tempref) - section 22.14.3
+
+    // ASSIGNING ADCA_CH0_CTRL and muxctrl_muxneg
+
+    ADCA_CH0_CTRL = normal_adca_ch0_ctrl_bits();
+
+    // assign 'muxneg' according to what teh analog reference is
+
+#if defined (__AVR_ATxmega8E5__) || (__AVR_ATxmega16E5__) || defined (__AVR_ATxmega32E5__)
+
+    muxctrl_muxneg = 7; /* bits 111 which is GND for MUXNEG - see E manual 24.15.2 */
+
+#else // everything NOT an 'E' series
+
+    if(analog_reference == analogReference_VCCDIV2)
+    {
+      muxctrl_muxneg = 7; /* bits 111 which is GND for MUXNEG - see D manual 22.15.2, A manual 28.17.2 */
+    }
+    else
+    {
+      muxctrl_muxneg = 5; /* bits 101 which is GND for MUXNEG - see D manual 22.15.2, A manual 28.17.2 */
+    }
+
+#endif // E series or not
+
+  }
+}
+
 
 // For 100% atmega compatibility, analogRead will return a value of 0-1023
 // for input voltages of 0 to Vcc (assuming AVCC is connected to VCC, etc.)
@@ -171,7 +225,7 @@ int analogRead(uint8_t pin)
 
     if(pin >= NUM_ANALOG_INPUTS)
     {
-      return; // not a valid analog input
+      return 0; // not a valid analog input
     }
 
 #ifdef analogInputToAnalogPin
@@ -181,6 +235,7 @@ int analogRead(uint8_t pin)
 
   // ANALOG REFERENCE - in some cases I can map one of the analog inputs
   //                    as an analog reference.  For now, assume it's Vcc/2.
+
   // NOTE:  On the A-series processors with more than a handful of inputs,
   //        it is NOT possible to use 'diff input with gain' on MORE than
   //        A0-A7.  On later processors (like D series) it _IS_ possible.
@@ -192,7 +247,7 @@ int analogRead(uint8_t pin)
 
   ADCA_CH0_SCAN = 0; // disable scan
   ADCA_CH0_MUXCTRL = (pin << ADC_CH_MUXPOS_gp) // sect 22.15.2 in 'D' manual, 28.17.2 in 'A' manual, 24.15.2 in 'E' manual
-                   | MUXCTRL_MUXNEG; // GND is the 'other input' (NOTE:  this is MUXNEG, can be changed)
+                   | muxctrl_muxneg;           // typically, GND is the 'other input' (change via 'analogReference()')
 
   ADCA_CH0_INTCTRL = 0;    // no interrupts, flag on complete sect 22.15.3
 
@@ -202,12 +257,11 @@ int analogRead(uint8_t pin)
   ADCA_CH0_INTFLAGS = ADC_CH_CHIF_bm; // write a 1 to the interrupt bit (which clears it - 22.15.4)
 #endif // ADC_CH_IF_bm
 
-// old code, for reference
-//  ADCA_CH0_CTRL = ADC_CH_START_bm       // conversion start
-//                | ADC_CH_INPUTMODE0_bm; // zero gain and input mode '01' (see 22.15.1)
+  // NOTE:  this will clear any re-assigned gain bits, etc.
+  //        (if you want to preserve those, need to call 'analogReadDeltaWithGain()')
 
-  ADCA_CH0_CTRL = ADC_CH_START_bm |       // conversion start
-                  ASSIGN_ADCA_CH0_CTRL;   // defined above on a per-cpu with pins_arduino.h modifications to select gain+mode
+  ADCA_CH0_CTRL = normal_adca_ch0_ctrl_bits()
+                | ADC_CH_START_bm;  // conversion start (bit will clear itself I think)
 
 #ifdef ADC_CH_IF_bm /* iox16e5.h and iox32e5.h - probably the ATMel Studio version */
   while(!(ADCA_CH0_INTFLAGS & ADC_CH_IF_bm)) { }
@@ -222,8 +276,194 @@ int analogRead(uint8_t pin)
     return 0;
   }
 
-  return iRval / 2;  // -1023 to 1023 [TODO:  clip at zero?]
+  return iRval / 2;  // -1023 to 1023 but clipped at zero (so 0 to 1023 only)
 }
+
+// THIS function returns a full 12-bit signed integer value (no scaling)
+int analogReadDeltaWithGain(uint8_t pin, uint8_t negpin, uint8_t gain)
+{
+short iRval;
+uint8_t mode;
+
+  // this is pure XMEGA code
+  // NOTE:  On the A-series processors with more than a handful of inputs,
+  //        it is NOT possible to use 'diff input with gain' on MORE than
+  //        A0-A7.  On later processors (like D series) it _IS_ possible.
+
+  // TODO: check for A0-A7 for 'pin' for A series?
+
+
+  if(pin >= A0)
+  {
+    if(pin >= (NUM_ANALOG_INPUTS + A0)) // pin number too high?
+    {
+      return 0; // not a valid analog input
+    }
+#ifdef analogInputToAnalogPin
+    pin = analogInputToAnalogPin(pin);
+#else // analogInputToAnalogPin
+    pin -= A0; // this works when PA0-PA7 and PB0-PBn are in sequence for A0-An
+#endif // analogInputToAnalogPin
+  }
+  else
+  {
+    // NOTE:  for pins less than 'A0', assume it's referring to the analog index (0 to NUM_ANALOG_INPUTS-1)
+
+    if(pin >= NUM_ANALOG_INPUTS)
+    {
+      return; // not a valid analog input
+    }
+
+#ifdef analogInputToAnalogPin
+    pin = analogInputToAnalogPin(pin + A0); // calc pin number (might not have 0 mapped to A0)
+#endif // analogInputToAnalogPin
+  }
+
+#if defined (__AVR_ATxmega8E5__) || defined (__AVR_ATxmega16E5__) || defined (__AVR_ATxmega32E5__)
+
+  // NOTE:  the E5 has a significant difference in how it handles 'DIFF WITH GAIN'
+  //        ADC_CH_INPUTMODE_DIFFWGAINL_gc uses A0-A3, GND, and internal GND (not same as D and earlier)
+  //        ADC_CH_INPUTMODE_DIFFWGAINH_gc uses A4-A7 and GND (see E manual table 24-16,17 pg 366-7) (similar to D and earlier)
+
+  if(negpin != ANALOG_READ_DELTA_USE_GND)
+  {
+    if(negpin >= A0)
+    {
+#ifdef analogInputToAnalogPin
+      negpin = analogInputToAnalogPin(negpin);
+#else // analogInputToAnalogPin
+      negpin -= A0; // this works when PA0-PA7 and PB0-PBn are in sequence for A0-An
+#endif // analogInputToAnalogPin
+    }
+    else
+    {
+      if(pin >= NUM_ANALOG_INPUTS)
+      {
+        return 0; // not a valid analog input
+      }
+
+#ifdef analogInputToAnalogPin
+      pin = analogInputToAnalogPin(pin + A0); // calc pin number (might not have 0 mapped to A0)
+#endif // analogInputToAnalogPin
+    }
+    
+    if(negpin >= 0 && negpin <= 3)
+    {
+      mode = ADC_CH_INPUTMODE_DIFFWGAINL_gc;
+    }
+    else if(negpin > 7)
+    {
+      return 0; // dis-allowed combination
+    }
+    else
+    {
+      mode = ADC_CH_INPUTMODE_DIFFWGAINH_gc;
+
+      negpin -= 4; // so that it's 0-3
+    }
+  }
+
+#else // NOT an 'E5'
+
+  mode = ADC_CH_INPUTMODE_DIFFWGAIN_gc;
+
+  // now for the negative pin, which will depend on a number of things
+  if(negpin != ANALOG_READ_DELTA_USE_GND)
+  {
+    if(negpin >= A0)
+    {
+#ifdef analogInputToAnalogPin
+      negpin = analogInputToAnalogPin(negpin);
+#else // analogInputToAnalogPin
+      negpin -= A0; // this works when PA0-PA7 and PB0-PBn are in sequence for A0-An
+#endif // analogInputToAnalogPin
+    }
+    else
+    {
+      if(pin >= NUM_ANALOG_INPUTS)
+      {
+        return 0; // not a valid analog input
+      }
+
+#ifdef analogInputToAnalogPin
+      pin = analogInputToAnalogPin(pin + A0); // calc pin number (might not have 0 mapped to A0)
+#endif // analogInputToAnalogPin
+    }
+    
+
+    if(negpin >= 0 && negpin <= 3 && gain != ADC_CH_GAIN_1X_gc) // allow this *IF* gain is 1X
+    {
+      return 0; // dis-allowed combination      
+    }
+    else if(negpin >= 0 && negpin <= 3)
+    {
+      mode = ADC_CH_INPUTMODE_DIFF_gc; // just 'diff' mode, with 1X gain, for A0 to A3
+    }
+    else if(negpin > 7)
+    {
+      return 0; // dis-allowed combination
+    }
+    else
+    {
+      negpin -= 4; // so that it's 0-3
+    }
+  }
+
+#endif // 'E' series, or not
+
+  ADCA_CH0_SCAN = 0; // disable scan
+
+  // NOTE:  assume 'CONVMODE' (CTRLB) is set to 'Signed'
+  if(negpin == ANALOG_READ_DELTA_USE_GND)
+  {
+    ADCA_CH0_MUXCTRL = (pin << ADC_CH_MUXPOS_gp) // sect 22.15.2 in 'D' manual, 28.17.2 in 'A' manual, 24.15.2 in 'E' manual
+                     | muxctrl_muxneg;           // what I do for single-ended reads, but "with gain"
+  }
+  else
+  {
+    ADCA_CH0_MUXCTRL = (pin << ADC_CH_MUXPOS_gp) // sect 22.15.2 in 'D' manual, 28.17.2 in 'A' manual, 24.15.2 in 'E' manual
+                     | negpin;                   // DIFF or 'DIFF WITH GAIN' uses this
+  }
+
+  ADCA_CH0_INTCTRL = 0;    // no interrupts, flag on complete sect 22.15.3
+
+#ifdef ADC_CH_IF_bm /* iox16e5.h and iox32e5.h - probably the ATMel Studio version */
+  ADCA_CH0_INTFLAGS = ADC_CH_IF_bm; // write a 1 to the interrupt bit (which clears it - 22.15.4)
+#else // everyone else
+  ADCA_CH0_INTFLAGS = ADC_CH_CHIF_bm; // write a 1 to the interrupt bit (which clears it - 22.15.4)
+#endif // ADC_CH_IF_bm
+
+
+  if(negpin == ANALOG_READ_DELTA_USE_GND)
+  {
+    // NOTE:  On the A-series processors with more than a handful of inputs,
+    //        it is NOT possible to use 'diff input with gain' on MORE than
+    //        A0-A7.  On later processors (like D series) it _IS_ possible.
+
+    ADCA_CH0_CTRL = mode // ADC_CH_INPUTMODE_DIFFWGAIN_gc
+                  | (gain & ADC_CH_GAIN_gm)
+                  | ADC_CH_START_bm;  // conversion start (bit will clear itself I think)
+  }
+  else
+  {
+    ADCA_CH0_CTRL = mode // ADC_CH_INPUTMODE_DIFFWGAIN_gc
+                  | (gain & ADC_CH_GAIN_gm)
+                  | ADC_CH_START_bm;  // conversion start (bit will clear itself I think)
+  }
+
+#ifdef ADC_CH_IF_bm /* iox16e5.h and iox32e5.h - probably the ATMel Studio version */
+  while(!(ADCA_CH0_INTFLAGS & ADC_CH_IF_bm)) { }
+#else // everyone else
+  while(!(ADCA_CH0_INTFLAGS & ADC_CH_CHIF_bm)) { }
+#endif // ADC_CH_IF_bm
+
+  iRval = ADCA_CH0_RES;
+
+  // TODO:  scaling and clipping if needed, else +/- 2047
+
+  return iRval;
+}
+
 
 // Right now, PWM output only works on the pins with hardware support.
 // These are defined in the appropriate pins_arduino.h file.  For the

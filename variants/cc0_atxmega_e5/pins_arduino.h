@@ -176,6 +176,7 @@
 // --------------------------------------------
 
 #define DEFAULT_TWI TWIC
+#define TWIC_VECT_ENABLE /* use this to select the correct interrupt vectors */
 
 // serial port 0
 #define SERIAL_0_PORT_NAME PORTD
