@@ -48,8 +48,8 @@ use in your own work, provided that you include a copyright statement similar
 to the following:
 
 
-  Portions of this work have been used by permission from the XMegaForArduino
-  project and are Copyright (c) 2015 by S.F.T. Inc. - all rights reserved
+&nbsp;&nbsp;Portions of this work have been used by permission from the XMegaForArduino<br>
+&nbsp;&nbsp;project and are Copyright (c) 2015 by S.F.T. Inc. - all rights reserved
 
 
 So if you simply included portions of the 'clock setup' code for the XMEGA
