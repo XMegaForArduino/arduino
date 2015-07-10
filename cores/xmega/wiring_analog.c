@@ -184,10 +184,12 @@ void analogReference(uint8_t bMode)
 
     if(analog_reference == analogReference_VCCDIV2)
     {
+      // analog delta WITH GAIN always uses this
       muxctrl_muxneg = 7; /* bits 111 which is GND for MUXNEG - see D manual 22.15.2, A manual 28.17.2 */
     }
     else
     {
+      // analog delta WITHOUT GAIN uses THIS
       muxctrl_muxneg = 5; /* bits 101 which is GND for MUXNEG - see D manual 22.15.2, A manual 28.17.2 */
     }
 
@@ -416,8 +418,21 @@ uint8_t mode;
   // NOTE:  assume 'CONVMODE' (CTRLB) is set to 'Signed'
   if(negpin == ANALOG_READ_DELTA_USE_GND)
   {
+#if defined (__AVR_ATxmega8E5__) || (__AVR_ATxmega16E5__) || defined (__AVR_ATxmega32E5__)
     ADCA_CH0_MUXCTRL = (pin << ADC_CH_MUXPOS_gp) // sect 22.15.2 in 'D' manual, 28.17.2 in 'A' manual, 24.15.2 in 'E' manual
-                     | muxctrl_muxneg;           // what I do for single-ended reads, but "with gain"
+                     | 7; /* bits 111 which is GND for MUXNEG - see E manual 24.15.2 */
+#else // everything NOT an 'E' series
+    if(mode == ADC_CH_INPUTMODE_DIFFWGAIN_gc)
+    {
+      ADCA_CH0_MUXCTRL = (pin << ADC_CH_MUXPOS_gp) // sect 22.15.2 in 'D' manual, 28.17.2 in 'A' manual, 24.15.2 in 'E' manual
+                       | 7;  /* bits 111 which is GND for MUXNEG - see D manual 22.15.2, A manual 28.17.2 */
+    }
+    else
+    {
+      ADCA_CH0_MUXCTRL = (pin << ADC_CH_MUXPOS_gp) // sect 22.15.2 in 'D' manual, 28.17.2 in 'A' manual, 24.15.2 in 'E' manual
+                       | 5;  /* bits 101 which is GND for MUXNEG - see D manual 22.15.2, A manual 28.17.2 */
+    }
+#endif // E series or not
   }
   else
   {
