@@ -313,7 +313,7 @@ uint8_t mode;
 
     if(pin >= NUM_ANALOG_INPUTS)
     {
-      return; // not a valid analog input
+      return 0; // not a valid analog input
     }
 
 #ifdef analogInputToAnalogPin
@@ -339,13 +339,13 @@ uint8_t mode;
     }
     else
     {
-      if(pin >= NUM_ANALOG_INPUTS)
+      if(negpin >= NUM_ANALOG_INPUTS)
       {
         return 0; // not a valid analog input
       }
 
 #ifdef analogInputToAnalogPin
-      pin = analogInputToAnalogPin(pin + A0); // calc pin number (might not have 0 mapped to A0)
+      negpin = analogInputToAnalogPin(negpin + A0); // calc pin number (might not have 0 mapped to A0)
 #endif // analogInputToAnalogPin
     }
     
@@ -382,13 +382,13 @@ uint8_t mode;
     }
     else
     {
-      if(pin >= NUM_ANALOG_INPUTS)
+      if(negpin >= NUM_ANALOG_INPUTS)
       {
         return 0; // not a valid analog input
       }
 
 #ifdef analogInputToAnalogPin
-      pin = analogInputToAnalogPin(pin + A0); // calc pin number (might not have 0 mapped to A0)
+      negpin = analogInputToAnalogPin(negpin + A0); // calc pin number (might not have 0 mapped to A0)
 #endif // analogInputToAnalogPin
     }
     
@@ -491,6 +491,11 @@ static void DoAnalogWriteForPort(TC2_t *port, uint8_t bit, uint8_t val);
 #else // TCC0
 static void DoAnalogWriteForPort(TC0_t *port, uint8_t bit, uint8_t val);
 #endif // TCC4, TCC2, TCC0
+
+// NOTE:  for the xxE5, only 3, 4, 8, 9 seem to work properly with the default configuration
+//        that would be PORTD pins 4 and 5, and PORTC pins 2 and 3.  PORTC pins 0 and 1
+//        are mapped to the TWI pins SDA and SCL.  As such, PORTD pins 4 and 5, and PORTC pins 0-3
+//        will be allowed.  Others will not.  PORTD pins 6 and 7 are 'erratic' at best.
 
 void analogWrite(uint8_t pin, int val)
 {

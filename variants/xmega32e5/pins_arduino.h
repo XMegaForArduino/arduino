@@ -580,12 +580,17 @@ const uint8_t PROGMEM digital_pin_to_bit_mask_PGM[] = {
 };
 
 
+
+
 const uint8_t PROGMEM digital_pin_to_timer_PGM[] = {
   // TIMERS
   // -------------------------------------------
   // The timers on the E5 are a bit different than the others
   // Since TIMERD5 only goes tp PD4, PD5, PD6, PD7, I have to
-  // map them to places that have PWM.
+  // map them to places that have PWM.  Also, PD6 and PD7 don't
+  // seem to work very well.  PC0 through PC3 work pretty well,
+  // but PC0 and PC1 are TWI pins.  As such, the mapping won't
+  // work very well if Arduino compatibility is desired.
 
 #ifndef DIGITAL_IO_PIN_SHIFT
   NOT_ON_TIMER,  // PD 0 ** 0 **
@@ -599,8 +604,8 @@ const uint8_t PROGMEM digital_pin_to_timer_PGM[] = {
 #endif // DIGITAL_IO_PIN_SHIFT
   TIMERD5,       // PD 4 ** 4 ** PWM 3
   TIMERD5,       // PD 5 ** 5 ** PWM 4
-  TIMERD5,       // PD 6 ** 6 ** PWM 5
-  TIMERD5,       // PD 7 ** 7 ** PWM 6
+  NOT_ON_TIMER,  //TIMERD5,       // PD 6 ** 6 ** PWM 5
+  NOT_ON_TIMER,  //TIMERD5,       // PD 7 ** 7 ** PWM 6
 #ifdef DIGITAL_IO_PIN_SHIFT
   NOT_ON_TIMER,  // PD 1 ** 9 **
 #else // no pin shifting
@@ -609,11 +614,11 @@ const uint8_t PROGMEM digital_pin_to_timer_PGM[] = {
 #endif // DIGITAL_IO_PIN_SHIFT
   TIMERC4,       // PC 2 ** 10 **
   TIMERC4,       // PC 3 ** 11 **
-  TIMERC4,       // PC 4 ** 12 ** SPI_SS
+  NOT_ON_TIMER,  //TIMERC4,       // PC 4 ** 12 ** SPI_SS
 // NOTE:  timer doesn't change with DIGITAL_IO_PIN_SHIFT
-  TIMERC4,       // PC 5 ** 13 ** SPI_SCK
-  TIMERC4,       // PC 6 ** 14 ** SPI_MISO
-  TIMERC4,       // PC 7 ** 15 ** SPI_MOSI
+  NOT_ON_TIMER,  //TIMERC4,       // PC 5 ** 13 ** SPI_SCK
+  NOT_ON_TIMER,  //TIMERC4,       // PC 6 ** 14 ** SPI_MISO
+  NOT_ON_TIMER,  //TIMERC4,       // PC 7 ** 15 ** SPI_MOSI
 // NOTE:  'not on timer' doesn't change with DIGITAL_IO_PIN_SHIFT
   NOT_ON_TIMER,  // PR 0 ** 16 **
   NOT_ON_TIMER,  // PR 1 ** 17 ** default LED
