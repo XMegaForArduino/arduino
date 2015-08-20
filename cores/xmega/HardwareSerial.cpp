@@ -1031,8 +1031,8 @@ uint16_t temp_get_baud(unsigned long baud, uint8_t use_u2x)
 uint16_t i1;
 static const unsigned long aBaud[] PROGMEM = // standard baud rates
 {
-  2400, 4800, 9600, 14400, 19200, 28800, 38400, 57600,
-  76800, 115200, 230400, 460800, 921600
+  2400, 4800, 9600, 14400, 19200, 28800, 31250,
+  38400, 57600, 76800, 115200, 230400, 460800, 921600
 };
 
 static const uint16_t a2x[] PROGMEM = // 2x constants for standard baud rates
@@ -1043,6 +1043,7 @@ static const uint16_t a2x[] PROGMEM = // 2x constants for standard baud rates
   (1 << 12) | 138,  // 14400
   (4 << 12) | 12,   // 19200
   138,              // 28800
+  (2 << 12) | 31,   // 31250 - MIDI baud rate
   (3 << 12) | 12,   // 38400
   (uint16_t)(-1 << 12) | 137, // 57600
   (2 << 12) | 12,   // 76800
@@ -1060,6 +1061,7 @@ static const uint16_t a1x[] PROGMEM = // 1x constants for standard baud rates
   138,              // 14400
   (3 << 12) | 12,   // 19200
   (uint16_t)(-1 << 12) | 137, // 28800
+  (1 << 12) | 31,   // 31250 - MIDI baud rate
   (2 << 12) | 12,   // 38400
   (uint16_t)(-2 << 12) | 135, // 57600
   (1 << 12) | 12,   // 76800
@@ -1099,6 +1101,8 @@ static const uint16_t a1x[] PROGMEM = // 1x constants for standard baud rates
   //
   // find 'best fit baud' by calculating the best 'bscale' and 'bsel' for a given baud
   // bscale is -7 through +7 so this can be done in a simple loop
+  // I determined that using floating point is almost MANDATORY to make this work.  scaled ints
+  // would work too.  But it's likely to take up WAY TOO MUCH SPACE in the NVRAM to be practical.
 
   return 1; // for now [half the maximum baud rate]
 }
