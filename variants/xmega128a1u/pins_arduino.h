@@ -122,6 +122,68 @@
 //#define digitalPinToInterrupt(p)  ((p) == 2 ? 0 : ((p) == 3 ? 1 : NOT_AN_INTERRUPT))
 
 
+//////////////////////////////////////////////////////////////////////////////
+//                                                                          //
+//                            _   _  ____   ____                            //
+//                           | | | |/ ___| | __ )                           //
+//                           | | | |\___ \ |  _ \                           //
+//                           | |_| | ___) || |_) |                          //
+//                            \___/ |____/ |____/                           //
+//                                                                          //
+//                                                                          //
+//////////////////////////////////////////////////////////////////////////////
+//                                                                          //
+// USB support code and definitions go here.  This affects a lot of things  //
+// This file is otherwise identical to the non-u-suffix version.            //
+//                                                                          //
+// The USB Vendor and Product ID values are for the Arduino Mega 2560       //
+//     DO! NOT! USE! THEM! OUTSIDE! OF! PERSONAL! EXPERIMENTATION!          //
+// In particular, do NOT distribute ANY products or firmware using them!    //
+// The ONLY reason they are here is so that your device will actually WORK  //
+// when you plug it in (assuming you have a driver for the Mega 2560)       //
+//                                                                          //
+// If you need a FREE USB Vendor/Product ID set, you can visit THIS site:   //
+//   http://wiki.openmoko.org/wiki/USB_Product_IDs                          //
+//                                                                          //
+//////////////////////////////////////////////////////////////////////////////
+
+#define USBCON /* says I have a USB controller, modifies startup code and default serial port accordingly */
+
+// if there are no boards.txt entries for the USB VID or PID, they'll be defined as 'null'
+#ifdef USB_VID
+#if USB_VID==null
+#undef USB_VID
+#endif // USB_VID==null
+#endif // USB_VID
+
+#ifdef USB_PID
+#if USB_PID==null
+#undef USB_PID
+#endif // USB_PID==null
+#endif // USB_PID
+
+#ifndef USB_VID
+// NOTE:  you can eliminate the warnings by making a copy of this for your own variant
+//        but REMEMBER! YOU! MUST! CHANGE! THE! IDS!
+
+#warning using Arduino Mega2560 USB Vendor ID - do NOT ship product with these IDs
+#define USB_VID 0x2341 /* this is the Arduino vendor ID - you should probably get your own */
+#warning using Arduino Mega2560 USB Vendor ID - do NOT ship product with these IDs
+#endif // USB_VID
+
+#ifndef USB_PID
+// NOTE:  you can eliminate the warnings by making a copy of this for your own variant
+//        but REMEMBER! YOU! MUST! CHANGE! THE! IDS!
+
+#warning using Arduino Mega2560 USB Product ID - do NOT ship product with these IDs
+#define USB_PID 0x0010 /* this is the Arduino Mega2560 R3 product ID - you should probably use your own */
+#warning using Arduino Mega2560 USB Product ID - do NOT ship product with these IDs
+#endif // USB_PID
+
+#define CDC_ENABLED    /* this switches to device class 2, useful for serial I/O implementations */
+
+
+
 // xmega-specific - Interrupt 'vector number' assignments:
 
 // Interrupts are PORT-SPECIFIC, not pin specific.

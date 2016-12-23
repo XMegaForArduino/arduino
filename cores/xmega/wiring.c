@@ -881,12 +881,23 @@ void init()
   // DISABLE TWI (specifically TWI interrupts)
   // -----------------------------------------
 
+#ifdef TWIC_CTRL
   TWIC_MASTER_CTRLA = 0;
   TWIC_SLAVE_CTRLA = 0;
-#if NUM_DIGITAL_PINS > 18 /* meaning there is a PORT E available */
+#endif // TWIC_CTRL
+#ifdef TWID_CTRL
+  TWID_MASTER_CTRLA = 0;
+  TWID_SLAVE_CTRLA = 0;
+#endif // TWID
+//#if NUM_DIGITAL_PINS > 18 /* meaning there is a PORT E available */
+#ifdef TWIE_CTRL
   TWIE_MASTER_CTRLA = 0;
   TWIE_SLAVE_CTRLA = 0;
-#endif // NUM_DIGITAL_PINS > 18
+#endif // TWIE_CTRL
+#ifdef TWIF_CTRL
+  TWIF_MASTER_CTRLA = 0;
+  TWIF_SLAVE_CTRLA = 0;
+#endif // TWIF
 
   // --------------------
   // DISABLE SERIAL PORTS

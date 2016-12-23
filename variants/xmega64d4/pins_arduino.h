@@ -91,10 +91,8 @@
 //
 #define DIGITAL_IO_PIN_SHIFT /* COMMENT THIS to disable the shifting of digital pin assignments for Arduino shield compatibility */
 
-
-// TWIE may not work properly.  To make use of TWIC for 2-wire, it needs to be re-mapped
+// default two-wire port is TWIC.  '#define'ing USE_TWIC maps it to digital pins 20 and 21.  Only valid with DIGITAL_IO_PIN_SHIFT '#define'd
 #define USE_TWIC /* define this to re-map TWIC to digital pins 20 and 21, similar to an Arduino Mega2560.  requires DIGITAL_IO_PIN_SHIFT */
-
 
 
 #define NUM_DIGITAL_PINS            22
@@ -157,8 +155,8 @@
 // The default UART is assigned on Port D, pins PD2-3
 // The default SPI is assigned on Port C, pins PC4-7
 //
-// Also there are multiple 2-wire ports, the default being assigned to PE0-1
-// TODO:  assign to PC0-1 (TWIC) since TWIE appears to be broke-dick
+// Also there are multiple 2-wire ports, the default being assigned to PC0-1
+// see definition for DEFAULT_TWI and USE_TWIC
 //
 // Standard GPIO pins are assigned as follows:
 // PD0-7 Digital 0-7
@@ -173,6 +171,9 @@
 // you don't have to re-map pin numbers with #defines in existing software that hard-codes them
 // or makes assumptions about pin numbers vs functionality [except TWI won't ever match up]
 //
+// '#define'ing USE_TWIC puts PC0-1 on 20-21 (corresponding to TWI pins on later Arduinos)
+//
+//
 // ALL PORT REMAP registers must be assigned to 0 (default mappings for pins)
 // this puts PWM output on pins 0-3 for PORT E (the timers are split for C and D)
 // Additionally, CLKOUT should be 0 (no clock outputs on any port/pin).
@@ -186,12 +187,28 @@
 // See 'D' manual chapter 13 for more on this
 
 
-// --------------------------------------------
-// DEFINITIONS FOR SERIAL PORTS AND DEFAULT TWI
-// --------------------------------------------
+// ------------------------------------------
+// DEFINITIONS FOR SERIAL PORTS AND TWI PORTS
+// ------------------------------------------
 
-#define DEFAULT_TWI TWIC
-#define TWIC_VECT_ENABLE /* use this to select the correct interrupt vectors */
+
+// TWI ports
+#define DEFAULT_TWI TWIC /* note see definitions for SDA and SCL, below - alter accordingly */
+
+// the XMega64D4 has two TWI ports
+#define TWI_PORT0 TWIC
+#define TWI_VECTOR_S0 TWIC_TWIS_vect
+#define TWI_VECTOR_M0 TWIC_TWIM_vect
+#define TWI_PORT1 TWIE
+#define TWI_VECTOR_S1 TWIE_TWIS_vect
+#define TWI_VECTOR_M1 TWIE_TWIM_vect
+
+#define TWI_INTERFACE_COUNT 2
+
+
+// obsolete - consider removal in all of them
+//#define TWIC_VECT_ENABLE /* use this to select the correct interrupt vectors for default */
+
 
 // serial port 0
 #define SERIAL_0_PORT_NAME PORTD
@@ -222,7 +239,7 @@
 // For atmega/Arduino shield compatibility, with DIGITAL_IO_PIN_SHIFT defined
 // typical board/pin layout might be like this (for shield pins):
 //
-// NOTE:  this design assumes USE_TWIC is defined, so TWI is on TWIC (port C pins 0/1)
+// NOTE:  this design/layout assumes USE_TWIC is defined, so TWI is on TWIC (port C pins 0/1)
 //
 //               M M
 //             S I O   T R
@@ -284,9 +301,26 @@ static const uint8_t MOSI1 = 3;
 static const uint8_t MISO1 = 4;
 static const uint8_t SCK1  = 5;
 
-// default 2-wire on PC0,PC1 - TWIC (TWIE appears to be broken)
+// default 2-wire on PC0,PC1 - TWIC
+#ifdef USE_TWIC
 static const uint8_t SDA = 20;
 static const uint8_t SCL = 21;
+#else // !USE_TWIC
+static const uint8_t SDA = 6;
+static const uint8_t SCL = 7;
+#endif // USE_TWIC
+
+// port-specific 2-wire
+#ifdef USE_TWIC
+static const uint8_t SDA0 = 20;
+static const uint8_t SCL0 = 21;
+#else // !USE_TWIC
+static const uint8_t SDA0 = 6;
+static const uint8_t SCL0 = 7;
+#endif // USE_TWIC
+static const uint8_t SDA1 = 14;
+static const uint8_t SCL1 = 15;
+
 
 // keep track of the indices for port R since its control register
 // settings should be slightly different - D manual table 11-6
@@ -318,6 +352,10 @@ static const uint8_t SCK1  = 7;
 // default 2-wire on PC0,PC1 - TWIC (TWIE appears to be broken)
 static const uint8_t SDA = 8;
 static const uint8_t SCL = 9;
+static const uint8_t SDA0 = 8;
+static const uint8_t SCL0 = 9;
+static const uint8_t SDA1 = 16;
+static const uint8_t SCL1 = 17;
 
 // keep track of the indices for port R since its control register
 // settings should be slightly different - D manual table 11-6
@@ -420,16 +458,16 @@ const uint16_t PROGMEM digital_pin_to_control_PGM[] = {
   (uint16_t) &PORTC_PIN5CTRL,  // PC 5 ** 13 ** SPI_MOSI
   (uint16_t) &PORTC_PIN6CTRL,  // PC 6 ** 14 ** SPI_MISO
   (uint16_t) &PORTC_PIN7CTRL,  // PC 7 ** 15 ** SPI_SCK
-  (uint16_t) &PORTE_PIN0CTRL,  // PE 0 ** 16 ** SDA
-  (uint16_t) &PORTE_PIN1CTRL,  // PE 1 ** 17 ** SCL
+  (uint16_t) &PORTE_PIN0CTRL,  // PE 0 ** 16 ** SDA1
+  (uint16_t) &PORTE_PIN1CTRL,  // PE 1 ** 17 ** SCL1
   (uint16_t) &PORTE_PIN2CTRL,  // PE 2 ** 18 **              ASYNC
   (uint16_t) &PORTE_PIN3CTRL,  // PE 3 ** 19 **
   (uint16_t) &PORTR_PIN0CTRL,  // PR 0 ** 20 **
   (uint16_t) &PORTR_PIN1CTRL,  // PR 1 ** 21 ** default LED
 #ifdef DIGITAL_IO_PIN_SHIFT
 #ifdef USE_TWIC
-  (uint16_t) &PORTC_PIN0CTRL,  // PC 0 ** the new 20 ** SDA
-  (uint16_t) &PORTC_PIN1CTRL,  // PC 1 ** the new 21 ** SCL
+  (uint16_t) &PORTC_PIN0CTRL,  // PC 0 ** the new 20 ** SDA, SDA0
+  (uint16_t) &PORTC_PIN1CTRL,  // PC 1 ** the new 21 ** SCL, SCL0
 #else
   (uint16_t) &PORTD_PIN0CTRL,  // PD 0 ** the new 20 **
   (uint16_t) &PORTD_PIN1CTRL,  // PD 1 ** the new 21 **
