@@ -36,6 +36,21 @@
 #include "wiring_private.h"
 #include "HardwareSerial.h"
 
+#if __GNUC__ > 4 || (__GNUC__ > 4 && __GNUC_MINOR__ >= 6)
+#define PROGMEM_ORIG PROGMEM
+#else // PROGMEM workaround
+
+// to avoid the bogus "initialized variables" warning
+#ifdef PROGMEM
+#undef PROGMEM
+#endif // PROGMEM re-define
+
+#define PROGMEM __attribute__((section(".progmem.hardwareserial")))
+#define PROGMEM_ORIG __attribute__((__progmem__))
+
+#endif // check for GNUC >= or < 4.6
+
+
 #ifndef SERIAL_0_PORT_NAME
 #define SERIAL_0_PORT_NAME PORTD
 #define SERIAL_0_USART_NAME USARTD0

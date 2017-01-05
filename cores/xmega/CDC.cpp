@@ -1,5 +1,3 @@
-
-
 /* Copyright (c) 2011, Peter Barrett  
 **  
 ** Permission to use, copy, modify, and/or distribute this software for  
@@ -22,6 +20,21 @@
 
 #if defined(USBCON)
 #ifdef CDC_ENABLED
+
+#if __GNUC__ > 4 || (__GNUC__ > 4 && __GNUC_MINOR__ >= 6)
+#define PROGMEM_ORIG PROGMEM
+#else // PROGMEM workaround
+
+// to avoid the bogus "initialized variables" warning
+#ifdef PROGMEM
+#undef PROGMEM
+#endif // PROGMEM re-define
+
+#define PROGMEM __attribute__((section(".progmem.cdc")))
+#define PROGMEM_ORIG __attribute__((__progmem__))
+
+#endif // check for GNUC >= or < 4.6
+
 
 typedef struct
 {

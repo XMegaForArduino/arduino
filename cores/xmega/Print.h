@@ -46,14 +46,18 @@ class Print
     void clearWriteError() { setWriteError(0); }
   
     virtual size_t write(uint8_t) = 0;
-    size_t write(const char *str) {
+    size_t write(const char *str)
+    {
       if (str == NULL) return 0;
       return write((const uint8_t *)str, strlen(str));
     }
     virtual size_t write(const uint8_t *buffer, size_t size);
-    size_t write(const char *buffer, size_t size) {
+    size_t write(const char *buffer, size_t size)
+    {
       return write((const uint8_t *)buffer, size);
     }
+
+    int printf(const char *pszFormat, ...) __attribute__ ((format(printf, 2, 3))); // added API for 'printf' since it has been suggested...
     
     size_t print(const __FlashStringHelper *);
     size_t print(const String &);

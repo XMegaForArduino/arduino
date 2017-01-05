@@ -262,3 +262,32 @@ size_t Print::printFloat(double number, uint8_t digits)
   
   return n;
 }
+
+// things that I added
+
+int Print::printf(const char *pszFormat, ...) /*__attribute__ ((format(printf, 2, 3)))*/ // added API for 'printf' since it has been suggested...
+{
+va_list va;
+int cbOut;
+
+  va_start(va, pszFormat);
+
+  cbOut = vsnprintf(NULL, 0, pszFormat, va);
+
+  if(cbOut > 0)
+  {
+    char *p1 = (char *)malloc(cbOut + 2);
+
+    if(p1)
+    {
+      cbOut = vsnprintf(p1, cbOut + 1, pszFormat, va);
+      print(p1);
+      free(p1);
+    }
+  }
+
+  va_end(va);
+
+  return cbOut;
+}
+

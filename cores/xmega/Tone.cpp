@@ -65,6 +65,21 @@ Version Modified By Date     Comments
 
 #ifdef TONE_SUPPORTED
 
+#if __GNUC__ > 4 || (__GNUC__ > 4 && __GNUC_MINOR__ >= 6)
+#define PROGMEM_ORIG PROGMEM
+#else // PROGMEM workaround
+
+// to avoid the bogus "initialized variables" warning
+#ifdef PROGMEM
+#undef PROGMEM
+#endif // PROGMEM re-define
+
+#define PROGMEM __attribute__((section(".progmem.tone")))
+#define PROGMEM_ORIG __attribute__((__progmem__))
+
+#endif // check for GNUC >= or < 4.6
+
+
 static PORT_t *pTonePort = NULL; // must assign at startup due to ISR
 static uint8_t bToneMask = 0; // bitmask for tone pin
 static unsigned long toggle_count = 0; // number of cycles to output

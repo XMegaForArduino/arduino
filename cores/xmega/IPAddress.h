@@ -24,7 +24,8 @@
 
 // A class to make it easier to handle and pass around IP addresses
 
-class IPAddress : public Printable {
+class IPAddress : public Printable
+{
 private:
     uint8_t _address[4];  // IPv4 address
     // Access the raw byte array containing the address.  Because this returns a pointer
@@ -42,8 +43,19 @@ public:
 
     // Overloaded cast operator to allow IPAddress objects to be used where a pointer
     // to a four-byte uint8_t array is expected
-    operator uint32_t() { return *((uint32_t*)_address); };
-    bool operator==(const IPAddress& addr) { return (*((uint32_t*)_address)) == (*((uint32_t*)addr._address)); };
+    operator uint32_t()
+    {
+      register const uint32_t *p1 = (const uint32_t *)(const void *)_address;
+      return *p1;
+    };
+    bool operator==(const IPAddress& addr)
+    {
+      register const uint32_t *p1 = (const uint32_t*)_address;
+      register const uint32_t *p2 = (const uint32_t*)(addr._address);
+
+      return *p1 == *p2;
+    };
+  
     bool operator==(const uint8_t* addr);
 
     // Overloaded index operator to allow getting and setting individual octets of the address

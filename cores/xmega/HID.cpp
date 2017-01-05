@@ -23,6 +23,21 @@
 #if defined(USBCON)
 #ifdef HID_ENABLED
 
+#if __GNUC__ > 4 || (__GNUC__ > 4 && __GNUC_MINOR__ >= 6)
+#define PROGMEM_ORIG PROGMEM
+#else // PROGMEM workaround
+
+// to avoid the bogus "initialized variables" warning
+#ifdef PROGMEM
+#undef PROGMEM
+#endif // PROGMEM re-define
+
+#define PROGMEM __attribute__((section(".progmem.hid")))
+#define PROGMEM_ORIG __attribute__((__progmem__))
+
+#endif // check for GNUC >= or < 4.6
+
+
 //#define RAWHID_ENABLED
 
 //	Singletons for mouse and keyboard
