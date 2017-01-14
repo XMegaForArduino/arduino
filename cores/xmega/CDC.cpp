@@ -211,7 +211,7 @@ size_t Serial_::write(const uint8_t *buffer, size_t size)
   // or locks up, or host virtual serial port hangs)
   if (_usbLineInfo.lineState > 0)
   {
-    int r = USB_Send(CDC_TX,buffer,size);
+    int r = USB_Send(CDC_TX, buffer, size, 1);
     if (r > 0)
     {
       return r;

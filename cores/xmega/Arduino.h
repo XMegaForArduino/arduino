@@ -91,7 +91,7 @@ extern "C"{
 #define LSBFIRST 0
 #define MSBFIRST 1
 
-// INTERRUPT TYPE - LOW, HIGH, CHANGE, FALLING, RISING
+// INTERRUPT TYPE - LOW, HIGH, CHANGE, FALLING, RISING  (compatibility with DUE etc.)
 // 'LOW' is defined as '0' already
 // 'HIGH' is defined as '1' already
 #define CHANGE 2
@@ -232,10 +232,13 @@ void low_power_delay(unsigned long ms); // similar to 'delay' but goes into low 
 //        Additional note, the 'pin' constants (see below) refer to the port's pin number, and
 //        NOT the 'digital I/O pin' number.  See 'pins_arduino.h' for more on this.
 //
+// for compatibility with newer arduino environment, attachInterrupt 'interruptNum' parameter
+// can use the return value from 'digitalPinToInterrupt(pin)'
+//
 // X M E G A   X M E G A   X M E G A   X M E G A   X M E G A   X M E G A   X M E G A   X M E G A
 
 #ifdef __cplusplus
-void attachInterrupt(uint8_t interruptNum, void (*)(void), int mode = 0); // default param is:  LOW | INT_MODE_PRI_DEFAULT | INT_MODE_PIN_DEFAULT
+void attachInterrupt(uint8_t interruptNum, void (*)(void), int mode = 0); // default 'mode' param is:  LOW | INT_MODE_PRI_DEFAULT | INT_MODE_PIN_DEFAULT
 #else // not __cplusplus
 void attachInterrupt(uint8_t interruptNum, void (*)(void), int mode);
 #endif // __cplusplus
@@ -270,11 +273,18 @@ uint8_t readCalibrationData(uint16_t iIndex);
 #define INT_MODE_PIN_SHIFT      8 /* shift right 8 bits to get the pin bits in a single byte */
 
 // NOTE:  the 'pin' constants refer to the port's pin number, and not the digital I/O pin
-//        The default 'pin 2' refers to the port's pin 2.  When DIGITAL_IO_PIN_SHIFT is
-//        defined in pins_arduino.h, this will be digital I/O 0, 8, 16 for ports D, C, and E
-//        respectively.  Otherwise, it will be digital I/O 2, 10, 18 for ports D, C, and E.
-//        For port A it will always be digital I/O 24, and digital I/O 32 for port B.
-//        See 'pins_arduino.h' for more on this.
+//        The default 'pin 2' refers to the port's pin 2. See 'pins_arduino.h' for more on this.
+//        Multiple pins may be specified, so it is a bit mask.  If a pin is specified by using
+//        digitalPinToInterrupt() and you also specify pins using the 'INT_MODE_PINx' flags, the
+//        pin specified in the 'interruptNum' parameter will be 'or'd with the pins specified in
+//        'mode'.  This can result in some unpredictable outcomes, so you should either use
+//        'digitalPinToInterrupt' for 'interruptNum', or specify the port as 'interruptNum' and
+//        then specfify the pin info in 'mode'.
+
+
+#define NOT_AN_INTERRUPT (-1) /* a placeholder for various arrays, etc. */
+
+
 
 
 // SETUP and LOOP (no changes from Arduino classic)
@@ -301,6 +311,7 @@ extern const uint8_t PROGMEM digital_pin_to_port_PGM[];
 extern const uint8_t PROGMEM digital_pin_to_bit_mask_PGM[];
 extern const uint8_t PROGMEM digital_pin_to_timer_PGM[];
 // extern const uint8_t PROGMEM digital_pin_to_bit_PGM[];  not used on xmega
+extern const uint16_t PROGMEM port_to_input_PGM[];
 
 // Get the bit location within the hardware port of the given virtual pin.
 // This comes from the pins_*.c file for the active board configuration.

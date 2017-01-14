@@ -118,8 +118,11 @@
 
 
 
-// TODO:  find out how to make this one work
-//#define digitalPinToInterrupt(p)  ((p) == 2 ? 0 : ((p) == 3 ? 1 : NOT_AN_INTERRUPT))
+// this returns the DEFAULT INTERRUPT (in this case, interrupt 0) for any digital or analog pin
+// If you choose a port's pin 2, it will be the same as using 'PORTn_INT0'
+#define digitalPinToInterrupt(p) \
+  ( pgm_read_byte(&port_to_int0_PGM[pgm_read_byte(&digital_pin_to_port_PGM[p])]) | \
+    ( ((pgm_read_byte(&digital_pin_to_bit_mask_PGM[p]) - 2) & 7) << 5 ) )
 
 
 // xmega-specific - Interrupt 'vector number' assignments:
@@ -155,7 +158,7 @@
 #define PORTQ_INT0  20
 #define PORTQ_INT1  21
 
-#define EXTERNAL_NUM_INTERRUPTS 22 /* defined here instead of wiring_private.h */
+#define EXTERNAL_NUM_INTERRUPTS 22 /* defined here instead of wiring_private.h - max value 32 */
 
 // was in wiring_external.h, moved here
 #define EXTERNAL_INT_0  0
@@ -538,6 +541,21 @@ const uint16_t PROGMEM port_to_input_PGM[] = {
   (uint16_t) &PORTJ_IN,       // PJ
   (uint16_t) &PORTK_IN,       // PK
   (uint16_t) &PORTQ_IN,       // PQ
+};
+
+const uint8_t PROGMEM port_to_int0_PGM[] = {
+  NOT_AN_INTERRUPT,           // 0
+  PORTA_INT0,                 // PA
+  PORTB_INT0,                 // PB
+  PORTC_INT0,                 // PC
+  PORTD_INT0,                 // PD
+  PORTE_INT0,                 // PE
+  PORTR_INT0,                 // PR
+  PORTF_INT0,                 // PF
+  PORTH_INT0,                 // PH
+  PORTJ_INT0,                 // PJ
+  PORTK_INT0,                 // PK
+  PORTQ_INT0,                 // PQ
 };
 
 // xmega has a per-pin config register as well.  Normally these will be 00000111 for analog, 00000000 for digital 'totem pole'

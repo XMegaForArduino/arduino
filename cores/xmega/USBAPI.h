@@ -12,6 +12,8 @@ extern "C"
 #endif // __cplusplus
 extern void error_print(const char *p1); // TEMPORARY
 extern void error_print_(const char *p1); // TEMPORARY
+extern void error_printH(unsigned long); // TEMPORARY
+extern void error_printH_(unsigned long); // TEMPORARY
 extern void error_printL(unsigned long); // TEMPORARY
 extern void error_printL_(unsigned long); // TEMPORARY
 extern void error_printP(const void * PROGMEM p1);
@@ -212,10 +214,10 @@ int USB_SendControlP(uint8_t flags, const void * PROGMEM d, int len);
 int USB_RecvControl(void* d, int len);
 
 uint8_t	USB_Available(uint8_t ep);
-int USB_Send(uint8_t ep, const void* data, int len);
+int USB_Send(uint8_t ep, const void* data, int len, uint8_t bSendNow);
 int USB_Recv(uint8_t ep, void* data, int len);
 int USB_Recv(uint8_t ep);
-static inline void USB_Flush(uint8_t ep) { } // was "send all waiting data" (NO-OP for now)
+void USB_Flush(uint8_t ep); // sends all pending data
 
 uint16_t GetFrameNumber(void); // debug API to dump USB frame number
 

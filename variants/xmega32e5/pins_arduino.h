@@ -126,9 +126,14 @@
 
 // the first macro, 'digitalPinToInterrupt', is for the 'interruptNum' parameter in 'attachInterrupt' and 'detachInterrupt'
 // the second macro, 'digitalPinToIntMode', is for the 'mode' parameter in 'attachInterrupt'.
+//#define digitalPinToInterrupt(p) \  this is an old attempt, leaving here for reference [for now]
+//  { register uint8_t uiPort = pgm_read_byte((&digital_pin_to_port_PGM[p])); \
+//    uiPort == _PD ? PORTD_INT0 : uiPort == _PC ? PORTC_INT0 : uiPort == _PA ? PORTA_INT0 : uiPort == _PR ? PORTR_INT0 : -1; }
+
 #define digitalPinToInterrupt(p) \
-  { register uint8_t uiPort = pgm_read_byte((&digital_pin_to_port_PGM[p])); \
-    uiPort == _PD ? PORTD_INT0 : uiPort == _PC ? PORTC_INT0 : uiPort == _PA ? PORTA_INT0 : uiPort == _PR ? PORTR_INT0 : -1; }
+  ( pgm_read_byte(&port_to_int0_PGM[pgm_read_byte(&digital_pin_to_port_PGM[p])]) | \
+    ( ((pgm_read_byte(&digital_pin_to_bit_mask_PGM[p]) - 2) & 7) << 5 ) )
+
 
 #define digitalPinToIntMode(p) ((uint16_t)(pgm_read_byte(&(digital_pin_to_bit_mask_PGM[p]))) << INT_MODE_PIN_SHIFT)
 
@@ -407,6 +412,16 @@ const uint16_t PROGMEM port_to_input_PGM[] = {
   (uint16_t) &PORTD_IN,        // PD
   NOT_A_PORT,                  // 5  [E series has no 'port E'
   (uint16_t) &PORTR_IN,        // PR
+};
+
+const uint8_t PROGMEM port_to_int0_PGM[] = {
+  NOT_AN_INTERRUPT,           // 0
+  PORTA_INT0,                 // PA
+  NOT_AN_INTERRUPT,           // 2
+  PORTC_INT0,                 // PC
+  PORTD_INT0,                 // PD
+  NOT_AN_INTERRUPT,           // 5
+  PORTR_INT0,                 // PR
 };
 
 // xmega has a per-pin config register as well.  Normally these will be 00000111 for analog, 00000000 for digital 'totem pole'

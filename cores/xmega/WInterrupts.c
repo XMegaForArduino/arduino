@@ -129,8 +129,16 @@ void attachInterrupt(uint8_t interruptNum, void (*userFunc)(void), int mode)
 {
 uint8_t iPinBits, iPriBits, iModeBits, iInv, iNum, iMask;
 uint8_t oldSREG;
+uint8_t intInfo;
 PORT_t *port;
 
+
+  // for compatibility with newer IDE, 'interruptNum' can be encoded with pin information.
+  // if it is, then the pin info will be derived from pin info in 'mode' and 'interruptNum'
+  // pin info will be incorporated into it.
+
+  intInfo = ((interruptNum & 0xe0) >> 5);  // is an int pin encoded here by digitalPinToInterrupt ?
+  interruptNum &= 0x1f; // so the rest of the code will work correctly
 
   if(interruptNum >= EXTERNAL_NUM_INTERRUPTS)
   {
@@ -138,6 +146,13 @@ PORT_t *port;
   }
 
   iPinBits = (uint8_t)((mode & INT_MODE_PIN_MASK) >> 8);
+
+  if(intInfo)
+  {
+    intInfo = ((intInfo + 2) & 7); // convert to actual pin number
+
+    iPinBits |= _BV(intInfo); // set respective bit in 'iPinBits'
+  }
 
   if(!iPinBits)
   {
