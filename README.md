@@ -5,8 +5,21 @@ This repository contains the files and other additions for the
 'hardware/arduino' sub-directory in the arduino development environment 
 that are necessary for supporting specific ATXmega CPU's.
 
-
 This software is provided 'as-is' with no warranty, implied or otherwise
+
+
+            Installing the XMegaForArduino board support
+
+On versions of the IDE as of 1.6 you should be able to use the downloadable
+hardware manager configuration file at the following location:
+
+&nbsp;&nbsp;<a href="https://raw.githubusercontent.com/XMegaForArduino/IDE/master/XMegaForArduino.json">
+XMegaForArduino.json</a>
+
+For earlier IDE versions, you will need to patch boards.txt and avrdude.conf
+manually, and probably patch avr-gcc, avr-binutils, and avr-libc .  The patch
+files are available in the 'patches' repository as part of this project.
+
 
 
 NOTE:  in some cases there may be USB vendor IDs or product IDs that have
