@@ -182,7 +182,9 @@ enum _analogReference_ // pass to 'analogReference' function - see D manual sect
   // these 2 aren't valid for 'E' series
   analogReference_PORTB0 = (ADC_REFSEL_AREFB_gc),   // PORT B pin 0 is the AREF
 
-  analogReference_VCC = (ADC_REFSEL_VCC_gc),        // VCC / 10, actually
+  analogReference_VCC = (ADC_REFSEL0_bm) /* (ADC_REFSEL_VCC_gc)*/,        // VCC / 10, actually
+  // NOTE:  'ADC_REFSEL_VCC_gc' exists for some headers, and others 'ADC_REFSEL_INTVCC_gc'
+  //        to avoid compile problems I use the bitmask instead.
 #endif // E series
 
 #if defined(__AVR_ATxmega64d4__) || defined(__AVR_ATxmega64a1u__) || defined(__AVR_ATxmega128a1u__)
