@@ -16,6 +16,19 @@ hardware manager configuration file at the following location:
 &nbsp;&nbsp;<a href="https://raw.githubusercontent.com/XMegaForArduino/IDE/master/package_XMegaForArduino_index.json">
 package_XMegaForArduino_index.json</a>
 
+In some cases, you might want to do this manually, by downloading the latest
+'tarball' of the distribution files, and extracting them into the
+
+  sketchbook/hardware
+
+directory tree.  In some cases, this may be the preferable method.
+
+The distribution files are located on the IDE repository, with names similar
+to the following:  XMegaForArduino.0.9.0.tbz
+
+where '0.9.0' is the release version
+
+
 For earlier IDE versions, you will need to patch boards.txt and avrdude.conf
 manually, and probably patch avr-gcc, avr-binutils, and avr-libc .  The patch
 files are available in the 'patches' repository as part of this project.
