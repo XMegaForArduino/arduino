@@ -30,7 +30,7 @@ will compile without errors or user-side edits.
 
 If your 'FOSS' product needs a vendor ID and product ID, you might try
 
-  http://wiki.openmoko.org/wiki/USB_Product_IDs
+&nbsp;&nbsp;http://wiki.openmoko.org/wiki/USB_Product_IDs
 
 
 
@@ -45,8 +45,7 @@ environment (and later, as appropriate).  It is also available free of charge.
 For more information, see http://arduino.cc/ and relevant source files.
 
 
-
-    \* ADDITIONAL LICENSING FOR XMEGA-SPECIFIC CODE - MIT-like license \*
+<p align="center">\* ADDITIONAL LICENSING FOR XMEGA-SPECIFIC CODE - MIT-like license \*</p>
 
 Portions of this code were written SPECIFICALLY for the XMEGA series processor
 and are not actually 'derived code', but are included in the source as part of
