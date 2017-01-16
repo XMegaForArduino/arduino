@@ -13,8 +13,8 @@ This software is provided 'as-is' with no warranty, implied or otherwise
 On versions of the IDE as of 1.6 you should be able to use the downloadable
 hardware manager configuration file at the following location:
 
-&nbsp;&nbsp;<a href="https://raw.githubusercontent.com/XMegaForArduino/IDE/master/XMegaForArduino.json">
-XMegaForArduino.json</a>
+&nbsp;&nbsp;<a href="https://raw.githubusercontent.com/XMegaForArduino/IDE/master/package_XMegaForArduino_index.json">
+package_XMegaForArduino_index.json</a>
 
 For earlier IDE versions, you will need to patch boards.txt and avrdude.conf
 manually, and probably patch avr-gcc, avr-binutils, and avr-libc .  The patch
