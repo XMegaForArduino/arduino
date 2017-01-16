@@ -8,7 +8,7 @@ that are necessary for supporting specific ATXmega CPU's.
 This software is provided 'as-is' with no warranty, implied or otherwise
 
 
-&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;\* Installing the XMegaForArduino board support \*
+<p align="center"* Installing the XMegaForArduino board support *</p>
 
 On versions of the IDE as of 1.6 you should be able to use the downloadable
 hardware manager configuration file at the following location:
@@ -34,7 +34,7 @@ If your 'FOSS' product needs a vendor ID and product ID, you might try
 
 
 
-&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;\* DERIVED OPEN SOURCE SOFTWARE \*
+<p align="center">* DERIVED OPEN SOURCE SOFTWARE *</p>
 
 This software has been modified from Arduino 1.06 source that is covered by
 either [L]GPLv2 or [L]GPLv3.  The licensing details are generally contained 
