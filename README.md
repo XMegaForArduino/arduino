@@ -13,25 +13,30 @@ This software is provided 'as-is' with no warranty, implied or otherwise
 On versions of the IDE as of 1.6 you should be able to use the downloadable
 hardware manager configuration file at the following location:
 
-&nbsp;&nbsp;<a href="https://raw.githubusercontent.com/XMegaForArduino/IDE/master/package_XMegaForArduino_index.json">
-package_XMegaForArduino_index.json</a>
+&nbsp;&nbsp;&nbsp;&nbsp;
+<a href="https://raw.githubusercontent.com/XMegaForArduino/IDE/master/package_XMegaForArduino_index.json">
+hardware manager URL for package_XMegaForArduino_index.json</a>
 
 In some cases, you might want to do this manually, by downloading the latest
-'tarball' of the distribution files, and extracting them into the
+'tarball' of the distribution files, and extracting them directly into the
 
-  sketchbook/hardware
+&nbsp;&nbsp;&nbsp;&nbsp;sketchbook/hardware
 
 directory tree.  In some cases, this may be the preferable method.
 
-The distribution files are located on the IDE repository, with names similar
-to the following:  XMegaForArduino.0.9.0.tbz
+The distribution archives are located on the IDE repository, with names similar
+to the following:
 
-where '0.9.0' is the release version
+&nbsp;&nbsp;&nbsp;&nbsp;XMegaForArduino-0.9.1.snapshot.txz
+
+where '0.9.1' would be the release snapshot version.  Note that the 'tar.bz2'
+files are used by the JSON file, and don't have the correct directory tree.
 
 
-For earlier IDE versions, you will need to patch boards.txt and avrdude.conf
-manually, and probably patch avr-gcc, avr-binutils, and avr-libc .  The patch
-files are available in the 'patches' repository as part of this project.
+For earlier IDE versions (prior to 1.6), you will need to patch boards.txt
+and avrdude.conf manually, and probably patch avr-gcc, avr-binutils, and
+avr-libc .  The patch files are available in the 'patches' repository as
+a part of this project.
 
 
 
