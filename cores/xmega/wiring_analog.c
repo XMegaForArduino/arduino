@@ -630,7 +630,7 @@ void analogWrite(uint8_t pin, int val)
 #ifndef TCE2
         DoAnalogWriteForPort(&TCE0, bit, val);
 #else // TCE2 defined
-        DoAnalogWriteForPort(&TCE2, bit, vao);
+        DoAnalogWriteForPort(&TCE2, bit, val);
 #endif // TCE2 defined
         break;
 

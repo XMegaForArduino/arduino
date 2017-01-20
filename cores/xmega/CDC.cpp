@@ -1,3 +1,14 @@
+//////////////////////////////////////////////////////////////////////////////
+//                                                                          //
+//                  ____  ____    ____                                      //
+//                 / ___||  _ \  / ___|    ___  _ __   _ __                 //
+//                | |    | | | || |       / __|| '_ \ | '_ \                //
+//                | |___ | |_| || |___  _| (__ | |_) || |_) |               //
+//                 \____||____/  \____|(_)\___|| .__/ | .__/                //
+//                                             |_|    |_|                   //
+//                                                                          //
+//////////////////////////////////////////////////////////////////////////////
+
 /* Copyright (c) 2011, Peter Barrett  
 **  
 ** Permission to use, copy, modify, and/or distribute this software for  
@@ -13,6 +24,20 @@
 ** ARISING OUT OF OR IN CONNECTION WITH THE USE OR PERFORMANCE OF THIS  
 ** SOFTWARE.  
 */
+
+/////////////////////////////////////////////////////////////////////////////////
+// XMEGA NOTES:
+//
+// a) it appears that, at one time at least, this was intended to be overridden
+//    by user code, hence the use of 'WEAK' all over the place;
+// b) This API is *VERY* 'tricky' in that it's tied in heavily with the atmega
+//    USB implementation and (in some cases) does 'magic things' that are not
+//    apparently obvious to someone trying to port it to another processor
+//    (for an example see original use of CDC_GetInterface - lame!)
+// c) Given the fact that it's (in my view) POORLY WRITTEN, it deserves a makeover.
+// d) K&R style is hard to read.  I won't use it.  Hard tabs are evil.  Same.
+//
+/////////////////////////////////////////////////////////////////////////////////
 
 #include "Platform.h"
 #include "USBAPI.h"
@@ -68,10 +93,28 @@ const CDCDescriptor _cdcInterface =
   D_ENDPOINT(USB_ENDPOINT_IN (CDC_ENDPOINT_IN ),USB_ENDPOINT_TYPE_BULK,0x40,0)
 };
 
-int WEAK CDC_GetInterface(u8* interfaceNum)
+int WEAK CDC_GetInterface(u8* interfaceNum, bool bSendPacket)
 {
-  interfaceNum[0] += 2;  // uses 2
-  return USB_SendControl(TRANSFER_PGM,&_cdcInterface,sizeof(_cdcInterface));
+  interfaceNum[0] += 2;  // uses 2 interfaces
+
+  // NOTE:  the original version of this, when calling 'USB_SendControl', may NOT
+  //        actually send a packet.  In fact, something upstream was likely to
+  //        "just erase" the packet buffer until an actual packet was to be sent.
+  //        Not only is this _LAME_, it his HORRIBLE DESIGN PRACTICE, UN-INTUITIVE,
+  //        and JUST! PLAIN! WRONG!!!  Therefore, I added a parameter 'bSendPacket'
+  //        to determine whether or not you actually send a packet.  it makes a
+  //        LOT more sense.  Besides, this API doesn't have official documentation.
+  //        So I'm changing it.  Please modify your own version of 'CDC_GetInterface'
+  //        if you're overriding this version with your own.
+
+  if(bSendPacket)
+  {
+    return USB_SendControl(TRANSFER_PGM, &_cdcInterface, sizeof(_cdcInterface));
+  }
+  else
+  {
+    return 1;
+  }
 }
 
 bool WEAK CDC_Setup(Setup& setup)
@@ -120,10 +163,25 @@ bool WEAK CDC_Setup(Setup& setup)
 //
 //          *(uint16_t *)0x0800 = 0x7777; note that on XMEGA this is a VERY bad thing
 //          wdt_enable(WDTO_120MS);
+//
+//          on the atmega, address 800H is the start of the final 256-byte page in RAM space for 2k RAM
+//
+//          atmega328(p) RAM goes from 0x100 through 0x8ff - see datasheet for atmega 328 [etc.] section 8.3
+//          32U4 RAM goes through 0xaff - see datasheet for U4 processors, section 5.2
+//          8/16/32U2 RAM goes through 4FFH so this won't even work - see datasheet for U2 processors, section 7.2
+//          basically it's a 'hack' and needs to be re-evaluated
+
+          // TODO:  would it be safe to enable interrupts, NOT return from this function,
+          //        and simply wait until the appropriate time has elapsed?  Or, as is
+          //        handled in the section below, this 'wait period' is canceled
+
+          // TODO:  if I use a function that's part of the USB driver to trigger a soft boot, I can detect
+          //        that a soft boot has taken place using the bits in the 'RESET' status register.  If all
+          //        I have to do is detect this, it's not a problem, and I won't need "magic memory locations"
 
 //          TODO:  timeout-based reboot
         }
-        else // 3 lines better than 1 - ALLMAN STYLE! - do *NOT* do '} else {' - BLEAH!
+        else
         {
           // Most OSs do some intermediate steps when configuring ports and DTR can
           // twiggle more than once before stabilizing.

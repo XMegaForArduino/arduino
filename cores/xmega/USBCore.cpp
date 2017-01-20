@@ -1,3 +1,14 @@
+//////////////////////////////////////////////////////////////////////////////
+//                                                                          //
+//     _   _  ____   ____    ____                                           //
+//    | | | |/ ___| | __ )  / ___| ___   _ __  ___     ___  _ __   _ __     //
+//    | | | |\___ \ |  _ \ | |    / _ \ | '__|/ _ \   / __|| '_ \ | '_ \    //
+//    | |_| | ___) || |_) || |___| (_) || |  |  __/ _| (__ | |_) || |_) |   //
+//     \___/ |____/ |____/  \____|\___/ |_|   \___|(_)\___|| .__/ | .__/    //
+//                                                         |_|    |_|       //
+//                                                                          //
+//////////////////////////////////////////////////////////////////////////////
+
 /* Copyright (c) 2010, Peter Barrett  
 **  
 ** Permission to use, copy, modify, and/or distribute this software for  
@@ -38,6 +49,7 @@
 #define INIT_EP0_ONE_TIME_ONLY
 #define DEBUG_CODE /* debug output via 'error_print' etc. */
 //#define DEBUG_MEM  /* debug memory and buffer manipulation */
+//#define DEBUG_QUEUE /* debug queues */
 
 
 // 'LIKELY' and 'UNLIKELY' - 'if'/branch optimization
@@ -120,18 +132,29 @@ typedef struct __INTERNAL_BUFFER__
 
 // DEBUG DEBUG DEBUG DEBUG DEBUG DEBUG DEBUG DEBUG DEBUG DEBUG DEBUG DEBUG DEBUG DEBUG DEBUG DEBUG
 #ifdef DEBUG_CODE
-extern void DebugOut(unsigned long lVal) __attribute__((weak));
-extern void DebugOut(const void * PROGMEM_ORIG pStr) __attribute__((weak));
-extern void DebugDumpRegs(const XMegaEPDataStruct * pRegs) __attribute__((weak));
 
-// 'weak link' overloads for debug functions that prevent link fail
-extern void DebugOut(unsigned long lVal) { }
-extern void DebugOut(const void * PROGMEM_ORIG pStr) { }
-extern void DebugDumpRegs(const XMegaEPDataStruct * pRegs) { }
-#define DEBUG_OUT(X) DebugOut(X)
-#define DEBUG_DUMP_REGS(X) DebugDumpRegs(X)
+// additional debug functions ALSO defined in 'USBAPI.h' - need 'weak' and local definitions
+// that way the code still builds/links without the debug functions
+extern "C"
+{
+  extern void error_print(const char *p1)   __attribute__((weak));
+  extern void error_print_(const char *p1)  __attribute__((weak));
+  extern void error_printH(unsigned long)   __attribute__((weak));
+  extern void error_printH_(unsigned long)  __attribute__((weak));
+  extern void error_printL(unsigned long)   __attribute__((weak));
+  extern void error_printL_(unsigned long)  __attribute__((weak));
+  extern void error_printP(const void * p1)  __attribute__((weak));
+  extern void error_printP_(const void * p1) __attribute__((weak));
 
-// DEBUG DEBUG DEBUG DEBUG DEBUG DEBUG DEBUG DEBUG DEBUG DEBUG DEBUG DEBUG DEBUG DEBUG DEBUG DEBUG
+  extern void error_print(const char *p1)  { }
+  extern void error_print_(const char *p1) { }
+  extern void error_printH(unsigned long)  { }
+  extern void error_printH_(unsigned long) { }
+  extern void error_printL(unsigned long)  { }
+  extern void error_printL_(unsigned long) { }
+  extern void error_printP(const void * p1)  { }
+  extern void error_printP_(const void * p1) { }
+};
 
 
 #define LED_SIGNAL0 (LED_BUILTIN-2) /* PQ3 */
@@ -145,11 +168,8 @@ extern void DebugDumpRegs(const XMegaEPDataStruct * pRegs) { }
 #define RXLED0() digitalWrite(LED_SIGNAL3,0)
 #define RXLED1() digitalWrite(LED_SIGNAL3,1)
 
-
-#else // DEBUG_CODE
-#define DEBUG_OUT(X)
-#define DEBUG_DUMP_REGS(X)
 #endif // DEBUG_CODE
+
 // DEBUG DEBUG DEBUG DEBUG DEBUG DEBUG DEBUG DEBUG DEBUG DEBUG DEBUG DEBUG DEBUG DEBUG DEBUG DEBUG
 
 
@@ -250,10 +270,11 @@ const u16 STRING_IMANUFACTURER[12] =
 #define DEVICE_CLASS 0x00 /* typical HID, most likely */
 #endif
 
-//  DEVICE DESCRIPTOR
+//  DEVICE DESCRIPTOR (device class 0, HID?)
 const DeviceDescriptor USB_DeviceDescriptor PROGMEM =
   D_DEVICE(0x00,0x00,0x00,64,USB_VID,USB_PID,0x100,IMANUFACTURER,IPRODUCT,0,1);
 
+// DEVICE DESCRIPTOR (for CDC device)
 const DeviceDescriptor USB_DeviceDescriptorA PROGMEM =
   D_DEVICE(DEVICE_CLASS,0x00,0x00,64,USB_VID,USB_PID,0x100,IMANUFACTURER,IPRODUCT,0,1);
 
@@ -334,10 +355,11 @@ volatile u8 RxLEDPulse; /**< Milliseconds remaining for data Rx LED pulse */
 
 static XMegaEPDataStruct epData; // the data pointer for the hardware's memory registers
 
-// for debugging only - remove later
-static uint8_t led_toggle;
+//// for debugging only - remove later
+//static uint8_t led_toggle;
 
 static uint8_t bUSBAddress = 0; // when not zero, and a packet has been sent on EP 0, set the address to THIS
+static uint8_t _usbConfiguration = 0; // assigned when I get a 'SET CONFIGURATION' control packet
 
 static uint16_t wProcessingFlag = 0; // 'processing' flag
 // the endpoint's bit in 'wProcessingFlag' will be set to '1' whenever an incoming
@@ -789,7 +811,10 @@ static void add_to_queue(INTERNAL_BUFFER **pQ, INTERNAL_BUFFER *pBuf)
 {
 INTERNAL_BUFFER *pE;
 uint8_t oldSREG;
+#ifdef DEBUG_MEM // extra debug
 uint8_t nQ;
+#endif // DEBUG_MEM // extra debug
+
 
   if(!pQ || !pBuf)
   {
@@ -865,7 +890,9 @@ static void remove_from_queue(INTERNAL_BUFFER **pQ, INTERNAL_BUFFER *pBuf)
 {
 INTERNAL_BUFFER *pE;
 uint8_t oldSREG;
+#ifdef DEBUG_MEM // extra debug
 uint8_t nQ;
+#endif // DEBUG_MEM // extra debug
 
 
   if(!pQ || !pBuf)
@@ -1059,7 +1086,7 @@ INTERNAL_BUFFER *pBuf;
 static void check_recv_queue(void)
 {
 int index;
-INTERNAL_BUFFER *pE, *pEtmp;
+INTERNAL_BUFFER *pE;//, *pEtmp;
 uint8_t oldSREG;
 
 
@@ -1100,16 +1127,19 @@ uint8_t oldSREG;
     // check for errors before anything else
     if(epData.endpoint[index].out.status & USB_EP_STALL_bm) // overflow/stall
     {
+#ifdef DEBUG_QUEUE
       // first, handle "sent" transaction
       error_printP_(F("check_recv_queue "));
       error_printL_(index);
       error_printP(F(" - USB_EP_STALL"));
+#endif // DEBUG_QUEUE
 
       epData.endpoint[index].out.status |= USB_EP_STALL_bm; // just turn it off [for now]
 
       continue;
     }
 
+//#ifdef DEBUG_QUEUE
 //    if(epData.endpoint[index].in.status & USB_EP_SETUP_bm)
 //    {
 //      error_printP_(F("check_recv_queue "));
@@ -1118,6 +1148,7 @@ uint8_t oldSREG;
 //
 //      // for now, just do nothing
 //    }
+//#endif // DEBUG_QUEUE
 
     if(pE) // && !(epData.endpoint[index].out.status & USB_EP_BUSNACK0_bm)) // AM receiving at the moment
     {
@@ -1139,6 +1170,7 @@ uint8_t oldSREG;
         RXLED1(); // LED pm - macro must be defined in variants 'pins_arduino.h'
 #endif // TX_RX_LED_INIT
 
+#ifdef DEBUG_QUEUE
         error_printP_(F("check_recv_queue "));
         error_printL_(index);
 
@@ -1158,6 +1190,7 @@ uint8_t oldSREG;
         error_printL_(epData.endpoint[index].out.cnt);
         error_printP_(F(" address="));
         error_printH(epData.endpoint[index].out.dataptr);
+#endif // DEBUG_QUEUE
 
         // ASSERT( epData.endpoint[index].out.dataptr == buffer_data_pointer(aRecvQ[index]) );
 
@@ -1210,7 +1243,9 @@ uint8_t oldSREG;
 
         if(!index && aSendQ[0]) // something is waiting to send on the control endpoint
         {
+#ifdef DEBUG_QUEUE
           error_printP(F("check_recv_queue - waiting for send queue empty"));
+#endif // DEBUG_QUEUE
 
           epData.endpoint[0].out.dataptr = 0; // no data will be received until I have empty send queue
           epData.endpoint[0].out.cnt = 0;
@@ -1223,19 +1258,25 @@ uint8_t oldSREG;
       }
 //      else // if(index || !aSendQ[0]) // remember, control endpoints don't receive until done sending
 //      {
+//#ifdef DEBUG_QUEUE
 //        error_printP_(F("check_recv_queue -set up for receive "));
 //        error_printL(index);
+//#endif // DEBUG_QUEUE
 //        
 //        set_up_EP_for_receive(index); // set up to receive
 //      }
 //      else
 //      {
-///        error_printP(F("check_recv_queue - waiting for send queue empty (2)"));
+//#ifdef DEBUG_QUEUE
+//        error_printP(F("check_recv_queue - waiting for send queue empty (2)"));
+//#endif // DEBUG_QUEUE
 //      }
     }
     else if(!index && !aSendQ[0]) // remember, control endpoints don't receive until done sending
     {
+#ifdef DEBUG_QUEUE
       error_printP(F("check_recv_queue -set up for receive (control EP)"));
+#endif // DEBUG_QUEUE
       
       set_up_EP_for_receive(index); // set up to receive
     }
@@ -1303,6 +1344,7 @@ uint8_t oldSREG;
       TXLED1(); // LED pm - macro must be defined in variants 'pins_arduino.h'
 #endif // TX_RX_LED_INIT
 
+#ifdef DEBUG_QUEUE
       error_printP_(F("check_send_queue "));
       error_printL_(index);
       error_printP_(F(" - USB_EP_TRNCOMPL0 "));
@@ -1313,6 +1355,7 @@ uint8_t oldSREG;
       error_printL_(epData.endpoint[index].in.cnt);
       error_printP_(F(" address="));
       error_printH(epData.endpoint[index].in.dataptr);
+#endif // DEBUG_QUEUE
 
       // if I need to assign the USB address, do it HERE, after packet send completes
       // the process of changing the address after getting the command to do so requires
@@ -1323,8 +1366,10 @@ uint8_t oldSREG;
 
       if(!index && bUSBAddress) // control endpoint needs to change the USB address?
       {
+//#ifdef DEBUG_QUEUE
         error_printP_(F("USB address changed to "));
         error_printL(bUSBAddress);
+//#endif // DEBUG_QUEUE
 
         USB_ADDR = bUSBAddress;
         bUSBAddress = 0; // so I don't try to change it again and again
@@ -1347,10 +1392,12 @@ uint8_t oldSREG;
         pX = NULL; // also a flag to add new buffer in next section
       }
 
+//#ifdef DEBUG_QUEUE
 //      error_printP_(F("check_send_queue "));
 //      error_printL_(index);
 //      error_printP_(F(" Status is now "));
 //      error_printH(epData.endpoint[index].in.status);
+//#endif // DEBUG_QUEUE
     }
 
     if(!pX) // not in process of sending
@@ -1359,6 +1406,7 @@ uint8_t oldSREG;
 
       if(pX && INTERNAL_BUFFER_SEND_READY(pX)) // only send if ready to send
       {
+#ifdef DEBUG_QUEUE
         error_printP_(F("check_send_queue "));
         error_printL_(index);
         error_printP_(F("  NEXT buffer: "));
@@ -1367,6 +1415,7 @@ uint8_t oldSREG;
         error_printH_(buffer_data_pointer(pX));
         error_printP_(F(" length="));
         error_printL(pX->iLen);
+#endif // DEBUG_QUEUE
 
         epData.endpoint[index].in.cnt = pX->iLen;
         epData.endpoint[index].in.dataptr = buffer_data_pointer(pX);
@@ -1416,8 +1465,10 @@ INTERNAL_BUFFER *pB;
 uint8_t oldSREG;
 
 
+#ifdef DEBUG_QUEUE
   error_printP_(F("internal_send0 "));
   error_printL(index);
+#endif // DEBUG_QUEUE
 
   oldSREG = SREG;
   cli(); // disable interrupts
@@ -1456,9 +1507,12 @@ uint8_t oldSREG;
   {
     if(bSendNow)
     {
+#ifdef DEBUG_QUEUE
       error_printP_(F("internal_send "));
       error_printL_(index);
       error_printP(F(" - calling internal_send0"));
+#endif // DEBUG_QUEUE
+
       internal_send0(index);
     }
     else
@@ -1478,6 +1532,7 @@ uint8_t oldSREG;
     return;
   }
   
+#ifdef DEBUG_QUEUE
   error_printP_(F("internal_send  USB addr="));
   error_printL_(USB_ADDR);
   error_printP_(F(" EP="));
@@ -1485,6 +1540,7 @@ uint8_t oldSREG;
   error_printP_(F(" len="));
   error_printL_(cbData);
   error_printP(F(" bytes"));
+#endif // DEBUG_QUEUE
 
 
   oldSREG = SREG;
@@ -1560,9 +1616,11 @@ uint8_t oldSREG;
 
   SREG = oldSREG;
 
+#ifdef DEBUG_QUEUE
   error_printP_(F("internal_send "));
   error_printL_(index);
   error_printP(F(" - NULL buffer"));
+#endif // DEBUG_QUEUE
 
 }
 
@@ -1575,8 +1633,10 @@ int iRval = 0;
 uint8_t *pD = (uint8_t *)pData;
 
 
+#ifdef DEBUG_QUEUE
   error_printP_(F("internal_receive "));
   error_printL(index);
+#endif // DEBUG_QUEUE
 
   check_recv_queue();
 
@@ -1660,9 +1720,6 @@ uint8_t oldSREG;
 int i1;
 
 
-////  DEBUG_OUT(F("USB InitEP "));
-////  DEBUG_OUT((uint32_t)index);
-////  DEBUG_OUT(F("\r\n"));
 //  error_printP_(F("USB InitEP "));
 //  error_printL(index);
 
@@ -1810,9 +1867,6 @@ int i1;
   }
 //  else if(index == 0)
 //  {
-//    DEBUG_OUT(F("USB Incorrect EP type "));
-//    DEBUG_OUT((uint16_t)type);
-//    DEBUG_OUT(F("\r\n"));
 //  }
   else if(type == EP_TYPE_INTERRUPT_IN || type == EP_TYPE_BULK_IN
           || type == EP_TYPE_ISOCHRONOUS_IN) /* these types have *ME* write data and send to 'in' for host */
@@ -1859,9 +1913,6 @@ int i1;
   
   // TODO:  anything else?
 
-////  DEBUG_OUT(F("USB InitEP "));
-////  DEBUG_OUT((uint32_t)index);
-////  DEBUG_OUT(F(" (done!)\r\n"));
 //  error_printP_(F("USB InitEP "));
 //  error_printL_(index);
 //  error_printP(F(" (done!)"));
@@ -1885,63 +1936,44 @@ void internal_do_control_request(INTERNAL_BUFFER *pBuf, bool bIsSetup)
 INTERNAL_BUFFER *pX;
 uint8_t requestType;
 
-  while(pBuf && (pBuf->iLen - pBuf->iIndex) >= 8) // TODO:  does looping on this help?
+  if(pBuf && (pBuf->iLen - pBuf->iIndex) >= 8) // TODO:  would looping with 'while' help?
   {
     Setup *pSetup = (Setup *)&(pBuf->aBuf[pBuf->iIndex]);
     uint8_t ok = 0;
 
     pBuf->iIndex += 8; // add the # of bytes I have read thus far
 
-// TEMPORARY
-//    DEBUG_OUT(F("USB setup "));
-//    DEBUG_OUT((uint32_t)pSetup->bRequest);
-//    DEBUG_OUT(F(","));
-//    DEBUG_OUT((uint32_t)pSetup->bmRequestType);
-//    DEBUG_OUT(F(","));
-//    DEBUG_OUT((uint16_t)pSetup->wValueH);
-//    DEBUG_OUT(F(":"));
-//    DEBUG_OUT((uint16_t)pSetup->wValueL);
-//    DEBUG_OUT(F(","));
-//    DEBUG_OUT((uint16_t)pSetup->wLength);
-//    DEBUG_OUT(F("\r\n"));
 
-    error_printP_(F("USB setup/control "));
+    error_printP_(F("USB setup/control  request="));
     error_printL_(pSetup->bRequest);
-    error_printP_(F(","));
+    error_printP_(F(" type="));
     error_printL_(pSetup->bmRequestType);
-    error_printP_(F(","));
+    error_printP_(F(" value="));
     error_printL_(pSetup->wValueH);
     error_printP_(F(":"));
     error_printL_(pSetup->wValueL);
-    error_printP_(F(","));
+    error_printP_(F(" index="));
+    error_printL_(pSetup->wIndex);
+    error_printP_(F(" length="));
     error_printL(pSetup->wLength);
-
-  // typically get '5,0,0:n:0' first [set address to 'n']
-  // then get 6,128,1:0,8 - GET_DESCRIPTOR, REQUEST_DEVICETOHOST, USB_DEVICE_DESCRIPTOR_TYPE, 8
-  //    (does that have a 2nd 8 byte request after it????)
-
-
-//  DEBUG_OUT(F("USB setup (2)\r\n"));
 
     requestType = pSetup->bmRequestType;
 
-    if (requestType & REQUEST_DEVICETOHOST)
+    if((requestType & REQUEST_DIRECTION) == REQUEST_DEVICETOHOST) // i.e. an 'in'
     {
-//      WaitIN(); // not needed now?
       error_printP(F("dev to host request"));
 
       // TODO:  will there be multiple requests in the buffer?
     }
-    else
+    else // HOST TO DEVICE - an 'out' - will be sending ZLP on success
     {
-//      ClearIN(); don't really need THIS now either [I can just ignore the rest of the packet]
       error_printP(F("host to dev - eat remainder of packet"));
 
       pBuf->iIndex = pBuf->iLen; // this eats the remainder of the packet
     }
 
 
-    if (REQUEST_STANDARD == (requestType & REQUEST_TYPE))
+    if(REQUEST_STANDARD == (requestType & REQUEST_TYPE))
     {
       //  Standard Requests
       uint8_t r;
@@ -2044,7 +2076,7 @@ uint8_t requestType;
                    // EP_DOUBLE_64); // NOTE:  EP_DOUBLE_64 allocates a 'double bank' of 64 bytes, with 64 byte max length
           }
 
-//          _usbConfiguration = pSetup->wValueL;  TODO POOBAH FIX THIS
+          _usbConfiguration = pSetup->wValueL;
 
           ok = true;
         }
@@ -2080,34 +2112,56 @@ uint8_t requestType;
     }
     else
     {
-      error_printP_(F("CLASS INTERFACE request "));
+      error_printP_(F("INTERFACE REQUEST "));
+      if((requestType & REQUEST_TYPE) == REQUEST_CLASS)
+      {
+        error_printP_(F("(CLASS)"));
+      }
+      else if((requestType & REQUEST_TYPE) == REQUEST_VENDOR)
+      {
+        error_printP_(F("(VENDOR)"));
+      }
+      else // probably impossible
+      {
+        error_printP_(F("type="));
+        error_printH_(requestType & REQUEST_TYPE);
+      }
+      error_printP_(F(" request="));
       error_printL_(pSetup->bRequest);
       error_printP_(F(" index="));
-      error_printL(pSetup->wIndex);
+      error_printL_(pSetup->wIndex);
 
       uint8_t idx = pSetup->wIndex;
 
-      ok = false; // initial value
-
 #ifdef CDC_ENABLED
-      if (CDC_ACM_INTERFACE == idx)
+      if(CDC_ACM_INTERFACE == idx)
       {
+        error_printP(F(" (CDC)"));
+
         ok = CDC_Setup(*pSetup); // sends 7 control bytes
       }
-#endif
-
 #ifdef HID_ENABLED
-      if (HID_INTERFACE == idx)
+      else
+#endif // HID_ENABLED
+#endif // CDC_ENABLED
+#ifdef HID_ENABLED
+      if(HID_INTERFACE == idx)
       {
+        error_printP(F(" (HID)"));
+
         ok = HID_Setup(*pSetup);
       }
-#endif
+#endif // HID_ENABLED
+#if defined(CDC_ENABLED) || defined(HID_ENABLED)
+      else
+#endif // defined(CDC_ENABLED) || defined(HID_ENABLED)
+      {
+        error_printP_(F(" (unknown dev index "));
+        error_printL_(idx);
+        error_printP(F(")"));
 
-//      TODO POOBAH FIX THIS
-//      InitControl(pSetup->wLength);    //  Max length of transfer
-      ok = ClassInterfaceRequest(*pSetup);
-
-      // if NOT ok, do a STALL ???
+        ok = ClassInterfaceRequest(*pSetup);
+      }
 
       internal_flush(0);
       check_send_queue(); // send whatever's ready to go
@@ -2115,19 +2169,23 @@ uint8_t requestType;
 
     if (ok)
     {
-      if(!(requestType & REQUEST_DEVICETOHOST))
+      if((requestType & REQUEST_DIRECTION) == REQUEST_HOSTTODEVICE) // i.e. an 'out'
       {
         error_printP(F("sending ZLP for HOST TO DEVICE"));
 
         internal_send0(0); // send a zero-length packet [this acknowledges what I got]
         // NOTE:  everything else will send a regular packet with data in it
       }
+      else
+      {
+        // if I get 'ok' it should have already sent a packet for an 'in' (device to host)
+      }
 
-      internal_flush(0);
+      internal_flush(0); // this is actually an asynchronous flush operation - mark 'send it' basically
       check_send_queue();
 
 //      ClearIN();
-      pBuf->iIndex = pBuf->iLen; // this eats the remainder of the packet
+      pBuf->iIndex = pBuf->iLen; // this eats the remainder of the control packet (but WHY am I doing this?)
     }
     else
     {
@@ -2167,7 +2225,7 @@ int USB_SendControlP(uint8_t flags, const void * PROGMEM_ORIG d, int len)
 
   memcpy_P(p1, d, len);
   
-  internal_send(0, p1, len, 0); // note need to call USB_Flush() after sending control packets
+  internal_send(0, p1, len, 1); // auto-flush
   free(p1);
 
   return 0;
@@ -2187,7 +2245,7 @@ int USB_SendControl(uint8_t flags, const void* d, int len)
     return 0;
   }
 
-  internal_send(0, d, len, 0); // note need to call USB_Flush() after sending control packets
+  internal_send(0, d, len, 1); // auto-flush
   return 0;
 }
 
@@ -2300,17 +2358,12 @@ uint8_t udint;
   *((volatile uint8_t *)&(USB_INTFLAGSACLR)) = udint; // this clears all of the (relevant) I-flags right away,
                                                       // so I can be re-interrupted [hopefully] for anything else
 
-//#ifdef LED_SIGNAL3
-//  digitalWrite(LED_SIGNAL3,digitalRead(LED_SIGNAL3) == LOW ? HIGH : LOW);
-//#endif // LED_SIGNAL3
-
   // on startup of the hardware
   if((udint & (USB_SUSPENDIF_bm | USB_RESUMEIF_bm)) == (USB_SUSPENDIF_bm | USB_RESUMEIF_bm))
   {
     // NOTE:  I have observed that when you power up the USB for the first time, you get an interrupt
     //        in which BOTH the RESUME and SUSPEND bits are set.  This may *not* be a documented behavior
     //        but it happens, and I'd like to do something maybe... ?
-//    DEBUG_OUT(F("USB powerup\r\n"));
     error_printP(F("USB powerup"));
   }
   else if(udint & USB_SUSPENDIF_bm)
@@ -2319,20 +2372,21 @@ uint8_t udint;
 
     // TODO:  use THIS to detect 'disconnected' - if the frame # has not changed,
     //        then I'm no longer connected.
-//    error_printP(F("USB suspend IF"));
+
+//    error_printP(F("USB suspend IF"));  <-- noisy
   }
   else if(udint & USB_RESUMEIF_bm)
   {
     // NOTE:  I get several suspend/resume combos after pulling the USB cable out
 
     // TODO:  use THIS to detect 'connected', along with frame # change.
-//    error_printP(F("USB resume IF"));
+
+//    error_printP(F("USB resume IF"));  <-- noisy
   }
 
   //  End of Reset - happens when you first plug in, etc.
   if(udint & USB_RSTIF_bm) //(1<<EORSTI))
   {
-//    DEBUG_OUT(F("USB RST\r\n"));
     error_printP_(F("USB RESET IF: "));
 
     if(USB_ADDR != 0)
@@ -2351,13 +2405,15 @@ uint8_t udint;
 
     bUSBAddress = 0; // so I don't accidentally set the USB address after a zero-length packet is sent
 
+    _usbConfiguration = 0; // make sure (un-configured)
+
     // TODO:  see if endpoint 0 needs to be re-done or not, perhaps just leaving it
     //        'as-is' may be MORE stable than re-doing it every! single! time!
 
     InitEP(0,EP_TYPE_CONTROL,EP_SINGLE_64);  // clear queues, init endpoints
 
     // clear any 'stall' event this might cause
-    *((volatile uint8_t *)&(USB_INTFLAGSACLR)) = USB_STALLIF_bm;
+    *((volatile uint8_t *)&(USB_INTFLAGSACLR)) = USB_STALLIF_bm; // clears the bit
   }
 
   //  Start of Frame - happens every millisecond so we use it for TX and RX LED one-shot timing, too
@@ -2381,18 +2437,6 @@ uint8_t udint;
     check_recv_queue(); // check this too, just in case, probably nothing
   }
 
-//  if(udint & ~(USB_RSTIF_bm | USB_SOFIF_bm)) // anything else
-//  {
-//    DEBUG_OUT(F("USB other "));
-//    DEBUG_OUT((uint32_t)udint);
-//    DEBUG_OUT(F("\r\n"));
-//  }
-
-the_end: // label to allow graceful exit
-
-  // exit code goes here
-//  _asm("nop"); // otherwise I get warnings
-
   // if any other flags were set during the ISR, I should get another interrupt
 
   return; // warning avoidance
@@ -2401,32 +2445,17 @@ the_end: // label to allow graceful exit
 //  Transaction Complete
 ISR(USB_TRNCOMPL_vect)
 {
-INTERNAL_BUFFER *pBuf, *pX;
-uint8_t udint, requestType;
+uint8_t udint;
 
 
   udint = *((volatile uint8_t *)&(USB_INTFLAGSBCLR));
   
-//  if(udint & USB_TRNIF_bm) // transaction complete - check all of them [has bit value of 2 for later ref]
-//  {
-//    // NOTE:  this can happen a LOT so be efficient
-//
-////    if(!(udint & USB_SETUPIF_bm)) // not doing setup, so do this instead
-//    {
-//    }
-//  }
-
-//#ifdef LED_SIGNAL2
-//  digitalWrite(LED_SIGNAL2,digitalRead(LED_SIGNAL2) == LOW ? HIGH : LOW);
-//#endif // LED_SIGNAL2
-
 
   check_send_queue(); // do this always [for now] and do it FIRST
   check_recv_queue(); // NOTE:  this dispatches received packets for me
 
-  *((volatile uint8_t *)&(USB_INTFLAGSBCLR)) = 0x3; // udint; // now it's safe to clear interrupt flags (hopefully)
-
-//  *((volatile uint8_t *)&(USB_INTFLAGSBCLR)) = udint; // clears the bits
+  *((volatile uint8_t *)&(USB_INTFLAGSBCLR)) = 0x3; //  now it's safe to clear interrupt flags (hopefully)
+    // NOTE:  only the 2 lower bits of INTFLAGSB are actually used
 
   return; // warning avoidance
 }
@@ -2450,8 +2479,7 @@ uint8_t udint, requestType;
 
 u8 USBGetConfiguration(void)
 {
-  return 0; // for now
-  //return _usbConfiguration;
+  return _usbConfiguration;
 }
 
 //  Handle CLASS_INTERFACE requests
@@ -2477,18 +2505,26 @@ static bool ClassInterfaceRequest(Setup& rSetup)
 }
 
 
-int SendInterfaces()
+int SendInterfaces(bool bSendFlag)
 {
   int total = 0;
   u8 interfaces = 0;
 
+  error_printP(F("SendInterfaces()"));
+
 #ifdef CDC_ENABLED
-  total = CDC_GetInterface(&interfaces);
+  error_printP(F("SendInterfaces() calls CDC_GetInterface()"));
+  total = CDC_GetInterface(&interfaces, bSendFlag);
 #endif
 
 #ifdef HID_ENABLED
-  total += HID_GetInterface(&interfaces);
+  error_printP(F("SendInterfaces() calls HID_GetInterface()"));
+  total += HID_GetInterface(&interfaces, bSendFlag);
 #endif
+
+#if !defined(CDC_ENABLED) && !defined(HID_ENABLED)
+  error_printP(F("SendInterfaces() doesn't do *SQUAT*"));
+#endif // !defined(CDC_ENABLED) && !defined(HID_ENABLED)
 
   return interfaces;
 }
@@ -2500,21 +2536,26 @@ static bool SendConfiguration(int maxlen)
 {
 int interfaces;
 
-//  DEBUG_OUT(F("USB SendConfiguration\r\n"));
-  error_printP(F("USB SendConfiguration"));
+  error_printP_(F("USB SendConfiguration - maxlen="));
+  error_printL(maxlen);
 
   //  Count and measure interfaces
   // to do this properly, I'll allocate a packet, build it, and then
   // add it to the send queue.  MUCH better!
 
 
-  interfaces = SendInterfaces(); // this calls USB_SendControl(TRANSFER_PGM,&_cdcInterface,sizeof(_cdcInterface));
+  interfaces = SendInterfaces(0); // this JUST gets the length
 
   ConfigDescriptor config = D_CONFIG(/*_cmark +*/ sizeof(ConfigDescriptor),interfaces);
 
+  // TODO:  do I need to check 'maxlen' to see what I need to send??
+
   //  Now send them
-  USB_SendControl(0, &config, sizeof(ConfigDescriptor) /*, maxlen*/);
-  SendInterfaces(); // WHY am I doing this again??
+  USB_SendControl(0, &config, sizeof(ConfigDescriptor));
+//  internal_send(0, &config, sizeof(ConfigDescriptor), 0); // start packet but don't mark 'send'
+
+//  // TODO:  do I send ONE PACKET here?
+//  SendInterfaces(1); // WHY am I doing this again??  (ok I'll say "send it" this time)
   return true;
 }
 
@@ -2528,7 +2569,6 @@ static bool SendDescriptor(Setup& rSetup)
 u8 t;
 bool bRval;
 
-//  DEBUG_OUT(F("USB SendDescriptor\r\n"));
   error_printP(F("USB SendDescriptor"));
 
 //#ifdef LED_SIGNAL1
@@ -2536,20 +2576,19 @@ bool bRval;
 //#endif // LED_SIGNAL1
 
   t = rSetup.wValueH;
-  if (USB_CONFIGURATION_DESCRIPTOR_TYPE == t)
+  if (USB_CONFIGURATION_DESCRIPTOR_TYPE == t) // 2
   {
-    error_printP(F("Send Configuration"));
+    error_printP(F("Send Configuration [descriptor type]"));
 
     bRval = SendConfiguration(rSetup.wLength);
 //    ClearIN(); /// misleading function name, sends the data      
     return bRval;
   }
   
-
 #ifdef HID_ENABLED
-  if (HID_REPORT_DESCRIPTOR_TYPE == t)
+  else if (HID_REPORT_DESCRIPTOR_TYPE == t) // 0x22
   {
-    error_printP(F("HID Get Descriptor"));
+    error_printP(F("HID Get Descriptor [descriptor type]"));
 
     return HID_GetDescriptor(t, rSetup.wLength);
   }
@@ -2557,22 +2596,38 @@ bool bRval;
 
   u8 desc_length = 0;
   const u8* desc_addr = 0;
-  if (USB_DEVICE_DESCRIPTOR_TYPE == t)
+  if (USB_DEVICE_DESCRIPTOR_TYPE == t) // 1
   {
-    error_printP(F("Device Descriptor Type"));
-
-    if (rSetup.wLength == 8)
+    if (rSetup.wLength == 8) // this actually happens - it expects 8 bytes apparently
     {
-      _cdcComposite = 1;
+      error_printP(F("Device Descriptor Type - CDC Composite (length==8)"));
+
+      _cdcComposite = 1;  // TODO:  WHY???
     }
-//    else
-//    {
-//      _cdcComposite = 0; // the default (added by me to restore default as needed)
-//    }
+    else
+    {
+      error_printP_(F("Device Descriptor Type - length was "));
+      error_printL(rSetup.wLength);
+
+      _cdcComposite = 0; // the default (added by me to restore default as needed)
+    }
 
     desc_addr = _cdcComposite ?  (const u8*)&USB_DeviceDescriptorA : (const u8*)&USB_DeviceDescriptor;
+    // NOTE:  this will send descriptor for the CDC device, when defined
   }
-  else if (USB_STRING_DESCRIPTOR_TYPE == t)
+  else if (USB_DEVICE_QUALIFIER_TYPE == t) // 6
+  {
+    error_printP(F("Device Qualifier Type - a USB 2 request"));
+    // according to available documentation, it's a USB 2.0 request that wants to know how
+    // the device will behave in high speed mode (vs full speed mode).  Since I don't support
+    // high speed mode, I'll 'nack' it with a zero length packet.
+
+    // https://msdn.microsoft.com/en-us/library/windows/hardware/ff539288%28v=vs.85%29.aspx
+
+    internal_send0(0);
+    return true; // for now indicate "it worked"
+  }
+  else if (USB_STRING_DESCRIPTOR_TYPE == t) // 3
   {
     error_printP_(F("String Descriptor Type - "));
 
@@ -2602,6 +2657,13 @@ bool bRval;
       return false;
     }
   }
+  else
+  {
+    error_printP_(F("*** Unknown Descriptor Type - "));
+    error_printL(t);
+
+    return false;
+  }
 
   if(desc_addr == 0)
   {
@@ -2609,12 +2671,11 @@ bool bRval;
 
     return false;
   }
-
-  if(desc_length == 0)
+  else if(desc_length == 0)
   {
-    desc_length = pgm_read_byte(desc_addr);
+    desc_length = pgm_read_byte(desc_addr); // first byte of the descriptor, always
 
-    error_printP_(F("Data Length = "));
+    error_printP_(F("  Data Length = "));
     error_printL(desc_length);
   }
 
@@ -2640,15 +2701,13 @@ USBDevice_ USBDevice;
 
 USBDevice_::USBDevice_()
 {
-//  DEBUG_OUT(F("USB - device const\r\n"));
 }
 
 void USBDevice_::attach()
 {
-uint16_t index;
+//uint16_t index;
 unsigned long lTick = millis();
 
-//  DEBUG_OUT(F("USB - attach\r\n"));
   error_printP(F("USB - attach"));
 
   uint8_t oldSREG = SREG; // save int flag
@@ -2664,7 +2723,7 @@ unsigned long lTick = millis();
   USB_INTFLAGSACLR = 0xff; // clear all int flags
   USB_INTFLAGSBCLR = 0x3;  // clear all int flags
 
-//  _usbConfiguration = 0;
+  _usbConfiguration = 0;
 
   // enable the USB clock using the 32mhz RC oscillator
   // assume either slow (6mhz) or fast (48mhz)
@@ -2748,41 +2807,38 @@ unsigned long lTick = millis();
    // TODO:  FIFO ?
             ;
 
-  init_buffers_and_endpoints();
+  init_buffers_and_endpoints(); // initialize everything in RAM registers, basically
 
-  USB_EPPTR = endpoint_data_pointer();
+  USB_EPPTR = endpoint_data_pointer(); // assign the data pointer to the RAM registers
+  // NOTE:  the xmega USB implementation puts most of the 'register' info for USB into RAM
 
-  USB_ADDR = 0; // set USB address to 0 (default before 'SETUP')
+  USB_ADDR = 0; // set USB address to 0 (before doing the first 'SETUP' request)
 
   // LAST of all, enable interrupts
   USB_INTCTRLB = USB_TRNIE_bm | USB_SETUPIE_bm;    // enable 'transaction complete' and 'setup' interrupts
   USB_INTCTRLA  = USB_SOFIE_bm                     // enable the start of frame interrupt
                 | USB_BUSEVIE_bm                   // 'bus event' interrupt - suspend, resume, reset
                                                    // for the RESET event, RESETIF will be set (20.14.11 in AU manual)
-                | USB_INTLVL1_bm;                  // int level 2
-//                | USB_INTLVL0_bm | USB_INTLVL1_bm; // int level 3
+                | USB_INTLVL1_bm;                  // int level 2 (deliberately lower than serial port, SPI, I2C)
+//                | USB_INTLVL0_bm | USB_INTLVL1_bm; // int level 3 (for if there are performance problems with int level 2)
 
-
-//  InitEP(0,EP_TYPE_CONTROL,EP_SINGLE_64);  // init ep0 (do this NOW)
 
   // NOW enable the USB
-  USB_CTRLA |= USB_ENABLE_bm;
+  USB_CTRLA |= USB_ENABLE_bm; // and, we're UP and RUNNING!
 
   SREG = oldSREG; // restore int flags
 
   // attach the wiring for D- and D+ AFTER everything else.
 
   USB_CTRLB = USB_ATTACH_bm; // attach D- and D+ (also enables pullup resistors based on speed)
-  // on the 128A1U, this is PD6 (D-) and PD7 (D+) [YMMV on the other processors]
-  // this is partly why it's good to use PORTC for the primary SPI, TWI, etc.
-  // since PORTD gets used for 'other things', but it's STILL ok to use PD2,3 as a serial port
-  // and so the default pin config works pretty well.
+  // on A1U and A4U devices, this is PD6 (D-) and PD7 (D+) [YMMV on the other processors]
+  // this is partly why it's good to use PORTC for the primary SPI, etc. since PORTD
+  // gets used for 'other things' (like USB).  Default serial port on PORTD is still ok.
 
 #ifdef TX_RX_LED_INIT  
-  TX_RX_LED_INIT(); // macro must be defined in variants 'pins_arduino.h'
+  TX_RX_LED_INIT(); // macro must be defined in variants 'pins_arduino.h' for the USB activity lights
 #endif // TX_RX_LED_INIT
 
-//  DEBUG_OUT(F("USB Attach (done)\r\n"));
   error_printP(F("USB Attach (done)"));
 
   // NOTE:  at THIS point the ISR will manage everything else.  The USB will receive
@@ -2791,7 +2847,6 @@ unsigned long lTick = millis();
 
 void USBDevice_::detach()
 {
-//  DEBUG_OUT(F("USB - detach\r\n"));
   error_printP(F("USB - detach"));
 
   uint8_t oldSREG = SREG; // save int flag
@@ -2805,11 +2860,10 @@ void USBDevice_::detach()
 
   init_buffers_and_endpoints(); // re-initialize these
 
-//  _usbConfiguration = 0;
+  _usbConfiguration = 0;
 
   SREG = oldSREG; // restore int flags
 
-//  DEBUG_OUT(F("USB Detach\r\n"));
   error_printP(F("USB Detach (done)"));
 }
 
@@ -2823,8 +2877,7 @@ XMegaEPDataStruct *USBDevice_::GetEPData()
 //  TODO: VBUS detection
 bool USBDevice_::configured()
 {
-//  return _usbConfiguration;
-  return 0; // FOR NOW   TODO POOBAH FIX THIS
+  return _usbConfiguration;
 }
 
 void USBDevice_::poll()

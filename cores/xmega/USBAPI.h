@@ -1,3 +1,14 @@
+//////////////////////////////////////////////////////////////////////////////
+//                                                                          //
+//              _   _  ____   ____     _            _     _                 //
+//             | | | |/ ___| | __ )   / \    _ __  (_)   | |__              //
+//             | | | |\___ \ |  _ \  / _ \  | '_ \ | |   | '_ \             //
+//             | |_| | ___) || |_) |/ ___ \ | |_) || | _ | | | |            //
+//              \___/ |____/ |____//_/   \_\| .__/ |_|(_)|_| |_|            //
+//                                          |_|                             //
+//                                                                          //
+//////////////////////////////////////////////////////////////////////////////
+
 #ifndef __USBAPI__
 #define __USBAPI__
 
@@ -5,7 +16,7 @@
 
 #include "USBCore.h" /* make sure since I use its definitions here */
 
-//#ifdef DEBUG
+//#ifdef DEBUG_CODE
 #ifdef __cplusplus
 extern "C"
 {
@@ -16,12 +27,12 @@ extern void error_printH(unsigned long); // TEMPORARY
 extern void error_printH_(unsigned long); // TEMPORARY
 extern void error_printL(unsigned long); // TEMPORARY
 extern void error_printL_(unsigned long); // TEMPORARY
-extern void error_printP(const void * PROGMEM p1);
-extern void error_printP_(const void * PROGMEM p1);
+extern void error_printP(const void * /*PROGMEM*/ p1);  // TEMPORARY
+extern void error_printP_(const void * /*PROGMEM*/ p1);  // TEMPORARY
 #ifdef __cplusplus
 }
 #endif // __cplusplus
-//#endif // DEBUG
+//#endif // DEBUG_CODE
 
 
 //================================================================================
@@ -178,7 +189,7 @@ typedef struct
 //================================================================================
 //	HID 'Driver'
 
-int		HID_GetInterface(uint8_t* interfaceNum);
+int		HID_GetInterface(uint8_t* interfaceNum, bool bSendPacket);
 int		HID_GetDescriptor(int i);
 bool	HID_Setup(Setup& setup);
 void	HID_SendReport(uint8_t id, const void* data, int len);
@@ -187,7 +198,7 @@ void	HID_SendReport(uint8_t id, const void* data, int len);
 //================================================================================
 //	MSC 'Driver'
 
-int		MSC_GetInterface(uint8_t* interfaceNum);
+int		MSC_GetInterface(uint8_t* interfaceNum, bool bSendPacket);
 int		MSC_GetDescriptor(int i);
 bool	MSC_Setup(Setup& setup);
 bool	MSC_Data(uint8_t rx,uint8_t tx);
@@ -196,7 +207,7 @@ bool	MSC_Data(uint8_t rx,uint8_t tx);
 //================================================================================
 //	CSC 'Driver'
 
-int		CDC_GetInterface(uint8_t* interfaceNum);
+int		CDC_GetInterface(uint8_t* interfaceNum, bool bSendPacket); // modified
 int		CDC_GetDescriptor(int i);
 bool	CDC_Setup(Setup& setup);
 
