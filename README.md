@@ -48,8 +48,10 @@ will compile without errors or user-side edits.
 
 If your 'FOSS' product needs a vendor ID and product ID, you might try
 
-&nbsp;&nbsp;http://wiki.openmoko.org/wiki/USB_Product_IDs
-
+&nbsp;&nbsp;<a href="http://wiki.openmoko.org/wiki/USB_Product_IDs">
+openmoko.org - USB Product IDs</a><br>
+&nbsp;&nbsp;<a href="https://raw.githubusercontent.com/arduino/ArduinoISP/master/usbdrv/USB-IDs-for-free.txt">
+arduino on github - 'usbdrv' free USB IDs</a><br>
 
 
 <p align="center">* DERIVED OPEN SOURCE SOFTWARE *</p>
