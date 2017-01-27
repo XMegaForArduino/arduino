@@ -65,7 +65,7 @@ Version Modified By Date     Comments
 
 #ifdef TONE_SUPPORTED
 
-#if __GNUC__ > 4 || (__GNUC__ > 4 && __GNUC_MINOR__ >= 6)
+#if __GNUC__ > 4 || (__GNUC__ == 4 && __GNUC_MINOR__ >= 6)
 #define PROGMEM_ORIG PROGMEM
 #else // PROGMEM workaround
 
@@ -89,7 +89,7 @@ static void toneBegin(uint8_t _pin, uint8_t _div, uint16_t _per)
   pTonePort = (PORT_t *)portModeRegister(digitalPinToPort(_pin));
   bToneMask = digitalPinToBitMask(_pin);
 
-  
+
   // Set the pinMode as OUTPUT
   pinMode(_pin, OUTPUT);
 
@@ -97,7 +97,7 @@ static void toneBegin(uint8_t _pin, uint8_t _div, uint16_t _per)
 
   TCE0_INTCTRLA = 0;  // temporarily disable overflow interrupt
   TCE0_INTCTRLB = 0;  // disable other interrupts
-  TCE0_CTRLA = _div;  // divisor for pre-scaler  
+  TCE0_CTRLA = _div;  // divisor for pre-scaler
   TCE0_CTRLB = TC_WGMODE_NORMAL_gc; // 'normal' mode (interrupt on 'overflow')
   TCE0_CTRLD = 0; // not an event timer, 16-bit mode (12.11.4)
   TCE0_CTRLE = 0;     // 16-bit mode
@@ -108,7 +108,7 @@ static void toneBegin(uint8_t _pin, uint8_t _div, uint16_t _per)
 
   TCC4_INTCTRLA = 0;  // temporarily disable overflow interrupt
   TCC4_INTCTRLB = 0;  // disable other interrupts
-  TCC4_CTRLA = _div;  // divisor for pre-scaler  
+  TCC4_CTRLA = _div;  // divisor for pre-scaler
   TCC4_CTRLB = TC45_WGMODE_NORMAL_gc; // 'normal' mode (interrupt on 'overflow')
   TCC4_CTRLD = 0; // not an event timer, 16-bit mode (12.11.4)
   TCC4_CTRLE = 0;     // 16-bit mode
@@ -119,7 +119,7 @@ static void toneBegin(uint8_t _pin, uint8_t _div, uint16_t _per)
 
   TCC0_INTCTRLA = 0;  // temporarily disable overflow interrupt
   TCC0_INTCTRLB = 0;  // disable other interrupts
-  TCC0_CTRLA = _div;  // divisor for pre-scaler  
+  TCC0_CTRLA = _div;  // divisor for pre-scaler
   TCC0_CTRLB = TC_WGMODE_NORMAL_gc; // 'normal' mode (interrupt on 'overflow')
   TCC0_CTRLD = 0; // not an event timer, 16-bit mode (12.11.4)
   TCC0_CTRLE = 0;     // 16-bit mode
@@ -140,7 +140,7 @@ unsigned short per, w2;
 unsigned long ulTemp;
 static const uint16_t aPreScaler[] PROGMEM = {1,2,4,8,64,256,1024}; // pre-scaler
 
-  // frequency 
+  // frequency
 
   // based on the frequency, set up the divider and period
   // period is 16-bits

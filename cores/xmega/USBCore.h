@@ -9,24 +9,44 @@
 //                                                                          //
 //////////////////////////////////////////////////////////////////////////////
 
-// Copyright (c) 2010, Peter Barrett 
+// Copyright (c) 2010, Peter Barrett
 /*
-** Permission to use, copy, modify, and/or distribute this software for  
-** any purpose with or without fee is hereby granted, provided that the  
-** above copyright notice and this permission notice appear in all copies.  
-**  
-** THE SOFTWARE IS PROVIDED "AS IS" AND THE AUTHOR DISCLAIMS ALL  
-** WARRANTIES WITH REGARD TO THIS SOFTWARE INCLUDING ALL IMPLIED  
-** WARRANTIES OF MERCHANTABILITY AND FITNESS. IN NO EVENT SHALL THE AUTHOR  
-** BE LIABLE FOR ANY SPECIAL, DIRECT, INDIRECT, OR CONSEQUENTIAL DAMAGES  
-** OR ANY DAMAGES WHATSOEVER RESULTING FROM LOSS OF USE, DATA OR PROFITS,  
-** WHETHER IN AN ACTION OF CONTRACT, NEGLIGENCE OR OTHER TORTIOUS ACTION,  
-** ARISING OUT OF OR IN CONNECTION WITH THE USE OR PERFORMANCE OF THIS  
-** SOFTWARE.  
+** Permission to use, copy, modify, and/or distribute this software for
+** any purpose with or without fee is hereby granted, provided that the
+** above copyright notice and this permission notice appear in all copies.
+**
+** THE SOFTWARE IS PROVIDED "AS IS" AND THE AUTHOR DISCLAIMS ALL
+** WARRANTIES WITH REGARD TO THIS SOFTWARE INCLUDING ALL IMPLIED
+** WARRANTIES OF MERCHANTABILITY AND FITNESS. IN NO EVENT SHALL THE AUTHOR
+** BE LIABLE FOR ANY SPECIAL, DIRECT, INDIRECT, OR CONSEQUENTIAL DAMAGES
+** OR ANY DAMAGES WHATSOEVER RESULTING FROM LOSS OF USE, DATA OR PROFITS,
+** WHETHER IN AN ACTION OF CONTRACT, NEGLIGENCE OR OTHER TORTIOUS ACTION,
+** ARISING OUT OF OR IN CONNECTION WITH THE USE OR PERFORMANCE OF THIS
+** SOFTWARE.
 */
 
 #ifndef __USBCORE_H__
 #define __USBCORE_H__
+
+// USB implementation MUST have USB_VID and USB_PID defined - can be done in 'boards.txt'
+#if defined(USBCON) /* TODO add others here, things that require VID and PID for USB */
+#ifdef USB_VID
+#if USB_VID==null
+#error cannot work with NULL value for VID
+#endif // USB_VID==null
+#else
+#error must define USB_VID
+#endif // USB_VID
+
+#ifdef USB_PID
+#if USB_PID==null
+#error cannot work with NULL value for PID
+#endif // USB_PID==null
+#else
+#error must define USB_PID
+#endif // USB_PID
+#endif // defined(USBCON)
+
 
 #define FAST_USB /* necessary for 'FULL' speed operation - this is 12Mbit, not 480Mbit USB 2 'HIGH' speed - 'LOW' may not work properly */
 
@@ -98,7 +118,10 @@ typedef unsigned long u32;
 #define USB_INTERFACE_DESCRIPTOR_TYPE           4
 #define USB_ENDPOINT_DESCRIPTOR_TYPE            5
 #define USB_DEVICE_QUALIFIER_TYPE               6
+#define USB_DEVICE_DEBUG_TYPE                  10
 
+
+#define USB_DEVICE_CLASS_ZERO                   0x00
 #define USB_DEVICE_CLASS_COMMUNICATIONS         0x02
 #define USB_DEVICE_CLASS_HUMAN_INTERFACE        0x03
 #define USB_DEVICE_CLASS_STORAGE                0x08
@@ -137,8 +160,8 @@ typedef unsigned long u32;
 #define CDC_CS_ENDPOINT                         0x25
 #define CDC_DATA_INTERFACE_CLASS                0x0A
 
-#define MSC_SUBCLASS_SCSI                       0x06 
-#define MSC_PROTOCOL_BULK_ONLY                  0x50 
+#define MSC_SUBCLASS_SCSI                       0x06
+#define MSC_PROTOCOL_BULK_ONLY                  0x50
 
 #define HID_HID_DESCRIPTOR_TYPE                 0x21
 #define HID_REPORT_DESCRIPTOR_TYPE              0x22
@@ -186,8 +209,8 @@ typedef struct _config_descriptor_
 //  Interface
 typedef struct _interface_descriptor_
 {
-  u8 len;    // 9
-  u8 dtype;  // 4
+  u8 len;                // 9
+  u8 dtype;              // 4
   u8 number;
   u8 alternate;
   u8 numEndpoints;
@@ -212,8 +235,8 @@ typedef struct _endpoint_descriptor_
 // Used to bind 2 interfaces together in CDC compostite device
 typedef struct _iad_descriptor_
 {
-  u8 len;        // 8
-  u8 dtype;      // 11
+  u8 len;              // 8
+  u8 dtype;            // 11
   u8 firstInterface;
   u8 interfaceCount;
   u8 functionClass;
@@ -242,30 +265,27 @@ typedef struct _cdccs_interface_descriptor4_
 
 typedef struct  _cm_functional_descriptor_
 {
-    u8  len;
-    u8   dtype;    // 0x24
-    u8   subtype;  // 1
-    u8   bmCapabilities;
-    u8   bDataInterface;
+  u8  len;             // 5
+  u8   dtype;          // 0x24
+  u8   subtype;        // 1
+  u8   bmCapabilities;
+  u8   bDataInterface;
 } CMFunctionalDescriptor;
-  
+
 typedef struct  _acm_functional_descriptor_
 {
-    u8  len;
-    u8   dtype;    // 0x24
-    u8   subtype;  // 1
-    u8   bmCapabilities;
+  u8  len;
+  u8   dtype;    // 0x24
+  u8   subtype;  // 1
+  u8   bmCapabilities;
 } ACMFunctionalDescriptor;
 
 typedef struct _cdc_descriptor_
 {
-  //  IAD
-  IADDescriptor        iad;  // Only needed on compound device
-
   //  Control
-  InterfaceDescriptor       cif;  // 
+  InterfaceDescriptor       cif;  //
   CDCCSInterfaceDescriptor  header;
-  CMFunctionalDescriptor    callManagement;      // Call Management
+//  CMFunctionalDescriptor    callManagement;      // Call Management
   ACMFunctionalDescriptor   controlManagement;    // ACM
   CDCCSInterfaceDescriptor  functionalDescriptor;  // CDC_UNION
   EndpointDescriptor        cifin;
@@ -309,7 +329,11 @@ typedef struct _hid_descriptor_
 #define MAXEP 5 /*15*/ /* 4 bit value, 0-15 - see 20.14.1 'CTRLA register' in AU manual */
 // I assigned this to '5' because there are only 5 endpoints being used by THIS code.
 // The 'mega' code could only have a total of 6 and 0 was always the 'control' endpoint
-
+// and setting a 'smaller-than-maximum' value for XMEGA burns up less RAM.
+// If this poses a problem I _could_ malloc the structures, but to be effective, it would
+// have to require a reboot to change it, or you'd get major RAM fragmentation
+//
+// TODO:  put MAXEP into pins_arduino.h and override if too small (or not defined already)
 
 typedef union _xmega_fifo_entry_
 {
@@ -326,16 +350,6 @@ typedef struct _xmega_fifo_
   XMegaFIFOEntry out;
 } XMegaFIFO;
 
-/*
-typedef union
-{
-  struct
-  {
-    uint8_t l,h;
-  };
-  uint16_t w;
-} HLByteWord;
-*/
 // see AU manual, pg 231 section 20.4
 typedef struct _xmega_endpoint_descriptor_
 {

@@ -36,7 +36,7 @@
 #include "wiring_private.h"
 #include "HardwareSerial.h"
 
-#if __GNUC__ > 4 || (__GNUC__ > 4 && __GNUC_MINOR__ >= 6)
+#if __GNUC__ > 4 || (__GNUC__ == 4 && __GNUC_MINOR__ >= 6)
 #define PROGMEM_ORIG PROGMEM
 #else // PROGMEM workaround
 
@@ -626,7 +626,7 @@ char bCTS = SERIAL_1_CTS_PORT->IN & SERIAL_1_CTS_PIN;
       bCTS ||
 #endif // SERIAL_1_CTS_ENABLED
       tx_buffer2.head == tx_buffer2.tail)
-  
+
   {
 #ifdef SERIAL_1_CTS_ENABLED
     if(bCTS)
@@ -1398,7 +1398,7 @@ void HardwareSerial::begin(unsigned long baud, byte config)
   _usart->CTRLC = config & ~(_BV(USART_CMODE1_bp)|_BV(USART_CMODE0_bp)); // make sure bits 6 and 7 are cleared
 #ifdef USARTD0_CTRLD
   _usart->CTRLD = 0;  // E5 has this register, must assign to zero
-#endif // USARTD0_CTRLD  
+#endif // USARTD0_CTRLD
 
   // assign the baud_setting, a.k.a. ubbr (USART Baud Rate Register)
 

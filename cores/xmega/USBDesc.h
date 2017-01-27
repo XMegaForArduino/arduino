@@ -67,6 +67,14 @@
 #define HID_TX HID_ENDPOINT_INT
 #endif
 
-#define IMANUFACTURER 1
-#define IPRODUCT    2
+// string indexes/indices for USB_STRING_DESCRIPTOR_TYPE
+#define USB_STRING_INDEX_LANGUAGE      0 /* not actually a STRING though */
+#define USB_STRING_INDEX_MANUFACTURER  1
+#define USB_STRING_INDEX_PRODUCT       2
+#define USB_STRING_INDEX_DESCRIPTION   3
+#define USB_STRING_INDEX_VERSION       4
+#define USB_STRING_INDEX_URL           5
+#define USB_STRING_INDEX_SERIAL        6
+
+
 

@@ -37,28 +37,35 @@ class Print
     int write_error;
     size_t printNumber(unsigned long, uint8_t);
     size_t printFloat(double, uint8_t);
+
   protected:
     void setWriteError(int err = 1) { write_error = err; }
+
   public:
-    Print() : write_error(0) {}
-  
+    Print() : write_error(0) {} // default constructor only assigns 0 to 'write_error'
+
     int getWriteError() { return write_error; }
     void clearWriteError() { setWriteError(0); }
-  
-    virtual size_t write(uint8_t) = 0;
+
+    virtual size_t write(uint8_t) = 0;                        // derived class must implement
     size_t write(const char *str)
     {
       if (str == NULL) return 0;
       return write((const uint8_t *)str, strlen(str));
     }
-    virtual size_t write(const uint8_t *buffer, size_t size);
+
+    // write multiple characters from a buffer - default calls 'write(uint8_t)' on each byte
+    // NOTE: for better efficiency, a derived class SHOULD implement its own 'write' for a buffer
+
+    virtual size_t write(const uint8_t *buffer, size_t size); // overridable
     size_t write(const char *buffer, size_t size)
     {
       return write((const uint8_t *)buffer, size);
     }
 
+    // custom mod - implement 'printf' member function
     int printf(const char *pszFormat, ...) __attribute__ ((format(printf, 2, 3))); // added API for 'printf' since it has been suggested...
-    
+
     size_t print(const __FlashStringHelper *);
     size_t print(const String &);
     size_t print(const char[]);
@@ -86,3 +93,4 @@ class Print
 };
 
 #endif
+
