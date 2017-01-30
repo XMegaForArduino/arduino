@@ -166,23 +166,36 @@
 #endif // USB_PID==null
 #endif // USB_PID
 
-#ifndef USB_VID
-// NOTE:  you can eliminate the warnings by making a copy of this for your own variant
-//        but REMEMBER! YOU! MUST! CHANGE! THE! IDS!
+#if !defined(USB_VID) || !defined(USB_PID)
 
-#warning using Arduino Mega2560 USB Vendor ID - do NOT ship product with these IDs
-#define USB_VID 0x2341 /* this is the Arduino vendor ID - you should probably get your own */
-#warning using Arduino Mega2560 USB Vendor ID - do NOT ship product with these IDs
+#ifdef USB_VID
+#undef USB_VID
 #endif // USB_VID
 
-#ifndef USB_PID
-// NOTE:  you can eliminate the warnings by making a copy of this for your own variant
-//        but REMEMBER! YOU! MUST! CHANGE! THE! IDS!
-
-#warning using Arduino Mega2560 USB Product ID - do NOT ship product with these IDs
-#define USB_PID 0x0010 /* this is the Arduino Mega2560 R3 product ID - you should probably use your own */
-#warning using Arduino Mega2560 USB Product ID - do NOT ship product with these IDs
+#ifdef USB_PID
+#undef USB_PID
 #endif // USB_PID
+
+
+#define USB_VID 0x16c0  /* Van Ooijen Technische Informatica */
+#define USB_PID 0x05e1  /* name-based CDC/ACM device */
+
+#endif // !defined(USB_VID) || !defined(USB_PID)
+
+// Configuring default product name and vendor
+// If you use the project defaults, it will result in a name-based device descriptor based on
+//    https://raw.githubusercontent.com/arduino/ArduinoISP/master/usbdrv/USB-IDs-for-free.txt
+
+#if USB_VID==0x16c0 && USB_PID==0x05e1 /* CDC/ACM device using name-based device identification */
+
+// NOTE: these strings begin with the u16 value (3 << 8) | sizeof(string)
+//       if you modify them, you need to adjust the '\x03nn' value at the beginning
+
+#define USB_MANUFACTURER_NAME L"\x033aS.F.T. Inc. http://mrp3.com/" /* unicode string - 28 chars + 1 - 3aH*/
+#define USB_PRODUCT_NAME      L"\x0330XMegaForArduino Project"      /* unicode string - 23 chars + 1 - 30H*/
+
+#endif // USB_VID==0x16c0 && USB_PID==0x05e1
+
 
 #define CDC_ENABLED    /* this switches to device class 2, useful for serial I/O implementations */
 

@@ -67,10 +67,10 @@ typedef struct
   u8   bDataBits;   // char bits 5, 6, 7, 8
 } __attribute__((aligned(1))) LineInfo;
 
-static volatile LineInfo _usbLineInfo = { 57600, 0x00, 0x00, 0x00 };
+static volatile LineInfo _usbLineInfo = { 115200, 0x00, 0x00, 0x00 };
 
 static u8 _cdcLineState = 0;
-
+static u16 _cdcSerialState = 0;
 
 #define WEAK __attribute__ ((weak))
 
@@ -90,32 +90,51 @@ const DeviceDescriptor _cdcDeviceDescriptor PROGMEM =
            0x100,                               // this indicates USB version 1.0
            USB_STRING_INDEX_MANUFACTURER,       // string index for mfg
            USB_STRING_INDEX_PRODUCT,            // string index for product name
-           0,                                   // would be string index for serial number (0 for 'none')
+           USB_STRING_INDEX_SERIAL,             // string index for serial number (0 for 'none')
            1);                                  // number of configurations (1)
 
 
+// IAD descriptor
+
 const IADDescriptor _cdcIADDesc = D_IAD(0,                                  // first interface
-                                        2,                                  // count
+                                        2,                                  // count (interfaces, not endpoints)
                                         CDC_COMMUNICATION_INTERFACE_CLASS,  // interface class
                                         CDC_ABSTRACT_CONTROL_MODEL,         // interface sub-class
                                         1);                                 // protocol
 
 const CDCDescriptor _cdcInterface = // needs to be no more than 55 bytes in length
 {
+  // IAD header - seems to be optional, but may need to be there for complex interfaces
+  //              see '_cdcIADDesc' above, also 'CDC_SendIAD'
+
+//  D_IAD(0,                                  // first interface
+//        2,                                  // count (interfaces, not endpoints)
+//        CDC_COMMUNICATION_INTERFACE_CLASS,  // class
+//        CDC_ABSTRACT_CONTROL_MODEL,         // subclass
+//        1),                                 // protocol
+
+  //  FIRST INTERFACE
   //  CDC communication interface (endpoint 0)
-  D_INTERFACE(CDC_ACM_INTERFACE,
-              1,
-              CDC_COMMUNICATION_INTERFACE_CLASS,
-              CDC_ABSTRACT_CONTROL_MODEL,
-              0),
-  D_CDCCS(CDC_HEADER,0x10,0x01),                            // CDCCSInterfaceDescriptor Header (1.10 bcd) - USB 1.1
-//  D_CDCCS(CDC_CALL_MANAGEMENT,1,1),                       // Device handles call management (not) [removed]
+  D_INTERFACE(CDC_ACM_INTERFACE,                            // 'n'
+              1,                                            // number of endpoints
+              CDC_COMMUNICATION_INTERFACE_CLASS,            // interface class
+              CDC_ABSTRACT_CONTROL_MODEL,                   // interface sub-class
+              0),                                           // protocol
+
+  D_CDCCS(CDC_HEADER,0x10,0x01),                            // CDCCS InterfaceDescriptor Header (1.10 bcd) - version 1.10?
+//  D_CDCCS(CDC_CALL_MANAGEMENT,1,1),                         // Device handles call management (seems to be optional)
   D_CDCCS4(CDC_ABSTRACT_CONTROL_MANAGEMENT,6),              // SET_LINE_CODING, GET_LINE_CODING, SET_CONTROL_LINE_STATE supported
   D_CDCCS(CDC_UNION,CDC_ACM_INTERFACE,CDC_DATA_INTERFACE),  // Communication interface is master, data interface is slave 0 (?)
   D_ENDPOINT(USB_ENDPOINT_IN (CDC_ENDPOINT_ACM),USB_ENDPOINT_TYPE_INTERRUPT,0x10,0x40),
 
+  //  SECOND INTERFACE
   //  CDC data interface (endpoints 1, 2)
-  D_INTERFACE(CDC_DATA_INTERFACE,2,CDC_DATA_INTERFACE_CLASS,0,0),
+  D_INTERFACE(CDC_DATA_INTERFACE,                           // 'n'
+              2,                                            // number of endpoints
+              CDC_DATA_INTERFACE_CLASS,                     // interface class
+              0,                                            // interface sub-class
+              0),                                           // protocol
+
   D_ENDPOINT(USB_ENDPOINT_OUT(CDC_ENDPOINT_OUT),USB_ENDPOINT_TYPE_BULK,0x40,0),
   D_ENDPOINT(USB_ENDPOINT_IN (CDC_ENDPOINT_IN ),USB_ENDPOINT_TYPE_BULK,0x40,0)
 };
@@ -168,23 +187,10 @@ bool WEAK CDC_Setup(Setup& setup)
   {
     if(CDC_SET_LINE_CODING == r)
     {
-      error_printP(F("TEMPORARY:  CDC_SET_LINE_CODING"));
-      error_printP_(F("  rType:"));
-      error_printL_(setup.bmRequestType);
-      error_printP_(F("  req:"));
-      error_printL_(setup.bRequest);
-      error_printP_(F("  val:"));
-      error_printH_(setup.wValueH);
-      error_printP_(F(":"));
-      error_printH_(setup.wValueL);
-      error_printP_(F("  idx:"));
-      error_printL_(setup.wIndex);
-      error_printP_(F("  len:"));
-      error_printL(setup.wLength);
+      error_printP_(F("CDC_SET_LINE_CODING"));
 
       // setup packet is followed by data?
       memcpy((void *)&_usbLineInfo, (char *)&(setup) + sizeof(Setup), sizeof(_usbLineInfo));
-//      DumpHex(&_usbLineInfo, sizeof(_usbLineInfo));
 
       error_printP_(F("  rate:"));
       error_printL_(_usbLineInfo.dwDTERate);
@@ -195,13 +201,13 @@ bool WEAK CDC_Setup(Setup& setup)
       error_printP_(F("  bit:"));
       error_printL(_usbLineInfo.bDataBits);
 
-#if 0
-      USB_RecvControl((void*)&_usbLineInfo,7);
-#endif // 0
-
       USB_SendControl(0, NULL, 0); // send a ZLP
 
-      _cdcLineState = 1; // for now... assume "this"
+      _cdcLineState = CONTROL_LINE_STATE_DTR; // for now... assume "this"
+
+      // now set up the ACM interrupt info in '_cdcSerialState' and send it back
+      _cdcSerialState = 0; // initially
+//      CDC_FrameReceived();  // to configure the serial state correctly and notify the host
 
       return true;
     }
@@ -267,6 +273,8 @@ bool WEAK CDC_Setup(Setup& setup)
 
       USB_SendControl(0, NULL, 0); // send a ZLP
 
+      CDC_FrameReceived();  // to configure the serial state correctly and notify the host
+
       return true;
     }
   }
@@ -280,6 +288,61 @@ bool WEAK CDC_Setup(Setup& setup)
   return false;
 }
 
+// 'frame received' callback - notification that a 'Start Of Frame' took place
+
+void CDC_FrameReceived(void)
+{
+bool bSend = false;
+
+
+  if(USB_Available(CDC_RX) >= 64) // allow ~64 buffered bytes
+  {
+    if(_cdcSerialState & SERIAL_STATE_RX_CARRIER_DCD) // was on?
+    {
+      _cdcSerialState &= ~SERIAL_STATE_RX_CARRIER_DCD;
+
+      bSend = true;
+    }
+  }
+  else
+  {
+    if(!(_cdcSerialState & SERIAL_STATE_RX_CARRIER_DCD)) // was off?
+    {
+      _cdcSerialState |= SERIAL_STATE_RX_CARRIER_DCD;
+
+      bSend = true;
+    }
+  }
+
+  if(USB_SendQLength(CDC_TX) > 0) // anything to send??
+  {
+    if(!(_cdcSerialState & SERIAL_STATE_TX_CARRIER_DSR))
+    {
+      _cdcSerialState |= SERIAL_STATE_TX_CARRIER_DSR; // to tell host "I have data"
+
+      bSend = true;
+    }
+  }
+  else
+  {
+    if(_cdcSerialState & SERIAL_STATE_TX_CARRIER_DSR)
+    {
+      _cdcSerialState &= ~SERIAL_STATE_TX_CARRIER_DSR; // to tell host "I have data"
+
+      bSend = true;
+    }
+  }
+
+  if(bSend) // send ACM info via 'interrupt' endpoint???
+  {
+    CDC_SendACM();
+  }
+}
+
+void CDC_SendACM(void)
+{
+  USB_Send(CDC_ACM/* | TRANSFER_TOGGLE_ON*/, &_cdcSerialState, sizeof(_cdcSerialState), 1);
+}
 
 void Serial_::begin(unsigned long baud_count)
 {
@@ -345,22 +408,33 @@ size_t Serial_::write(const uint8_t *buffer, size_t size)
    bytes sent before the user opens the connection or after
    the connection is closed are lost - just like with a UART. */
 
+  // NOTE:  if my outgoing buffer is too full, stop sending
+
   // TODO - ZE - check behavior on different OSes and test what happens if an
   // open connection isn't broken cleanly (cable is yanked out, host dies
   // or locks up, or host virtual serial port hangs)
-  if (_cdcLineState > 0)
-  {
-    int r = USB_Send(CDC_TX, buffer, size, 1);
 
-    if (r > 0)
+  if(!USB_IsSendQFull(CDC_TX)) // make sure I'm not flooding the queue
+  {  
+    if (_cdcLineState & CONTROL_LINE_STATE_DTR)
     {
-      return r;
+      if(size > 128)
+      {
+        size = 128; // adjust size DOWN to limit output buffer size
+      }
+
+      int r = USB_Send(CDC_TX, buffer, size, 1);
+
+      if (r > 0)
+      {
+        CDC_FrameReceived(); // inform the host of my data send/receive state
+
+        return r;
+      }
     }
   }
-//  else
-//  {
-//    error_printP(F("Serial_::write() - zero line state"));
-//  }
+
+  // TODO:  block?
 
   setWriteError();
   return 0;
@@ -375,7 +449,7 @@ size_t Serial_::write(const uint8_t *buffer, size_t size)
 Serial_::operator bool()
 {
   bool result = false;
-  if (_cdcLineState > 0)
+  if (_cdcLineState & CONTROL_LINE_STATE_DTR)
   {
     result = true;
   }

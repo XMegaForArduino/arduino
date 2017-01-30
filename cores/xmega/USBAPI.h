@@ -214,18 +214,19 @@ int   CDC_GetNumInterfaces(void);
 int   CDC_GetInterfaceDataLength(void);
 int   CDC_SendInterfaceData(void);
 bool  CDC_SendDeviceDescriptor(void);
-//int       CDC_GetInterface(uint8_t* interfaceNum, bool bSendPacket); // modified, deprecated
 
-int     CDC_GetDescriptor(int i); // handles the 'GET DESCRIPTOR' control packet
-bool    CDC_Setup(Setup& setup);  // handles a 'SETUP' control packet
-
+int   CDC_GetDescriptor(int i); // handles the 'GET DESCRIPTOR' control packet
+bool  CDC_Setup(Setup& setup);  // handles a 'SETUP' control packet
+void  CDC_FrameReceived(void);  // call when frame is received, once EP set up
+void  CDC_SendACM(void);        // call when you need to send a packet on the interrupt EP
 
 //================================================================================
 //================================================================================
 
 #define TRANSFER_PGM        0x80
 #define TRANSFER_RELEASE    0x40
-#define TRANSFER_ZERO       0x20
+#define TRANSFER_TOGGLE_ON  0x20 /* assign this to pre-set the 'toggle' bit on - only works when send queue is empty */
+#define TRANSFER_TOGGLE_OFF 0x10 /* assign this to pre-set the 'toggle' bit off - only works when send queue is empty */
 
 // NOTE:  USB_SendControl returns # of bytes sent, or 0x80 if a ZLP is sent
 //        it will return 0 on error, such as the inability to allocate a buffer
@@ -239,7 +240,9 @@ int USB_SendControlP(uint8_t flags, const void * PROGMEM d, int len);
 
 //int USB_RecvControl(void* d, int len); // not used (deprecated)
 
-uint8_t USB_Available(uint8_t ep);
+uint16_t USB_Available(uint8_t ep);
+uint16_t USB_SendQLength(uint8_t ep);
+bool USB_IsSendQFull(uint8_t ep); // this returns TRUE if too many outgoing buffers already
 int USB_Send(uint8_t ep, const void* data, int len, uint8_t bSendNow);
 int USB_Recv(uint8_t ep, void* data, int len);
 int USB_Recv(uint8_t ep);

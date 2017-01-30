@@ -10,4 +10,36 @@ original source:
   http://ladyada.net/library/arduino/Adaboot328.zip
 
 
+ABOUT THE HARDWARE
+------------------
+
+The cc0 xmega32e5 breakout board used to be available from
+
+https://www.tindie.com/products/andete/atxmega32e5-breakout-board/
+
+However, it appears that the board is no longer being supported.
+
+Since I happen to have access to one of these (which was part of an initial
+evaluation of xmega processors for a customer project), I have included a
+board layout.
+
+This particular board requires 'shifting' the serial pins, which can be on
+port C pins 2 and 3 (normal settings), or port C pins 6 and 7 (the 'shifted'
+settings).  The xmega processor allows you to do this particular kind of
+re-configuration, and this is what the wiring of the 'cc0' board needs to
+happen.
+
+
+In many ways it is a good example of a hardware variant implementation.
+
+A few items worth noting:
+
+1.  default serial on PORTC pins 6, 7 (as mentioned)
+2.  default LED on Port R, pin 1
+3.  bootloader uses 'arduino' protocol
+4.  serial pinout works with Adafruit 3.3v USB serial adaptor or the
+    'FTDI friend' as long as you don't wire up the 5V pin on the connector.
+5.  tested most recently with 'Blink' script using newest bootloader and
+    'work in progress' IDE (1/30/2017).
+
 

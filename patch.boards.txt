@@ -81,7 +81,26 @@
 +xmega128a1u.build.mcu=atxmega128a1u
 +xmega128a1u.build.f_cpu=32000000L
 +xmega128a1u.build.core=xmega
-+xmega128a1u.build.variant=xmega128a1
++xmega128a1u.build.variant=xmega128a1u
++# see https://raw.githubusercontent.com/arduino/ArduinoISP/master/usbdrv/USB-IDs-for-free.txt
++xmega128a1u.build.vid=0x16c0
++xmega128a1u.build.pid=0x05e1
++
++
++##############################################################
++
++xmega128a4u.name=ATXmega128A4U
++
++xmega128a4u.upload.protocol=wiring
++xmega128a4u.upload.maximum_size=131072
++xmega128a4u.upload.speed=115200
++xmega128a4u.build.mcu=atxmega128a4u
++xmega128a4u.build.f_cpu=32000000L
++xmega128a4u.build.core=xmega
++xmega128a4u.build.variant=xmega128a4u
++# see https://raw.githubusercontent.com/arduino/ArduinoISP/master/usbdrv/USB-IDs-for-free.txt
++xmega128a4u.build.vid=0x16c0
++xmega128a4u.build.pid=0x05e1
 +
 +
 +##############################################################

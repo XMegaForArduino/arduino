@@ -208,13 +208,9 @@ extern "C"
 //                                                                          //
 //////////////////////////////////////////////////////////////////////////////
 
-extern const u16 USB_STRING_LANGUAGE[] PROGMEM;
-extern const u16 USB_STRING_PRODUCT[] PROGMEM;
-extern const u16 USB_STRING_MANUFACTURER[] PROGMEM;
 extern const DeviceDescriptor USB_DeviceDescriptor PROGMEM;
-extern const DeviceDescriptor USB_DeviceDescriptorA PROGMEM;
 
-const u16 USB_STRING_LANGUAGE[2] = // not actually a 'string' but same format
+const u16 USB_STRING_LANGUAGE[2] PROGMEM = // not actually a 'string' but same format
 {
   (3<<8) | (2+2), // high byte is '3', low byte is total length (in bytes)
   0x0409          // English
@@ -222,7 +218,12 @@ const u16 USB_STRING_LANGUAGE[2] = // not actually a 'string' but same format
 
 // TODO:  re-factor string returns into a utility function that builds the header
 //        and assigns the length correctly using the array address and 'sizeof'
-const u16 USB_STRING_PRODUCT[17] = // 16-bit unicode strings, oh by the way
+
+#ifdef USB_PRODUCT_NAME
+const wchar_t USB_STRING_PRODUCT_STR[] PROGMEM = USB_PRODUCT_NAME;
+#define USB_STRING_PRODUCT ((const u16 *)&(USB_STRING_PRODUCT_STR[0]))
+#else // USB_PRODUCT_NAME
+const u16 USB_STRING_PRODUCT[17] PROGMEM = // 16-bit unicode strings, oh by the way
 {
   (3<<8) | (2+2*16),    // high byte is '3', low byte is total length (in bytes)
 #if USB_PID == 0x8036 && USB_VID == 0x2341
@@ -236,26 +237,30 @@ const u16 USB_STRING_PRODUCT[17] = // 16-bit unicode strings, oh by the way
 #elif USB_PID == 0x0010 && USB_VID == 0x2341 // added for 'mega' clone (testing only)
   'A','r','d','u','i','n','o',' ','M','e','g','a','2','5','6','0'
 #else
-//  'U','S','B',' ','I','O',' ','B','o','a','r','d',' ',' ',' ',' '
   'X','M','e','g','a','F','o','r','A','r','d','u','i','n','o',' '
 #endif
 };
-
+#endif // USB_PRODUCT_NAME
 
 // TODO:  re-factor string returns into a utility function that builds the header
 //        and assigns the length correctly using the array address and 'sizeof'
+
+#ifdef USB_MANUFACTURER_NAME
+const wchar_t USB_STRING_MANUFACTURER_STR[] PROGMEM = USB_MANUFACTURER_NAME;
+#define USB_STRING_MANUFACTURER ((const u16 *)&(USB_STRING_MANUFACTURER_STR[0]))
+#else // USB_MANUFACTURER_NAME
 #if USB_VID == 0x2341
-#define SIZE_USB_STRING_MANUFACTURER 12
+#define SIZE_USB_STRING_MANUFACTURER 12 /* Arduino LLC */
 #elif USB_VID == 0x1b4f
-#define SIZE_USB_STRING_MANUFACTURER 9
-#elif USB_VID == 0x1d50 // Openmoko - see http://wiki.openmoko.org/wiki/USB_Product_IDs
-#define SIZE_USB_STRING_MANUFACTURER 9
-#elif USB_VID == 0x16c0 // Van Ooijen Technische Informatica
-#define SIZE_USB_STRING_MANUFACTURER 34
+#define SIZE_USB_STRING_MANUFACTURER 9  /* SparkFun */
+#elif USB_VID == 0x1d50
+#define SIZE_USB_STRING_MANUFACTURER 9  /* Openmoko - see http://wiki.openmoko.org/wiki/USB_Product_IDs */
+#elif USB_VID == 0x16c0
+#define SIZE_USB_STRING_MANUFACTURER 34 /* Van Ooijen Technische Informatica */
 #else
-#define SIZE_USB_STRING_MANUFACTURER 8
+#define SIZE_USB_STRING_MANUFACTURER 8  /* Unknown */
 #endif 
-const u16 USB_STRING_MANUFACTURER[SIZE_USB_STRING_MANUFACTURER] = // 16-bit unicode strings, oh by the way
+const u16 USB_STRING_MANUFACTURER[SIZE_USB_STRING_MANUFACTURER] PROGMEM = // 16-bit unicode strings, oh by the way
 {
 //  (3<<8) | (2+2*11),    // high byte is '3', low byte is total length (in bytes)
   (3 << 8) | ((SIZE_USB_STRING_MANUFACTURER << 1) & 0xff),
@@ -269,15 +274,14 @@ const u16 USB_STRING_MANUFACTURER[SIZE_USB_STRING_MANUFACTURER] = // 16-bit unic
   'O','p','e','n','m','o','k','o'
 #warning make sure you have obtained a proper product ID from Openmoko - see http://wiki.openmoko.org/wiki/USB_Product_IDs
 #elif USB_VID == 0x16c0 // Van Ooijen Technische Informatica
-                        // see https://raw.githubusercontent.com/arduino/ArduinoISP/master/usbdrv/USB-IDs-for-free.txt
   'V','a','n',' ','O','o','i','j','e','n',' ','T','e','c','h','n','i','s','c','h','e',' ',
   'I','n','f','o','r','m','a','t','i','c','a',
-#warning Using the default vendor description for VID 16C0H
+#warning Using the default vendor description for VID 16C0H - see https://raw.githubusercontent.com/arduino/ArduinoISP/master/usbdrv/USB-IDs-for-free.txt
 #else
   'U','n','k','n','o','w','n'
 #endif
 };
-
+#endif // USB_MANUFACTURER_NAME
 
 // DEFAULT DEVICE DESCRIPTOR (device class 0)
 const DeviceDescriptor USB_DeviceDescriptor PROGMEM =
@@ -290,7 +294,7 @@ const DeviceDescriptor USB_DeviceDescriptor PROGMEM =
            0x100,      // this indicates USB version 1.0
            USB_STRING_INDEX_MANUFACTURER, // string index for mfg
            USB_STRING_INDEX_PRODUCT,      // string index for product name
-           0,                             // would be string index for serial number (0 for 'none')
+           USB_STRING_INDEX_SERIAL,       // string index for serial number (0 for 'none')
            1);                            // number of configurations (1)
 
 
@@ -300,8 +304,7 @@ const DeviceDescriptor USB_DeviceDescriptor PROGMEM =
 
 // TODO:  make this dynamically generated instead, using supported devices
 //        this may require 'malloc' for aSendQ and aRecvQ, however...
-extern const u8 _initEndpoints[INTERNAL_NUM_EP] PROGMEM; // that's the way they did it before, and I'm not changing it
-const u8 _initEndpoints[INTERNAL_NUM_EP] =
+const u8 _initEndpoints[INTERNAL_NUM_EP] PROGMEM =
 {
   EP_TYPE_CONTROL,         // EP_TYPE_CONTROL   control endpoint [always endpoint 0]
 
@@ -1225,6 +1228,26 @@ uint16_t wProcessingMask = 1 << index;
     }
     else
     {
+      if((epData.endpoint[index].out.ctrl & USB_EP_TYPE_gm) != USB_EP_TYPE_ISOCHRONOUS_gc)
+      {
+        // received data and it's bulk or interrupt
+#ifdef CDC_ENABLED
+        if(CDC_ENDPOINT_ACM == index)
+        {
+          error_printP(F("ZLP for CDC ACM"));
+
+          CDC_SendACM();
+        }
+        else
+#endif // CDC_ENABLED
+        {
+          error_printP_(F("Received zero-length packet EP="));
+          error_printL(index);
+        }
+      }
+
+      // regardless, this packet must now be disposed of
+
       remove_from_queue(&(aRecvQ[index]), pE); // removes it from the queue (does not delete)
       free_buffer(pE); // remove buffer (ZLP ignored for now)
     }
@@ -1368,6 +1391,9 @@ uint8_t oldSREG;
         error_printP_(F("check_recv_queue "));
         error_printL_(index);
         error_printP(F(" - USB_EP_UNF"));
+
+        // TODO:  should I flip the toggle bit in this case???  Is it due to a DATA1/0 with toggle clear/set?
+
 //#endif // DEBUG_QUEUE
 
         epData.endpoint[index].out.status |= USB_EP_UNF_bm;
@@ -1377,7 +1403,7 @@ uint8_t oldSREG;
       }
 
       if((epData.endpoint[index].out.status & USB_EP_TRNCOMPL0_bm) // note:  'SETUP' is TRNCOMPL1, as needed
-         || (!index && (epData.endpoint[index].out.status & USB_EP_SETUP_bm)))
+         || (/*!index &&*/ (epData.endpoint[index].out.status & USB_EP_SETUP_bm))) // TRNCOMPL1 for index != 0
       {
         uint8_t bOldStatus = epData.endpoint[index].out.status;
 
@@ -1392,19 +1418,21 @@ uint8_t oldSREG;
           epData.endpoint[index].out.status &= ~(USB_EP_UNF_bm | USB_EP_STALL_bm); // to clear them
         }
 
-        if(!index)
+        if(!index ||
+           (epData.endpoint[index].out.ctrl & USB_EP_TYPE_gm) != USB_EP_TYPE_ISOCHRONOUS_gc)
         {
-          // for now only for control endpoint; later for all?
           // IF the out status has the toggle bit set, indicate it in 'wEndpointToggle'
           // so that I correctly assign the TOGGLE bit when I reply
 
-          if(epData.endpoint[0].out.status & USB_EP_TOGGLE_bm) // was 'toggle' ON or OFF for the last packet?
+          // NOTE that the toggle bit SHOULD flip correctly with each complete transaction
+
+          if(!(epData.endpoint[index].out.status & USB_EP_TOGGLE_bm)) // was 'toggle' ON or OFF for the last packet?
           {
-            wEndpointToggle |= wProcessingMask; // indicate that I need to use the 'toggle' bit when I send a reply
+            wEndpointToggle |= wProcessingMask; // do NOT use the 'toggle' bit when I get next packet or send a reply
           }
           else
           {
-            wEndpointToggle &= ~wProcessingMask; // do NOT use the 'toggle' bit when I send a reply
+            wEndpointToggle &= ~wProcessingMask; // indicate that I need to use the 'toggle' bit when I get/send
           }
         }
 
@@ -1413,7 +1441,9 @@ uint8_t oldSREG;
         RXLED1(); // LED pm - macro must be defined in variants 'pins_arduino.h'
 #endif // TX_RX_LED_INIT
 
-#ifdef DEBUG_QUEUE
+//#ifdef DEBUG_QUEUE
+if(index)
+{
         error_printP_(F("check_recv_queue "));
         error_printL_(index);
 
@@ -1433,7 +1463,8 @@ uint8_t oldSREG;
         error_printL_(epData.endpoint[index].out.cnt);
         error_printP_(F(" address="));
         error_printH(epData.endpoint[index].out.dataptr);
-#endif // DEBUG_QUEUE
+}
+//#endif // DEBUG_QUEUE
 
         // ASSERT( epData.endpoint[index].out.dataptr == buffer_data_pointer(aRecvQ[index]) );
 
@@ -1453,7 +1484,9 @@ uint8_t oldSREG;
            pSetup->wLength > 0) // SETUP has a data payload!
         {
           error_printP_(F("CTRL packet, payload="));
-          error_printL(pSetup->wLength);
+          error_printL_(pSetup->wLength);
+          error_printP_(F(" toggle="));
+          error_printL(epData.endpoint[0].out.status & USB_EP_TOGGLE_bm);
 
           pE = next_buffer(); // get a new buffer
 
@@ -1465,7 +1498,7 @@ uint8_t oldSREG;
             epData.endpoint[0].out.dataptr = buffer_data_pointer(pE); // new pointer
             epData.endpoint[0].out.cnt = 0; // immediate receive
 
-            // make sure this is right... (waiting for transaction complete)
+            // with a packet payload, I need to receive a DATA 1 packet to complete the transaction
             epData.endpoint[0].out.status = USB_EP_TOGGLE_bm;             // allows me to read data (toggle bit set)
 
             continue;
@@ -1473,6 +1506,7 @@ uint8_t oldSREG;
 
           // note if pE is NULL, then I proceed forward with truncated packet anyway.
         }
+
 
         // THIS IS WHERE I DISPATCH THE INCOMING PACKET
 
@@ -1581,10 +1615,30 @@ uint8_t oldSREG;
     {
       uint8_t bOldStatus = epData.endpoint[index].in.status;
 
+      if(index && 
+         (epData.endpoint[index].in.ctrl & USB_EP_TYPE_gm) != USB_EP_TYPE_ISOCHRONOUS_gc)
+      {
+        // IF the out status has the toggle bit set, indicate it in 'wEndpointToggle'
+        // so that I correctly assign the TOGGLE bit when I reply
+
+        // NOTE that the toggle bit SHOULD flip correctly with each complete transaction
+
+        if(!(epData.endpoint[index].in.status & USB_EP_TOGGLE_bm)) // was 'toggle' ON or OFF for the last packet?
+        {
+          wEndpointToggle |= wProcessingMask; // do NOT use the 'toggle' bit when I get next packet or send a reply
+        }
+        else
+        {
+          wEndpointToggle &= ~wProcessingMask; // indicate that I need to use the 'toggle' bit when I get/send
+        }
+      }
+
       epData.endpoint[index].in.status = USB_EP_BUSNACK0_bm                                       // mark 'do not send'
                                        | (bOldStatus & ~(USB_EP_TRNCOMPL0_bm | USB_EP_SETUP_bm)); // clear these 2 bits
 
-#ifdef DEBUG_QUEUE
+//#ifdef DEBUG_QUEUE
+if(index)
+{
       error_printP_(F("check_send_queue "));
       error_printL_(index);
       error_printP_(F(" - USB_EP_TRNCOMPL0 "));
@@ -1595,7 +1649,8 @@ uint8_t oldSREG;
       error_printL_(epData.endpoint[index].in.cnt);
       error_printP_(F(" address="));
       error_printH(epData.endpoint[index].in.dataptr);
-#endif // DEBUG_QUEUE
+}
+//#endif // DEBUG_QUEUE
 
       // if I need to assign the USB address, do it HERE, after packet send completes
       // the process of changing the address after getting the command to do so requires
@@ -1623,9 +1678,11 @@ uint8_t oldSREG;
         epData.endpoint[index].in.dataptr = buffer_data_pointer(pX); // do anyway, should already be 'this'
 
         if((!index || (epData.endpoint[index].in.ctrl & USB_EP_TYPE_gm) != USB_EP_TYPE_ISOCHRONOUS_gc)
-           && !(wEndpointToggle & wProcessingMask)) // toggle is OFF for this endpoint
+           && !(wEndpointToggle & wProcessingMask)) // toggle is ON for this endpoint
         {
-          if(index)
+          // DATA1 packet
+
+//          if(index)
           {
             error_printP_(F("Endpoint "));
             error_printL_(index);
@@ -1633,10 +1690,25 @@ uint8_t oldSREG;
           }
 
           epData.endpoint[index].in.status = USB_EP_TOGGLE_bm; // set JUST the 'toggle' bit to send
+          wEndpointToggle |= wProcessingMask; // turn it off next time (it alternates for bulk xfer, yeah)
         }
         else
         {
+          // DATA0 packet - toggle is always OFF for this endpoint
+
           epData.endpoint[index].in.status = 0; // send without toggle bit (ISOCHRONOUS always does this)
+
+          if(!index || (epData.endpoint[index].in.ctrl & USB_EP_TYPE_gm) != USB_EP_TYPE_ISOCHRONOUS_gc)
+          {
+//            if(index)
+            {
+              error_printP_(F("Endpoint "));
+              error_printL_(index);
+              error_printP(F(" using !TOGGLE"));
+            }
+
+            wEndpointToggle &= ~wProcessingMask; // turn it on next time (it alternates for bulk xfer, yeah)
+          }
         }
 
         // NOTE:  leave pX not NULL; next section will skip, and we're ready to go
@@ -1654,7 +1726,9 @@ uint8_t oldSREG;
 
       if(pX && INTERNAL_BUFFER_SEND_READY(pX)) // only send if ready to send
       {
-#ifdef DEBUG_QUEUE
+//#ifdef DEBUG_QUEUE
+if(index)
+{
         error_printP_(F("check_send_queue "));
         error_printL_(index);
         error_printP_(F("  NEXT buffer: "));
@@ -1663,12 +1737,43 @@ uint8_t oldSREG;
         error_printH_(buffer_data_pointer(pX));
         error_printP_(F(" length="));
         error_printL(pX->iLen);
-#endif // DEBUG_QUEUE
+}
+//#endif // DEBUG_QUEUE
 
         epData.endpoint[index].in.cnt = pX->iLen;
         epData.endpoint[index].in.dataptr = buffer_data_pointer(pX);
 
-        epData.endpoint[index].in.status = USB_EP_TOGGLE_bm; // send (for some reason I need to set this bit)
+        if(!index || (epData.endpoint[index].in.ctrl & USB_EP_TYPE_gm) != USB_EP_TYPE_ISOCHRONOUS_gc)
+        {
+          if(!(wEndpointToggle & wProcessingMask))
+          {
+//            if(index)
+            {
+              error_printP_(F("Endpoint "));
+              error_printL_(index);
+              error_printP(F(" using TOGGLE"));
+            }
+
+            epData.endpoint[index].in.status = USB_EP_TOGGLE_bm; // send with toggle bit
+            wEndpointToggle |= wProcessingMask; // turn it off next time (it alternates for bulk xfer, yeah)
+          }
+          else
+          {
+//            if(index)
+            {
+              error_printP_(F("Endpoint "));
+              error_printL_(index);
+              error_printP(F(" using !TOGGLE"));
+            }
+
+            epData.endpoint[index].in.status = 0; // send without toggle bit
+            wEndpointToggle &= ~wProcessingMask; // turn it on next time (it alternates for bulk xfer, yeah)
+          }
+        }
+        else
+        {
+          epData.endpoint[index].in.status = 0; // send without toggle bit (ISOCHRONOUS always does this)
+        }
       }
       else
       {
@@ -1788,7 +1893,9 @@ uint8_t oldSREG;
     return false;
   }
 
-#ifdef DEBUG_QUEUE
+//#ifdef DEBUG_QUEUE
+if(index)
+{
   error_printP_(F("internal_send  USB addr="));
   error_printL_(USB_ADDR);
   error_printP_(F(" EP="));
@@ -1796,7 +1903,8 @@ uint8_t oldSREG;
   error_printP_(F(" len="));
   error_printL_(cbData);
   error_printP(F(" bytes"));
-#endif // DEBUG_QUEUE
+}
+//#endif // DEBUG_QUEUE
 
 #ifdef TX_RX_LED_INIT
   TxLEDPulse = TX_RX_LED_PULSE_MS;
@@ -1996,11 +2104,11 @@ int i1;
   cli(); // disable interrupts
 
   // clear the appropriate bit in all of the global state vars
-  uint16_t wProcessingMask = ~(1 << index);
+  uint16_t wProcessingMask = 1 << index;
 
-  wProcessingFlag     &= wProcessingMask;
-  wMultipacketOutFlag &= wProcessingMask;
-  wEndpointToggle     &= wProcessingMask;
+  wProcessingFlag     &= ~wProcessingMask;
+  wMultipacketOutFlag &= ~wProcessingMask;
+  wEndpointToggle     &= ~wProcessingMask;
 
 
   // NOTE:  this code is based on my research into the documentation (inadequate) and the ATMel Studio
@@ -2158,6 +2266,12 @@ int i1;
 
       epData.endpoint[index].out.status = 0; // this allows receive data
     }
+
+    if(type != EP_TYPE_ISOCHRONOUS_IN)
+    {
+      error_printP(F("  setting TOGGLE bit to '1'"));
+      wEndpointToggle |= wProcessingMask; // (1 << index); // set bit so next time I don't use TOGGLE
+    }
   }
   else if(type == EP_TYPE_INTERRUPT_OUT || type == EP_TYPE_BULK_OUT /* these send *ME* data */
           || type == EP_TYPE_ISOCHRONOUS_OUT)
@@ -2179,6 +2293,12 @@ int i1;
                                        size == EP_SINGLE_64 ? USB_EP_SIZE_64_gc : 0);         /* data size */
 
     epData.endpoint[index].out.status = 0; // this allows receive data
+
+    if(type != EP_TYPE_ISOCHRONOUS_OUT)
+    {
+      error_printP(F("  setting TOGGLE bit to '1'"));
+      wEndpointToggle |= wProcessingMask; // (1 << index); // set bit so next time I don't use TOGGLE
+    }
   }
   // TODO:  'INOUT' types?
   else
@@ -2702,11 +2822,11 @@ int USB_SendControl(uint8_t flags, const void* d, int len)
 //  return iRval < 0 ? -1 : iRval == len ? 0 : 1;
 //}
 
-uint8_t USB_Available(uint8_t ep)
+uint16_t USB_Available(uint8_t ep)
 {
 INTERNAL_BUFFER *pB;
 uint8_t oldSREG;
-int iRval = 0;
+uint16_t iRval = 0;
 
   // this manipulates buffers, so stop ints temporarily
 
@@ -2721,9 +2841,70 @@ int iRval = 0;
     {
       if(pB->iIndex < pB->iLen)
       {
-        iRval = 1;
-        break;
+        iRval += pB->iLen - pB->iIndex;
       }
+    }
+
+    pB = pB->pNext;
+  }
+
+  SREG = oldSREG;
+
+  return iRval;
+}
+
+bool USB_IsSendQFull(uint8_t ep)
+{
+INTERNAL_BUFFER *pB;
+uint8_t oldSREG;
+uint8_t nBuf = 0;
+
+  // this manipulates buffers, so stop ints temporarily
+
+  oldSREG = SREG;
+  cli(); // disable interrupts
+
+  pB = aSendQ[ep];
+
+  while(pB)
+  {
+    if(INTERNAL_BUFFER_SEND_READY(pB) ||
+       INTERNAL_BUFFER_SENDING(pB))
+    {
+      nBuf++;
+      if(nBuf > 2)
+      {
+        return true;
+      }
+    }
+
+    pB = pB->pNext;
+  }
+
+  SREG = oldSREG;
+
+  return false;
+}
+
+uint16_t USB_SendQLength(uint8_t ep)
+{
+INTERNAL_BUFFER *pB;
+uint8_t oldSREG;
+uint16_t iRval = 0;
+
+  // this manipulates buffers, so stop ints temporarily
+
+  oldSREG = SREG;
+  cli(); // disable interrupts
+
+  pB = aSendQ[ep];
+
+  while(pB)
+  {
+    if(INTERNAL_BUFFER_SEND_READY(pB) ||
+       INTERNAL_BUFFER_SENDING(pB))
+    {
+      iRval += pB->iLen;
     }
 
     pB = pB->pNext;
@@ -2741,7 +2922,29 @@ void USB_Flush(uint8_t ep) // sends all pending data
 
 int USB_Send(uint8_t ep, const void* data, int len, uint8_t bSendNow)
 {
-  return internal_send(ep, data, len, bSendNow) ? len : 0;
+uint8_t index = ep & 0xf;
+uint16_t wProcessingMask = 1 << index;
+
+
+  if(index && !aSendQ[index]) // nothing in there at the moment?
+  {
+    if(ep & TRANSFER_TOGGLE_ON)
+    {
+      error_printP_(F("USB_Send - TRANSFER_TOGGLE_ON - ep="));
+      error_printL(index);
+
+      wEndpointToggle &= ~wProcessingMask; // toggle bit ON
+    }
+    else if(ep & TRANSFER_TOGGLE_OFF)
+    {
+      error_printP_(F("USB_Send - TRANSFER_TOGGLE_OFF - ep="));
+      error_printL(index);
+
+      wEndpointToggle |= wProcessingMask; // toggle bit OFF
+    }
+  }
+
+  return internal_send(index, data, len, bSendNow) ? len : 0;
 }
 
 int USB_Recv(uint8_t ep, void* data, int len)
@@ -2835,20 +3038,14 @@ uint8_t udint;
   //  End of Reset - happens when you first plug in, etc.
   if(udint & USB_RSTIF_bm) //(1<<EORSTI))
   {
-    error_printP_(F("USB RESET IF: "));
-
-    if(USB_ADDR != 0)
+    if(USB_ADDR != 0 || _usbConfiguration)
     {
-      error_printP_(F("address is "));
+      error_printP_(F("USB RESET: ADDR="));
       error_printL_(USB_ADDR);
 
-      error_printP(F(", assigning to 0"));
+      error_printP(F(", assign 0"));
 
       USB_ADDR = 0; // IMMEDIATELY set USB address to 0 on reset.  not sure if this is necessary however
-    }
-    else
-    {
-      error_printP(F("(address already 0)"));
     }
 
     bUSBAddress = 0; // so I don't accidentally set the USB address after a zero-length packet is sent
@@ -2883,6 +3080,13 @@ uint8_t udint;
 
     check_send_queue(); // check SEND queue first
     check_recv_queue(); // check this too, just in case, probably nothing
+
+    if(_usbConfiguration) // am I 'configured' ?
+    {
+#ifdef CDC_ENABLED
+      CDC_FrameReceived(); // callback for housekeeping things
+#endif // CDC_ENABLED
+    }
   }
 
   // if any other flags were set during the ISR, I should get another interrupt
@@ -3102,24 +3306,104 @@ bool bRval;
   {
 //    error_printP_(F("String Descriptor Type - "));
 
-    if (rSetup.wValueL == USB_STRING_INDEX_LANGUAGE)
+    if(rSetup.wValueL == USB_STRING_INDEX_LANGUAGE)
     {
 //      error_printP(F("Language"));
 
-      desc_addr = (const u8*)&USB_STRING_LANGUAGE;
+      desc_addr = (const u8*) USB_STRING_LANGUAGE; //&(USB_STRING_LANGUAGE[0]);
     }
-    else if (rSetup.wValueL == USB_STRING_INDEX_PRODUCT)
+    else if(rSetup.wValueL == USB_STRING_INDEX_PRODUCT)
     {
 //      error_printP(F("Product"));
 
-      desc_addr = (const u8*)&USB_STRING_PRODUCT;
+      desc_addr = (const u8 *) USB_STRING_PRODUCT; // &(USB_STRING_PRODUCT[0]);
     }
-    else if (rSetup.wValueL == USB_STRING_INDEX_MANUFACTURER)
+    else if(rSetup.wValueL == USB_STRING_INDEX_MANUFACTURER)
     {
 //      error_printP(F("Manufacturer"));
 
-      desc_addr = (const u8*)&USB_STRING_MANUFACTURER;
+      desc_addr = (const u8 *) USB_STRING_MANUFACTURER; // &(USB_STRING_MANUFACTURER[0]);
     }
+    else if(rSetup.wValueL == USB_STRING_INDEX_DESCRIPTION)
+    {
+      static const wchar_t szStr[] PROGMEM = L"\x0346" L"XMegaForArduino USB implementation"; // len=34
+
+      desc_addr = (const u8 *)szStr;
+    }
+    else if(rSetup.wValueL == USB_STRING_INDEX_VERSION)
+    {
+      static const wchar_t szStr[] PROGMEM = L"\x0310" L"1.00.00"; // len=7
+
+      desc_addr = (const u8 *)szStr;
+    }
+    else if(rSetup.wValueL == USB_STRING_INDEX_URL)
+    {
+      static const wchar_t szStr[] PROGMEM = L"\x0356" L"http://github.com/XMegaForArduino/arduino/"; // len=42
+
+      desc_addr = (const u8 *)szStr;
+    }
+    else if(rSetup.wValueL == USB_STRING_INDEX_SERIAL)
+    {
+      wchar_t tbuf[22]; // 7 hex digits with ':' between, plus lead byte + 1 extra
+      short i1, i2;
+
+      // build the serial # string (20 wide chars)
+      // use ascii/unicode basic values of 0-255 only for simplicity
+
+      for(i1=0, i2=1; i1 < 7; i1++)
+      {
+        char c1;
+        uint8_t b1;
+
+        // use the CPU's unique signature information to generate a serial number
+        if(i1 < 6)
+        {
+          b1 = readCalibrationData(8 + i1); // 8 is 'LOTNUM0'; there are 6 of them
+        }
+        else
+        {
+          b1 = readCalibrationData(0x10); // WAFNUM is offset 10H
+        }
+
+        if(i1)
+        {
+          tbuf[i2++] = ':';
+        }
+
+        c1 = (b1 >> 4) & 0xf;
+        if(c1 < 10)
+        {
+          c1 += '0';
+        }
+        else
+        {
+          c1 += 'A' - 10;
+        }
+
+        tbuf[i2++] = c1;
+
+        c1 = b1 & 0xf;
+        if(c1 < 10)
+        {
+          c1 += '0';
+        }
+        else
+        {
+          c1 += 'A' - 10;
+        }
+
+        tbuf[i2++] = c1;
+      }
+
+      // now the lead-in byte, 300H + length (in bytes)
+      i2 *= sizeof(wchar_t); // the actual length now in i2
+
+      tbuf[0] = 0x300 + i2;
+
+      USB_SendControl(0, (const u8 *)tbuf, i2);
+      return true;
+    }
+
     // TODO:  others?
     else
     {

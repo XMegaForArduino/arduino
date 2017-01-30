@@ -167,6 +167,19 @@ typedef unsigned long u32;
 #define HID_REPORT_DESCRIPTOR_TYPE              0x22
 #define HID_PHYSICAL_DESCRIPTOR_TYPE            0x23
 
+// CONTROL LINE STATE and SERIAL STATE - BIT VALUES  (16-bits, LE)
+// USED BY 'SET CONTROL LINE STATE' and 'SERIAL STATE' FOR CAM INTERRUPT 'IN'
+#define CONTROL_LINE_STATE_DTR                  0x01 /* data terminal ready [ok to send on IN] */
+#define CONTROL_LINE_STATE_RTS                  0x02 /* ready to send [has data ready for OUT] */
+#define SERIAL_STATE_RX_CARRIER_DCD             0x01 /* receive carrier detect - on to allow receive */
+#define SERIAL_STATE_TX_CARRIER_DSR             0x02 /* data set ready - inform host I have data */
+#define SERIAL_STATE_BREAK_DETECT               0x04 /* 'break' detect */
+#define SERIAL_STATE_RING_DETECT                0x08 /* 'ring' detect */
+#define SERIAL_STATE_FRAMING_ERROR              0x10 /* framing error */
+#define SERIAL_STATE_PARITY_ERROR               0x20 /* parity error */
+#define SERIAL_STATE_OVERRUN                    0x40 /* overrun input (data lost) */
+
+
 // A1U series needs 16-byte alignment for endpoint structure
 #if defined(__AVR_ATxmega64A1U__) || defined(__AVR_ATxmega128A1U__)
 #define A1U_SERIES
@@ -282,6 +295,9 @@ typedef struct  _acm_functional_descriptor_
 
 typedef struct _cdc_descriptor_
 {
+//  // IAD
+//  IADDescriptor             iad;  // for complex endpoints (apparently not critical)
+
   //  Control
   InterfaceDescriptor       cif;  //
   CDCCSInterfaceDescriptor  header;
