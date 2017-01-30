@@ -21,7 +21,7 @@ However, it appears that the board is no longer being supported.
 
 Since I happen to have access to one of these (which was part of an initial
 evaluation of xmega processors for a customer project), I have included a
-board layout.
+variant for the board layout.
 
 This particular board requires 'shifting' the serial pins, which can be on
 port C pins 2 and 3 (normal settings), or port C pins 6 and 7 (the 'shifted'
