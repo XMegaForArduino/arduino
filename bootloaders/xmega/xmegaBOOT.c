@@ -810,8 +810,8 @@ skip_clock:  // go here if clock cannot be assigned for some reason or is alread
   }
 #else // OLD_BLINK_METHOD
 
-  blink_mode = ch2; // this causes 'getch' to do the blinking
-  LED_PORT |= LED_PIN_BIT;          // turn on the LED to indicate receiving data
+  blink_mode = ch2;          // this causes 'getch' to do the blinking
+  LED_PORT |= LED_PIN_BIT;   // turn on the LED to indicate receiving data
 
 #endif // OLD_BLINK_METHOD
 
@@ -2008,10 +2008,16 @@ register char rVal;
 
         count = 0;
       }
+
+      // NOTE:  by the time blink_mode is zero, the count will be
+      //        (NUM_LED_FLASHES << 1) * (F_CPU / 160)
     }
-    else
+    else if (count > (uint32_t)((MAX_TIME_COUNT)         // delay period for firmware flashing
+                                + (NUM_LED_FLASHES << 1) // twice # of LED flashes
+                                * (F_CPU / 160)))        // per-flash period (each half)
+#else
+    if (count > (uint32_t)(MAX_TIME_COUNT)) // delay period for firmware flashing
 #endif // OLD_BLINK_METHOD
-      if (count > (uint32_t)(MAX_TIME_COUNT)) // delay period for firmware flashing
     {
       app_start();
       soft_boot();

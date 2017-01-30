@@ -29,8 +29,11 @@ GREP_LINE ?=
 # some defaults
 # AVR frequency - normally 32Mhz
 AVR_FREQ ?= 32000000L
-# max time count - how long to wait after blinking
+
+# max time count - how long to wait after blinking - for 'arduino' protocol
+# the 'wiring' protocol will use a different default timeout
 MAX_TIME_COUNT ?= F_CPU>>3
+
 # LED flashes - default is 3
 NUM_LED_FLASHES ?= 3
 
@@ -40,6 +43,7 @@ NUM_LED_FLASHES ?= 3
 #    xmega16d4 xmega32d4 xmega64d4 xmega128d4
 #    xmega16a1 xmega16a1u xmega32a1 xmega32a1u
 #    xmega64a1 xmega64a1u xmega128a1 xmega128a1u
+#    xmega64a4 xmega64a4u xmega128a4 xmega128a4u
 #    xmega8e5 xmega16e5 xmega32e5
 #  or one of the following custom targets
 #    cc0_atxmega_e5 RockSolid128A
@@ -71,26 +75,26 @@ ifeq ($(strip $(TRGMEM)),128)
 START_ADDR := 0x20000
 USE_STK500V2 := 1
 GREP_LINE := ":020000022000DC"
-# increase the maximum timeout
-MAX_TIME_COUNT := F_CPU>>2
+# decrease the maximum timeout
+MAX_TIME_COUNT := F_CPU>>4
 endif
 ifeq ($(strip $(TRGMEM)),192)
 START_ADDR := 0x30000
 USE_STK500V2 := 1
-# increase the maximum timeout
-MAX_TIME_COUNT := F_CPU>>2
+# decrease the maximum timeout
+MAX_TIME_COUNT := F_CPU>>4
 endif
 ifeq ($(strip $(TRGMEM)),256)
 START_ADDR := 0x40000
 USE_STK500V2 := 1
-# increase the maximum timeout
-MAX_TIME_COUNT := F_CPU>>2
+# decrease the maximum timeout
+MAX_TIME_COUNT := F_CPU>>4
 endif
 ifeq ($(strip $(TRGMEM)),384)
 START_ADDR := 0x60000
 USE_STK500V2 := 1
-# increase the maximum timeout
-MAX_TIME_COUNT := F_CPU>>2
+# decrease the maximum timeout
+MAX_TIME_COUNT := F_CPU>>4
 endif
 
 # others are pretty much the same for everything
