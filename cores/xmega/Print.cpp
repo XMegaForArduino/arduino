@@ -35,7 +35,14 @@ size_t Print::write(const uint8_t *buffer, size_t size)
   size_t n = 0;
   while (size--)
   {
-    n += write(*buffer++);
+    register size_t cb = write(*buffer++);
+
+    if(!cb) // error return (prevents infinite loops)
+    {
+      break;
+    }
+
+    n += cb;
   }
   return n;
 }
@@ -66,7 +73,14 @@ register char *p1;
 
     if(p1 >= &(tbuf[sizeof(tbuf)]))
     {
-      n += write(tbuf, p1 - &(tbuf[0]));
+      register size_t cb = write(tbuf, p1 - &(tbuf[0]));
+
+      if(!cb) // error (prevents infinite loops)
+      {
+        break;
+      }
+
+      n += cb;
       p1 = tbuf;
     }
 
@@ -237,7 +251,8 @@ size_t Print::println(const Printable& x)
 
 // Private Methods /////////////////////////////////////////////////////////////
 
-size_t Print::printNumber(unsigned long n, uint8_t base) {
+size_t Print::printNumber(unsigned long n, uint8_t base)
+{
   char buf[8 * sizeof(long) + 1]; // Assumes 8-bit chars plus zero byte.
   char *str = &buf[sizeof(buf) - 1];
 
@@ -328,6 +343,32 @@ int cbOut;
     if(p1)
     {
       cbOut = vsnprintf(p1, cbOut + 1, pszFormat, va);
+      print(p1);
+      free(p1);
+    }
+  }
+
+  va_end(va);
+
+  return cbOut;
+}
+
+int Print::printf_P(const char *pszFormat, ...) /*__attribute__ ((format(printf_P, 2, 3)))*/ // added API for 'printf' since it has been suggested...
+{
+va_list va;
+int cbOut;
+
+  va_start(va, pszFormat);
+
+  cbOut = vsnprintf_P(NULL, 0, (const char *)pszFormat, va);
+
+  if(cbOut > 0)
+  {
+    char *p1 = (char *)malloc(cbOut + 2);
+
+    if(p1)
+    {
+      cbOut = vsnprintf_P(p1, cbOut + 1, (const char *)pszFormat, va);
       print(p1);
       free(p1);
     }

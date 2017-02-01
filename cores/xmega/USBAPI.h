@@ -16,7 +16,7 @@
 
 #include "USBCore.h" /* make sure since I use its definitions here */
 
-//#ifdef DEBUG_CODE
+#ifdef DEBUG_CODE
 #ifdef __cplusplus
 extern "C"
 {
@@ -34,7 +34,20 @@ extern void DumpHex(void *pBuf, uint8_t nBytes);
 #ifdef __cplusplus
 }
 #endif // __cplusplus
-//#endif // DEBUG_CODE
+
+#else // DEBUG_CODE
+
+#define error_print(p1)
+#define error_print_(p1)
+#define error_printH(X)
+#define error_printH_(X)
+#define error_printL(X)
+#define error_printL_(X)
+#define error_printP(p1)
+#define error_printP_(p1)
+#define DumpHex(X,Y)
+
+#endif // DEBUG_CODE
 
 
 //================================================================================
@@ -77,7 +90,9 @@ public:
     virtual void flush(void);
     virtual size_t write(uint8_t);
     virtual size_t write(const uint8_t*, size_t);
-    using Print::write; // pull in write(str) and write(buf, size) from Print
+
+    using Print::write; // pull in write(str) etc. from Print
+
     operator bool();
 };
 extern Serial_ Serial; // NOTE: HardwareSerial.h defines the 1st port as 'Serial1' whenever USBCON defined
@@ -191,23 +206,21 @@ typedef struct
 //================================================================================
 //  HID 'Driver'
 
-int     HID_GetInterface(uint8_t* interfaceNum, bool bSendPacket);
-int     HID_GetDescriptor(int i);
-bool    HID_Setup(Setup& setup);
-void    HID_SendReport(uint8_t id, const void* data, int len);
+int   HID_GetNumInterfaces(void);
+int   HID_GetInterfaceDataLength(void);
+int   HID_SendInterfaceData(void);
+bool  HID_SendDeviceDescriptor(void);
+
+int   HID_GetDescriptor(int i); // handles the 'GET DESCRIPTOR' control packet
+bool  HID_Setup(Setup& setup);  // handles a 'SETUP' control packet
+
+void  HID_SendReport(uint8_t id, const void* data, int len);
+
+void  HID_Reset(void);          // called whenever I get a bus reset
 
 //================================================================================
 //================================================================================
-//  MSC 'Driver'
-
-int     MSC_GetInterface(uint8_t* interfaceNum, bool bSendPacket);
-int     MSC_GetDescriptor(int i);
-bool    MSC_Setup(Setup& setup);
-bool    MSC_Data(uint8_t rx,uint8_t tx);
-
-//================================================================================
-//================================================================================
-//  CSC 'Driver'
+//  CDC 'Driver'
 
 bool  CDC_SendIAD(void);
 int   CDC_GetNumInterfaces(void);
@@ -217,8 +230,11 @@ bool  CDC_SendDeviceDescriptor(void);
 
 int   CDC_GetDescriptor(int i); // handles the 'GET DESCRIPTOR' control packet
 bool  CDC_Setup(Setup& setup);  // handles a 'SETUP' control packet
-void  CDC_FrameReceived(void);  // call when frame is received, once EP set up
+void  CDC_FrameReceived(void);  // call when frame is received and EP is configured
 void  CDC_SendACM(void);        // call when you need to send a packet on the interrupt EP
+
+void  CDC_Reset(void);          // called whenever I get a bus reset
+
 
 //================================================================================
 //================================================================================
@@ -228,27 +244,29 @@ void  CDC_SendACM(void);        // call when you need to send a packet on the in
 #define TRANSFER_TOGGLE_ON  0x20 /* assign this to pre-set the 'toggle' bit on - only works when send queue is empty */
 #define TRANSFER_TOGGLE_OFF 0x10 /* assign this to pre-set the 'toggle' bit off - only works when send queue is empty */
 
-// NOTE:  USB_SendControl returns # of bytes sent, or 0x80 if a ZLP is sent
+// NOTE:  USB_SendControl returns # of bytes sent, or 0x8000 if a ZLP is sent
 //        it will return 0 on error, such as the inability to allocate a buffer
+//        control packets send 64 bytes at a time, so the total size is limited
+//        by the number of available buffers.
+
 int USB_SendControl(uint8_t flags, const void* d, int len);
 #ifdef PROGMEM
-
 int USB_SendControlP(uint8_t flags, const void * PROGMEM d, int len);
 // called internally if you use TRANSFER_PGM flag; you can also call this directly
-
 #endif // PROGMEM
 
-//int USB_RecvControl(void* d, int len); // not used (deprecated)
+uint16_t USB_Available(uint8_t ep);        // returns # of bytes in the buffer on an OUT or CONTROL endpoint
+uint16_t USB_SendQLength(uint8_t ep);      // returns # of buffers in the send queue for an IN or CONTROL endpoint
+bool USB_IsSendQFull(uint8_t ep);          // this returns TRUE if there are too many outgoing buffers already (IN, CONTROL)
+bool USB_IsStalled(uint8_t ep);            // this tells me I'm 'stalled' (BULK IN, INTERRUPT, CONTROL)
+int USB_Send(uint8_t ep, const void* data, // send endpoint data.  bSendNow marks it "to send"
+             int len, uint8_t bSendNow);
+int USB_Recv(uint8_t ep, void* data,       // 'receive' data from endpoint receive queue.
+             int len);
+int USB_Recv(uint8_t ep);                  // 'receive' one byte of data from endpoint receive queue
+void USB_Flush(uint8_t ep);                // 'sends' all pending data by marking the buffers "to send"
 
-uint16_t USB_Available(uint8_t ep);
-uint16_t USB_SendQLength(uint8_t ep);
-bool USB_IsSendQFull(uint8_t ep); // this returns TRUE if too many outgoing buffers already
-int USB_Send(uint8_t ep, const void* data, int len, uint8_t bSendNow);
-int USB_Recv(uint8_t ep, void* data, int len);
-int USB_Recv(uint8_t ep);
-void USB_Flush(uint8_t ep); // sends all pending data
-
-uint16_t GetFrameNumber(void); // debug API to dump USB frame number
+uint16_t GetFrameNumber(void);             // a debug API to obtain the latest USB frame number
 
 #endif
 

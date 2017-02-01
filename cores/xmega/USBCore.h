@@ -112,14 +112,19 @@ typedef unsigned long u32;
 #define USB_INTERFACE_DESC_SIZE                 9
 #define USB_ENDPOINT_DESC_SIZE                  7
 
+
 #define USB_DEVICE_DESCRIPTOR_TYPE              1
 #define USB_CONFIGURATION_DESCRIPTOR_TYPE       2
 #define USB_STRING_DESCRIPTOR_TYPE              3
 #define USB_INTERFACE_DESCRIPTOR_TYPE           4
 #define USB_ENDPOINT_DESCRIPTOR_TYPE            5
 #define USB_DEVICE_QUALIFIER_TYPE               6
+#define USB_OTHER_SPEED_CONFIGURATION_TYPE      7
+#define USB_INTERFACE_POWER_TYPE                8
+#define USB_OTG_TYPE                            9
 #define USB_DEVICE_DEBUG_TYPE                  10
-
+#define USB_INTERFACE_ASSOCIATION_TYPE         11 /* see InterfaceAssociationDescriptor_ecn.pdf */
+// NOTE:  for USB_INTERFACE_ASSOCIATION_TYPE respond with IADDescriptor
 
 #define USB_DEVICE_CLASS_ZERO                   0x00
 #define USB_DEVICE_CLASS_COMMUNICATIONS         0x02

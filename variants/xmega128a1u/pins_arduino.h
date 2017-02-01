@@ -176,29 +176,30 @@
 #undef USB_PID
 #endif // USB_PID
 
-
 #define USB_VID 0x16c0  /* Van Ooijen Technische Informatica */
 #define USB_PID 0x05e1  /* name-based CDC/ACM device */
 
-#endif // !defined(USB_VID) || !defined(USB_PID)
-
 // Configuring default product name and vendor
 // If you use the project defaults, it will result in a name-based device descriptor based on
-//    https://raw.githubusercontent.com/arduino/ArduinoISP/master/usbdrv/USB-IDs-for-free.txt
+//   https://raw.githubusercontent.com/arduino/ArduinoISP/master/usbdrv/USB-IDs-for-free.txt
 
-#if USB_VID==0x16c0 && USB_PID==0x05e1 /* CDC/ACM device using name-based device identification */
+#endif // !defined(USB_VID) || !defined(USB_PID)
 
-// NOTE: these strings begin with the u16 value (3 << 8) | sizeof(string)
-//       if you modify them, you need to adjust the '\x03nn' value at the beginning
-
-#define USB_MANUFACTURER_NAME L"\x033aS.F.T. Inc. http://mrp3.com/" /* unicode string - 28 chars + 1 - 3aH*/
-#define USB_PRODUCT_NAME      L"\x0330XMegaForArduino Project"      /* unicode string - 23 chars + 1 - 30H*/
-
-#endif // USB_VID==0x16c0 && USB_PID==0x05e1
+#define CDC_ENABLED    /* enable CDC/ACM serial device */
+//#define HID_ENABLED     /* enable HID interface */
 
 
-#define CDC_ENABLED    /* this switches to device class 2, useful for serial I/O implementations */
+// TEMPORARY - TX/RX LEDs for the USB interface
 
+#define TX_LED_PIN (LED_BUILTIN-5) /* PQ0 */
+#define RX_LED_PIN (LED_BUILTIN-4) /* PQ1 */
+
+#define TX_RX_LED_INIT() { pinMode(TX_LED_PIN,OUTPUT); pinMode(RX_LED_PIN,OUTPUT); \
+                           digitalWrite(TX_LED_PIN,0); digitalWrite(RX_LED_PIN,0); }
+#define TXLED0() digitalWrite(TX_LED_PIN,0)
+#define TXLED1() digitalWrite(TX_LED_PIN,1)
+#define RXLED0() digitalWrite(RX_LED_PIN,0)
+#define RXLED1() digitalWrite(RX_LED_PIN,1)
 
 
 // xmega-specific - Interrupt 'vector number' assignments:

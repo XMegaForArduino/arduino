@@ -65,6 +65,7 @@ class Print
 
     // custom mod - implement 'printf' member function
     int printf(const char *pszFormat, ...) __attribute__ ((format(printf, 2, 3))); // added API for 'printf' since it has been suggested...
+    int printf_P(const char *pszFormat, ...) __attribute__ ((format(printf, 2, 3))); // added API for 'printf_P' since it has been suggested...
 
     size_t print(const __FlashStringHelper *);
     size_t print(const String &);

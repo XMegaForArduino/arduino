@@ -81,9 +81,8 @@ Keyboard_ Keyboard;
 #define RAWHID_TX_SIZE 64
 #define RAWHID_RX_SIZE 64
 
-extern const u8 _hidReportDescriptor[] PROGMEM;
-const u8 _hidReportDescriptor[] = {
-
+const u8 _hidReportDescriptor[] PROGMEM =
+{
   //  Mouse
     0x05, 0x01,                    // USAGE_PAGE (Generic Desktop)  // 54
     0x09, 0x02,                    // USAGE (Mouse)
@@ -166,8 +165,8 @@ const u8 _hidReportDescriptor[] = {
 #endif
 };
 
-extern const HIDDescriptor _hidInterface PROGMEM;
-const HIDDescriptor _hidInterface =
+
+const HIDDescriptor _hidInterface PROGMEM =
 {
   D_INTERFACE(HID_INTERFACE,1,3,0,0),
   D_HIDREPORT(sizeof(_hidReportDescriptor)),
@@ -183,39 +182,32 @@ u8 _hid_idle = 1;
 
 #define WEAK __attribute__ ((weak))
 
-int WEAK HID_GetInterface(u8* interfaceNum, bool bSendPacket)
+int WEAK HID_GetNumInterfaces(void)
 {
-  interfaceNum[0] += 1;  // uses 1
+  return 1; // always 1
+}
 
-  // NOTE:  the original version of this, when calling 'USB_SendControl', may NOT
-  //        actually send a packet.  In fact, something upstream was likely to
-  //        "just erase" the packet buffer until an actual packet was to be sent.
-  //        Not only is this _LAME_, it his HORRIBLE DESIGN PRACTICE, UN-INTUITIVE,
-  //        and JUST! PLAIN! WRONG!!!  Therefore, I added a parameter 'bSendPacket'
-  //        to determine whether or not you actually send a packet.  it makes a
-  //        LOT more sense.  Besides, this API doesn't have official documentation.
-  //        So I'm changing it.  Please modify your own version of 'CDC_GetInterface'
-  //        if you're overriding this version with your own.
+int WEAK HID_GetInterfaceDataLength(void)
+{
+  return sizeof(_hidInterface);
+}
 
-  if(bSendPacket)
-  {
-    return USB_SendControl(TRANSFER_PGM, &_hidInterface, sizeof(_hidcInterface));
-  }
-  else
-  {
-    return 1;
-  }
+int WEAK HID_SendInterfaceData(void)
+{
+  return USB_SendControl(TRANSFER_PGM, &_hidInterface, sizeof(_hidInterface));
 }
 
 int WEAK HID_GetDescriptor(int i)
 {
+  // NOTE:  'i' is the max size for the request.  Should I pay attention to it?
+
   return USB_SendControl(TRANSFER_PGM,_hidReportDescriptor,sizeof(_hidReportDescriptor));
 }
 
 void WEAK HID_SendReport(u8 id, const void* data, int len)
 {
-  USB_Send(HID_TX, &id, 1);
-  USB_Send(HID_TX | TRANSFER_RELEASE,data,len);
+  USB_Send(HID_TX, &id, 1, 0);
+  USB_Send(HID_TX,data,len, 1);
 }
 
 bool WEAK HID_Setup(Setup& setup)
@@ -591,7 +583,7 @@ void Keyboard_::releaseAll(void)
 size_t Keyboard_::write(uint8_t c)
 {
   uint8_t p = press(c);    // Keydown
-  uint8_t r = release(c);    // Keyup
+  /*uint8_t r =*/ release(c);    // Keyup
   return (p);          // just return the result of press() since release() almost always returns 1
 }
 
