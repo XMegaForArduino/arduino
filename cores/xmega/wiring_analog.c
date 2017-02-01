@@ -348,7 +348,7 @@ uint8_t mode;
       negpin = analogInputToAnalogPin(negpin + A0); // calc pin number (might not have 0 mapped to A0)
 #endif // analogInputToAnalogPin
     }
-    
+
     if(negpin >= 0 && negpin <= 3)
     {
       mode = ADC_CH_INPUTMODE_DIFFWGAINL_gc;
@@ -363,6 +363,10 @@ uint8_t mode;
 
       negpin -= 4; // so that it's 0-3
     }
+  }
+  else
+  {
+    mode = ADC_CH_INPUTMODE_DIFFWGAINL_gc; // see 24.15.2 section on 'MUXNEG' when using INTERNAL GND or PAD GND
   }
 
 #else // NOT an 'E5'
@@ -391,11 +395,11 @@ uint8_t mode;
       negpin = analogInputToAnalogPin(negpin + A0); // calc pin number (might not have 0 mapped to A0)
 #endif // analogInputToAnalogPin
     }
-    
+
 
     if(negpin >= 0 && negpin <= 3 && gain != ADC_CH_GAIN_1X_gc) // allow this *IF* gain is 1X
     {
-      return 0; // dis-allowed combination      
+      return 0; // dis-allowed combination
     }
     else if(negpin >= 0 && negpin <= 3)
     {

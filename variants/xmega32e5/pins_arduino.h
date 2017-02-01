@@ -126,9 +126,6 @@
 
 // the first macro, 'digitalPinToInterrupt', is for the 'interruptNum' parameter in 'attachInterrupt' and 'detachInterrupt'
 // the second macro, 'digitalPinToIntMode', is for the 'mode' parameter in 'attachInterrupt'.
-//#define digitalPinToInterrupt(p) \  this is an old attempt, leaving here for reference [for now]
-//  { register uint8_t uiPort = pgm_read_byte((&digital_pin_to_port_PGM[p])); \
-//    uiPort == _PD ? PORTD_INT0 : uiPort == _PC ? PORTC_INT0 : uiPort == _PA ? PORTA_INT0 : uiPort == _PR ? PORTR_INT0 : -1; }
 
 #define digitalPinToInterrupt(p) \
   ( pgm_read_byte(&port_to_int0_PGM[pgm_read_byte(&digital_pin_to_port_PGM[p])]) | \
