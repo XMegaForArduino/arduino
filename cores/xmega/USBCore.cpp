@@ -73,7 +73,7 @@
 #endif // check for GNUC >= or < 4.6
 
 
-// bug in iox128a1u.h and iox64a1u.h
+// bugs in iox128a1u.h and iox64a1u.h
 // the definition for USB_TRNCOMPL_vect and USB_TRNCOMPL_vect_num is wrong
 // this can be corrected here.  bug reported 'upstream' for avr-libc 1.8.0 and 1.8.1
 //   https://savannah.nongnu.org/bugs/index.php?44279
@@ -86,6 +86,15 @@
 #define USB_TRNCOMPL_vect_num  126
 #define USB_TRNCOMPL_vect      _VECTOR(126)  /* Transaction complete interrupt */
 #endif // __AVR_ATxmega64A1U__, __AVR_ATxmega128A1U__
+
+// additional compatibilty bugs between older and newer versions of iox128a1u.h and iox64a1u.h
+#ifdef USB_EP_BUFSIZE_gm
+#define USB_EP_SIZE_64_gc USB_EP_BUFSIZE_64_gc  /* name change of definition from previous header */
+#endif // USB_EP_BUFSIZE_gm
+
+#ifndef CLK_USBEN_bm
+#define CLK_USBEN_bm CLK_USBSEN_bm /* name change of definition from previous header */
+#endif // CLK_USBEN_bm
 
 
 
