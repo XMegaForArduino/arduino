@@ -34,7 +34,7 @@
 
 // Updated for the XMegaForArduino project by Bob Frazier, S.F.T. Inc.
 
-//#define DEBUG_CODE /* debug output via 'error_print' etc. - must do this first */
+#define DEBUG_CODE /* debug output via 'error_print' etc. - must do this first */
 
 #include "Platform.h"
 #include "USBAPI.h"
@@ -442,9 +442,7 @@ static uint16_t wEndpointToggle = 0; // controls use of 'toggle' bit when sendin
 
 
 static void init_buffers_and_endpoints(void);
-static uint8_t internal_get_endpoint_type(uint8_t nEP);
 static void internal_do_control_request(INTERNAL_BUFFER *pBuf, bool bIsSetup);
-static void internal_do_endpoint_receive(char nEP, INTERNAL_BUFFER *pBuf);
 static void consolidate_packets(INTERNAL_BUFFER *pHead);
 
 static void InitEP(u8 index, u8 type, u8 size);
@@ -473,6 +471,19 @@ static bool ClassInterfaceRequest(Setup& rSetup);
 //                                                                          //
 //                                                                          //
 //////////////////////////////////////////////////////////////////////////////
+
+static void init_buffers_and_endpoints(void) __attribute__((noinline));
+static INTERNAL_BUFFER *end_of_chain(INTERNAL_BUFFER *pBuf) __attribute__((noinline));
+static void configure_buffers(void) __attribute__((noinline));
+static INTERNAL_BUFFER * next_buffer(void) __attribute__((noinline));
+static void free_buffer(INTERNAL_BUFFER *pBuf) __attribute__((noinline));
+static void free_queue(INTERNAL_BUFFER **pQ) __attribute__((noinline));
+static uint8_t not_in_queue(INTERNAL_BUFFER **pQ, INTERNAL_BUFFER *pBuf) __attribute__((noinline));
+static void add_to_queue(INTERNAL_BUFFER **pQ, INTERNAL_BUFFER *pBuf) __attribute__((noinline));
+static void remove_from_queue(INTERNAL_BUFFER **pQ, INTERNAL_BUFFER *pBuf) __attribute__((noinline));
+static void remove_from_queue_and_free(INTERNAL_BUFFER **pQ, INTERNAL_BUFFER *pBuf) __attribute__((noinline));
+static uint16_t buffer_data_pointer(INTERNAL_BUFFER *pBuf) __attribute__((noinline));
+static INTERNAL_BUFFER * inverse_buffer_data_pointer(uint16_t dataptr) __attribute__((noinline));
 
 static void init_buffers_and_endpoints(void)
 {
@@ -577,6 +588,7 @@ register INTERNAL_BUFFER *pRval;
   return NULL;
 }
 
+
 // simple pre-allocated buffer management
 static void configure_buffers(void)
 {
@@ -606,6 +618,7 @@ register uint8_t i1;
     aRecvQ[i1] = NULL;
   }
 }
+
 
 // this function peels a pointer from the 'free' list and returns it.
 // caller must call 'free_buffer' with returned pointer when done with it
@@ -677,6 +690,7 @@ uint8_t oldSREG;
   return pRval; // now it belongs to the caller
 }
 
+
 static void free_buffer(INTERNAL_BUFFER *pBuf)
 {
 #ifdef DEBUG_MEM
@@ -723,6 +737,7 @@ static void free_buffer(INTERNAL_BUFFER *pBuf)
 
 }
 
+// Free an entire queue, assigning NULL to '*pQ' when done
 static void free_queue(INTERNAL_BUFFER **pQ)
 {
 INTERNAL_BUFFER *pE;
@@ -757,18 +772,19 @@ uint8_t oldSREG;
   oldSREG = SREG; // save int flag
   cli(); // locking resource
 
-  pE = *pQ;
+  pE = *pQ;  // NOTE:  if NULL, function will do nothing
+
+  *pQ = NULL; // detach entire queue at once
 
   while(pE)
   {
-    // if not NULL, free it
+    register INTERNAL_BUFFER *pE2 = pE->pNext;
 
-    *pQ = pE->pNext;
     pE->pNext = NULL;
 
     free_buffer(pE);
 
-    pE = *pQ; // advances to next entry
+    pE = pE2; // advances to next entry (NULL when done)
   }
 
   SREG = oldSREG;
@@ -799,6 +815,7 @@ uint8_t oldSREG;
 
   return 1; // buffer not in queue
 }
+
 
 static void add_to_queue(INTERNAL_BUFFER **pQ, INTERNAL_BUFFER *pBuf)
 {
@@ -877,6 +894,7 @@ uint8_t nQ;
 
   SREG = oldSREG;
 }
+
 
 // this utility removes the buffer, but does not free it
 static void remove_from_queue(INTERNAL_BUFFER **pQ, INTERNAL_BUFFER *pBuf)
@@ -978,6 +996,7 @@ uint8_t nQ;
   SREG = oldSREG;
 }
 
+
 static void remove_from_queue_and_free(INTERNAL_BUFFER **pQ, INTERNAL_BUFFER *pBuf)
 {
   if(pBuf)
@@ -998,6 +1017,7 @@ static uint16_t buffer_data_pointer(INTERNAL_BUFFER *pBuf)
 
   return (uint16_t)&(pBuf->aBuf[0]); // assign 'dataptr' element in USB Endpoint descriptor (sect 20.15 in 'AU' manual)
 }
+
 
 static INTERNAL_BUFFER * inverse_buffer_data_pointer(uint16_t dataptr)
 {
@@ -1215,12 +1235,14 @@ INTERNAL_BUFFER *pBuf;
     // I'm going to turn all of the 'bad bits' off...
     epData.endpoint[index].out.status |= USB_EP_STALL_bm; // this turns off the bit by writing a '1'
 
-    epData.endpoint[index].out.status &= USB_EP_TOGGLE_bm; // this allows receiving data
+    epData.endpoint[index].out.status &= USB_EP_TOGGLE_bm; // this allows receiving data (the old toggle bit remains)
   }
   else
   {
     epData.endpoint[index].out.dataptr = 0; // no buffer (stalled)
   }
+
+  epData.endpoint[index].out.ctrl &= ~_BV(2); // in case it was on, turn off the stall
 }
 
 
@@ -1259,30 +1281,22 @@ uint16_t wProcessingMask = 1 << index;
       // NOTE:  this needs to remove the buffer from the queue to avoid
       //        any memory leaks.  If not, it could fill up...
 
-      internal_do_endpoint_receive(index, pE); // for BULK OUT this will consolidate things for me
-
+      if(// internal_get_endpoint_type(index) != EP_TYPE_CONTROL &&
+         aRecvQ[index] != pE)
+      {
+        consolidate_packets(aRecvQ[index]);
+      }
+      else
+      {
+        pE->iIndex = 0;  // always, to indicate where I am in the buffer [at the beginning]
+      }
 
       // NOTE:  buffer remains in queue or is deleted by callback
     }
-    else
+    else // zero-length packet
     {
-      if((epData.endpoint[index].out.ctrl & USB_EP_TYPE_gm) != USB_EP_TYPE_ISOCHRONOUS_gc)
-      {
-        // received data and it's bulk or interrupt
-#ifdef CDC_ENABLED
-        if(CDC_ENDPOINT_ACM == index)
-        {
-          error_printP(F("ZLP for CDC ACM"));
-
-          CDC_SendACM();
-        }
-        else
-#endif // CDC_ENABLED
-        {
-          error_printP_(F("Received zero-length packet EP="));
-          error_printL(index);
-        }
-      }
+      error_printP_(F("Received zero-length packet EP="));
+      error_printL(index);
 
       // regardless, this packet must now be disposed of
 
@@ -1403,15 +1417,12 @@ uint8_t oldSREG;
     // check for errors before anything else
     if(epData.endpoint[index].out.status & USB_EP_STALL_bm)
     {
-//#ifdef DEBUG_QUEUE
-if(index)
-{
+#ifdef DEBUG_QUEUE
       // first, handle "sent" transaction
       error_printP_(F("check_recv_queue "));
       error_printL_(index);
       error_printP(F(" - USB_EP_STALL"));
-}
-//#endif // DEBUG_QUEUE
+#endif // DEBUG_QUEUE
 
       // for now - turn off any 'stall' bit in the control reg and status reg
 
@@ -1419,7 +1430,7 @@ if(index)
 
       if((epData.endpoint[index].in.ctrl & USB_EP_TYPE_gm) != USB_EP_TYPE_ISOCHRONOUS_gc)
       {
-        epData.endpoint[index].out.ctrl |= _BV(2); // to clear the bits;
+        // clear the stall bits in the control reg in case they were on
         epData.endpoint[index].out.ctrl &= ~_BV(2); // note that this is NOT USB_EP_STALL_bm but the actual 'stall' command bit
       }
 
@@ -1437,9 +1448,7 @@ if(index)
 
       if(epData.endpoint[index].out.status & USB_EP_UNF_bm) // TODO:  allow me to read 'long packets' when this happens
       {
-//#ifdef DEBUG_QUEUE
-if(index)
-{
+#ifdef DEBUG_QUEUE
         // first, handle "sent" transaction
         error_printP_(F("check_recv_queue "));
         error_printL_(index);
@@ -1447,8 +1456,7 @@ if(index)
         error_printL(epData.endpoint[index].out.status & USB_EP_TOGGLE_bm);
 
         // TODO:  should I flip the toggle bit in this case???  Is it due to a DATA1/0 with toggle clear/set?
-}
-//#endif // DEBUG_QUEUE
+#endif // DEBUG_QUEUE
 
         epData.endpoint[index].out.status |= USB_EP_UNF_bm;
         epData.endpoint[index].out.status &= ~USB_EP_UNF_bm; // just turn it off [for now]
@@ -1456,6 +1464,9 @@ if(index)
         {
           epData.endpoint[index].out.status ^= USB_EP_TOGGLE_bm; // does this work?
         }
+
+        // TODO:  see if this ever happens
+
 //        continue; // let this cycle around a bit more [I probably didn't read anything]
       }
 
@@ -1466,14 +1477,24 @@ if(index)
 
         register Setup *pSetup = (Setup *)&(pE->aBuf[0]);
 
-        epData.endpoint[index].out.status = USB_EP_BUSNACK0_bm                                       // mark 'do not receive'
-                                          | (bOldStatus & ~(USB_EP_SETUP_bm | USB_EP_TRNCOMPL0_bm)); // turn these 2 bits off
+//        epData.endpoint[index].out.status = USB_EP_BUSNACK0_bm                                       // mark 'do not receive'
+//                                          | (bOldStatus & ~(USB_EP_SETUP_bm | USB_EP_TRNCOMPL0_bm)); // turn these 2 bits off
 
-        if(bOldStatus & (USB_EP_UNF_bm | USB_EP_STALL_bm))
-        {
-          epData.endpoint[index].out.status |= (USB_EP_UNF_bm | USB_EP_STALL_bm); // to clear them (?)
-          epData.endpoint[index].out.status &= ~(USB_EP_UNF_bm | USB_EP_STALL_bm); // to clear them
-        }
+        epData.endpoint[index].out.status |= USB_EP_BUSNACK0_bm;                                       // mark 'do not receive'
+
+//        if(index &&
+//           (epData.endpoint[index].out.ctrl & USB_EP_TYPE_gm) != USB_EP_TYPE_ISOCHRONOUS_gc)
+//        {
+//          epData.endpoint[index].out.ctrl |= _BV(2); // set the 'stall' flag for bulk in, basically
+//        }
+
+//        if(bOldStatus & (USB_EP_UNF_bm | USB_EP_STALL_bm))
+//        {
+//          epData.endpoint[index].out.status |= (USB_EP_UNF_bm | USB_EP_STALL_bm); // to clear them (?)
+//          epData.endpoint[index].out.status &= ~(USB_EP_UNF_bm | USB_EP_STALL_bm); // to clear them
+//
+//          bOldStatus &= ~(USB_EP_UNF_bm | USB_EP_STALL_bm); // to clear them
+//        }
 
         if(!index ||
            (epData.endpoint[index].out.ctrl & USB_EP_TYPE_gm) != USB_EP_TYPE_ISOCHRONOUS_gc)
@@ -1498,9 +1519,7 @@ if(index)
         RXLED1(); // LED pm - macro must be defined in variants 'pins_arduino.h'
 #endif // TX_RX_LED_INIT
 
-//#ifdef DEBUG_QUEUE
-if(index)
-{
+#ifdef DEBUG_QUEUE
         error_printP_(F("check_recv_queue "));
         error_printL_(index);
 
@@ -1520,8 +1539,7 @@ if(index)
         error_printL_(epData.endpoint[index].out.cnt);
         error_printP_(F(" address="));
         error_printH(epData.endpoint[index].out.dataptr);
-}
-//#endif // DEBUG_QUEUE
+#endif // DEBUG_QUEUE
 
         // ASSERT( epData.endpoint[index].out.dataptr == buffer_data_pointer(aRecvQ[index]) );
 
@@ -1536,7 +1554,7 @@ if(index)
 
         if(!index && // to handle control packets that have data payloads...
            !(epData.endpoint[0].out.status & USB_EP_TRNCOMPL0_bm) &&
-           epData.endpoint[index].out.cnt >= sizeof(Setup) &&
+           epData.endpoint[0].out.cnt >= sizeof(Setup) &&
            (pSetup->bmRequestType & REQUEST_DIRECTION) == REQUEST_HOSTTODEVICE &&
            pSetup->wLength > 0) // SETUP has a data payload!
         {
@@ -1664,44 +1682,7 @@ uint8_t oldSREG;
         epData.endpoint[index].in.ctrl &= ~_BV(2); // note that this is NOT USB_EP_STALL_bm but the actual 'stall' command bit
       }
 
-// TODO:  verify whether I need to do either of these things
-#if 0
-      if((status & USB_EP_STALL_bm) &&
-         (epData.endpoint[index].in.ctrl & USB_EP_TYPE_gm) != USB_EP_TYPE_ISOCHRONOUS_gc)
-      {
-        if(index)
-        {
-          epData.endpoint[index].in.status |= USB_EP_TOGGLE_bm; // turn toggle OFF for next I/O (for now)
-        }
-      }
-
-      if(index && (status & USB_EP_UNF_bm) &&
-         !(epData.endpoint[index].in.status & USB_EP_BUSNACK0_bm) && // trying to send?
-         (epData.endpoint[index].in.ctrl & USB_EP_TYPE_gm) != USB_EP_TYPE_ISOCHRONOUS_gc)
-      {
-        // HACK - my packet data0/data1 order is wrong.  TOGGLE!
-        epData.endpoint[index].in.status |= USB_EP_BUSNACK0_bm; // wait a sec...
-
-        error_printP_(F("check_send_queue "));
-        error_printL_(index);
-        error_printP_(F(" OVF/UNF "));
-
-        if(!(epData.endpoint[index].in.status & USB_EP_TOGGLE_bm)) // was 'toggle' ON or OFF for the last packet?
-        {
-          error_printP(F("toggle was OFF"));
-          // bit set = TOGGLE OFF
-          epData.endpoint[index].in.status |= USB_EP_TOGGLE_bm; // turn toggle ON
-        }
-        else
-        {
-          error_printP(F("toggle was ON"));
-          // bit clear = TOGGLE ON
-          epData.endpoint[index].in.status &= ~USB_EP_TOGGLE_bm; // turn toggle OFF
-        }
-
-        epData.endpoint[index].in.status &= ~USB_EP_BUSNACK0_bm; // ok try sending again
-      }
-#endif // 0
+      // TODO:  should a stall cause TOGGLE to flip?  for now, NO
 
       epData.endpoint[index].in.status &= ~(USB_EP_STALL_bm | USB_EP_UNF_bm);  // for now do this
     }
@@ -1813,14 +1794,14 @@ uint8_t oldSREG;
 
           if(!index || (epData.endpoint[index].in.ctrl & USB_EP_TYPE_gm) != USB_EP_TYPE_ISOCHRONOUS_gc)
           {
+#ifdef DEBUG_QUEUE
             if(index)
             {
-#ifdef DEBUG_QUEUE
               error_printP_(F("Endpoint "));
               error_printL_(index);
               error_printP(F(" using !TOGGLE"));
-#endif // DEBUG_QUEUE
             }
+#endif // DEBUG_QUEUE
 
             wEndpointToggle &= ~wProcessingMask; // turn it on next time (it alternates for bulk xfer, yeah)
           }
@@ -1895,22 +1876,10 @@ uint8_t oldSREG;
       {
         // OK I'm officially "not sending" now, and so I must reset the DATA thingy
 
-//        if(index) // never for the 
-//        {
-//          epData.endpoint[index].in.status = USB_EP_BUSNACK0_bm; // mark 'do not send' (make sure)
-//        }
-//        else
-//        {
-          epData.endpoint[index].in.status |= USB_EP_BUSNACK0_bm; // mark 'do not send' (make sure) but leave TOGGLE alone
-//        }
+        epData.endpoint[index].in.status |= USB_EP_BUSNACK0_bm; // mark 'do not send' (make sure) but leave TOGGLE alone
 
         epData.endpoint[index].in.cnt = 0;
         epData.endpoint[index].in.dataptr = 0;
-
-//        if(index && (epData.endpoint[index].in.ctrl & USB_EP_TYPE_gm) != USB_EP_TYPE_ISOCHRONOUS_gc)
-//        {
-//          wEndpointToggle |= wProcessingMask; // turn it off next time (it alternates for bulk xfer, yeah)
-//        }
       }
     }
   }
@@ -2200,17 +2169,37 @@ uint8_t *pD = (uint8_t *)pData;
 //                                                                          //
 //////////////////////////////////////////////////////////////////////////////
 
+#ifndef DEBUG_CODE
+static uint16_t endpoint_data_pointer(void) __attribute__((noinline));
+#endif // DEBUG_CODE
+static void InitializeSingleEndpoint(XMegaEndpointChannel *pEP) __attribute__((noinline));
+
 uint16_t endpoint_data_pointer(void)
 {
-//  error_printP(F("endpoint_data_pointer"));
-//
-//  error_printL(((uint16_t)&(epData.endpoint[0])) & 15);
-//  error_printL(((uint16_t)&(epData.endpoint[1])) & 15);
-//  error_printL(((uint16_t)&(epData.endpoint[0].out)) & 15);
-//  error_printL(((uint16_t)&(epData.endpoint[0].in)) & 15);
-//  error_printL(((uint16_t)&(epData.fifo[0])) & 15);
-
   return (uint16_t)(uint8_t *)&(epData.endpoint[0]); // set 'EP Data' pointer to THIS address
+}
+
+
+static void InitializeSingleEndpoint(XMegaEndpointChannel *pEP)
+{
+  // if the endpoint is in the middle of something, this will 'cancel' it
+  // NOTE: 'BUSNACK0' is needed by 'in' on 128A1U rev K or earlier [a bug, apparently] - leave it on
+  pEP->out.status |= USB_EP_BUSNACK0_bm;
+  pEP->in.status |= USB_EP_BUSNACK0_bm;
+
+  pEP->out.ctrl = USB_EP_TYPE_DISABLE_gc; // to disable it (endpoint 'type 0' disables)
+  pEP->in.ctrl = USB_EP_TYPE_DISABLE_gc;  // initially (disable)
+
+  pEP->in.cnt = 0;
+  pEP->in.dataptr = 0;
+  pEP->in.auxdata = 0;
+
+  pEP->out.cnt = 0;
+  pEP->out.dataptr = 0;
+  pEP->out.auxdata = 0;
+
+  pEP->out.status = USB_EP_BUSNACK0_bm; // make sure
+  pEP->in.status = USB_EP_BUSNACK0_bm;
 }
 
 
@@ -2245,63 +2234,31 @@ int i1;
   //        In particular the behavior CAUSED by the 'NACK0' flag, and the requirement to set it on 'in' endpoints
   //        upon initialization for 128A1U rev K or earlier was NOT obvious, nor even mentioned as far as I know.
 
-  {
-    error_printP_(F("USB InitEP "));
-    error_printL(index);
+  XMegaEndpointChannel *pEP = &(epData.endpoint[index]);
 
-    // if the endpoint is in the middle of something, this will 'cancel' it
-    // NOTE: 'BUSNACK0' is needed by 'in' on 128A1U rev K or earlier [a bug, apparently] - leave it on
-    epData.endpoint[index].out.status |= USB_EP_BUSNACK0_bm;
-    epData.endpoint[index].in.status |= USB_EP_BUSNACK0_bm;
+  error_printP_(F("USB InitEP "));
+  error_printL(index);
 
-    // zero out the 'aEPBuff' structure entry right away
-    // as well as the 'endpoint' structures
-    memset(&(epData.endpoint[index]), 0, sizeof(epData.endpoint[0]));
+  InitializeSingleEndpoint(pEP);
 
-    epData.endpoint[index].out.status = USB_EP_BUSNACK0_bm; // make sure
-    epData.endpoint[index].in.status = USB_EP_BUSNACK0_bm;
-
-    // disable the endpoints
-    epData.endpoint[index].out.ctrl = USB_EP_TYPE_DISABLE_gc; // to disable it (endpoint 'type 0' disables)
-    epData.endpoint[index].in.ctrl = USB_EP_TYPE_DISABLE_gc; // initially (disable)
-
-    epData.endpoint[index].in.cnt = 0;
-    epData.endpoint[index].out.cnt = 0;
-
-    epData.endpoint[index].in.dataptr = 0;
-    epData.endpoint[index].out.dataptr = 0;
-
-    epData.endpoint[index].in.auxdata = 0;
-    epData.endpoint[index].out.auxdata = 0;
-
-    if(/*epData.endpoint[index].in.dataptr ==*/ aSendQ[index])
-    {
-      free_queue(&(aSendQ[index]));
-    }
-    if(/*epData.endpoint[index].out.dataptr ==*/ aRecvQ[index])
-    {
-      free_queue(&(aRecvQ[index]));
-    }
-  }
+  free_queue(&(aSendQ[index]));
+  free_queue(&(aRecvQ[index]));
 
   if(index == 0 && type == EP_TYPE_CONTROL) // control (these can receive SETUP requests)
   {
-    {
-      // aBuf1 is output, aBuf2 is input
+    // aBuf1 is output, aBuf2 is input
 
-      aRecvQ[0] = next_buffer();  // allocate buffer
+    aRecvQ[0] = next_buffer();  // allocate buffer
 
-      epData.endpoint[0].out.dataptr = buffer_data_pointer(aRecvQ[index]);
+    epData.endpoint[0].out.dataptr = buffer_data_pointer(aRecvQ[index]);
 
-      // NOTE:  size will be sent as 'EP_SINGLE_64'
+    // NOTE:  size will be sent as 'EP_SINGLE_64'
 
-      epData.endpoint[0].out.ctrl = USB_EP_TYPE_CONTROL_gc // NOTE:  interrupt enabled
-                                  | USB_EP_SIZE_64_gc;//(size == EP_SINGLE_64 ? USB_EP_SIZE_64_gc : 0);        /* data size */
+    epData.endpoint[0].out.ctrl = USB_EP_TYPE_CONTROL_gc // NOTE:  interrupt enabled
+                                | USB_EP_SIZE_64_gc;//(size == EP_SINGLE_64 ? USB_EP_SIZE_64_gc : 0);        /* data size */
 
-      // NOTE: 'BUSNACK0' is needed by 'in' on 128A1U rev K or earlier [a bug, apparently, see errata]
-      epData.endpoint[0].out.status = 0; // make sure they're ready to go (this allows receive data)
-
-    }
+    // NOTE: 'BUSNACK0' is needed by 'in' on 128A1U rev K or earlier [a bug, apparently, see errata]
+    epData.endpoint[0].out.status = 0; // make sure they're ready to go (this allows receive data)
 
     // cancel 'in' queue
     epData.endpoint[0].in.status = USB_EP_BUSNACK0_bm; // leave 'BUSNACK0' bit ON (stalls sending data)
@@ -2311,38 +2268,17 @@ int i1;
     epData.endpoint[0].in.ctrl = USB_EP_TYPE_CONTROL_gc // NOTE:  interrupt enabled
                                | USB_EP_SIZE_64_gc;     /* data size */
 
-    if(aSendQ[0])
-    {
-      free_queue(&(aSendQ[0]));
-    }
-
     // zero out the rest of the endopints, leaving ONLY the control
     for(i1=1; i1 <= MAXEP; i1++)
     {
-      epData.endpoint[i1].in.status = USB_EP_BUSNACK0_bm; // make sure (stall sending)
-      epData.endpoint[i1].out.status = USB_EP_BUSNACK0_bm; // make sure (stall receiving, cancels 'whatever')
+      pEP = &(epData.endpoint[i1]);
 
-      epData.endpoint[i1].in.ctrl = USB_EP_TYPE_DISABLE_gc;
-      epData.endpoint[i1].out.ctrl = USB_EP_TYPE_DISABLE_gc;
-
-      epData.endpoint[i1].in.dataptr = 0;
-      epData.endpoint[i1].in.auxdata = 0;
-      epData.endpoint[i1].in.cnt = 0;
-
-      epData.endpoint[i1].out.dataptr = 0;
-      epData.endpoint[i1].out.auxdata = 0;
-      epData.endpoint[i1].out.cnt = 0;
+      InitializeSingleEndpoint(pEP);
 
       if(i1 < INTERNAL_NUM_EP)
       {
-        if(aSendQ[i1])
-        {
-          free_queue(&(aSendQ[i1]));
-        }
-        if(aRecvQ[i1])
-        {
-          free_queue(&(aRecvQ[i1]));
-        }
+        free_queue(&(aSendQ[i1]));
+        free_queue(&(aRecvQ[i1]));
       }
     }
 
@@ -2356,34 +2292,16 @@ int i1;
   {
     // 'in' is actually the WRITE/SEND function
 
-    epData.endpoint[index].in.status = USB_EP_BUSNACK0_bm; // leave 'BUSNACK0' bit ON (stalls sending data)
-    epData.endpoint[index].in.dataptr = 0;
-    epData.endpoint[index].in.auxdata = 0;
+    pEP->in.status = USB_EP_BUSNACK0_bm; // leave 'BUSNACK0' bit ON (stalls sending data)
+    pEP->in.dataptr = 0;
+    pEP->in.auxdata = 0;
 
-    epData.endpoint[index].in.cnt = 0; // no data (so I won't send) - note 'ZLP_BIT' is broken (don't bother)
+    pEP->in.cnt = 0; // no data (so I won't send) - note 'ZLP_BIT' is broken (don't bother)
 
-    epData.endpoint[index].in.ctrl = (type == EP_TYPE_ISOCHRONOUS_IN ? USB_EP_TYPE_ISOCHRONOUS_gc : USB_EP_TYPE_BULK_gc)
-                                   | (type == EP_TYPE_BULK_IN ? USB_EP_INTDSBL_bm : 0)       /* disable interrupt */
-                                   | (size == EP_DOUBLE_64 ? USB_EP_SIZE_64_gc :             // TODO:  set 'double buffer' flag?
-                                      size == EP_SINGLE_64 ? USB_EP_SIZE_64_gc : 0);         /* data size */
-
-//    if(type == EP_TYPE_INTERRUPT_IN)
-//    {
-//      epData.endpoint[index].out.status = USB_EP_BUSNACK0_bm; // disable receive at first
-//
-//      aRecvQ[index] = next_buffer();  // allocate buffer
-//      epData.endpoint[index].out.dataptr = buffer_data_pointer(aRecvQ[index]);
-//
-//      epData.endpoint[index].out.auxdata = 0;
-//
-//      epData.endpoint[index].out.cnt = 0; // no data (so I can receive)
-//
-//      epData.endpoint[index].out.ctrl = USB_EP_TYPE_BULK_gc
-//                                      | (size == EP_DOUBLE_64 ? USB_EP_SIZE_64_gc :             // TODO:  set 'double buffer' flag?
-//                                         size == EP_SINGLE_64 ? USB_EP_SIZE_64_gc : 0);         /* data size */
-//
-//      epData.endpoint[index].out.status = USB_EP_TOGGLE_bm; //0; // this allows receive data
-//    }
+    pEP->in.ctrl = (type == EP_TYPE_ISOCHRONOUS_IN ? USB_EP_TYPE_ISOCHRONOUS_gc : USB_EP_TYPE_BULK_gc)
+//                 | (type == EP_TYPE_BULK_IN ? USB_EP_INTDSBL_bm : 0)       /* disable interrupt */
+                 | (size == EP_DOUBLE_64 ? USB_EP_SIZE_64_gc :             // TODO:  set 'double buffer' flag?
+                    size == EP_SINGLE_64 ? USB_EP_SIZE_64_gc : 0);         /* data size */
 
     if(type != EP_TYPE_ISOCHRONOUS_IN)
     {
@@ -2396,21 +2314,21 @@ int i1;
   {
     // 'out' is actually the RECEIVE function
 
-    epData.endpoint[index].out.status = USB_EP_BUSNACK0_bm; // disable receive at first
+    pEP->out.status = USB_EP_BUSNACK0_bm; // disable receive at first
 
     aRecvQ[index] = next_buffer();  // allocate buffer
-    epData.endpoint[index].out.dataptr = buffer_data_pointer(aRecvQ[index]);
+    pEP->out.dataptr = buffer_data_pointer(aRecvQ[index]);
 
-    epData.endpoint[index].out.auxdata = 0;
+    pEP->out.auxdata = 0;
 
-    epData.endpoint[index].out.cnt = 0; // no data (so I can receive)
+    pEP->out.cnt = 0; // no data (so I can receive)
 
-    epData.endpoint[index].out.ctrl = (type == EP_TYPE_ISOCHRONOUS_OUT ? USB_EP_TYPE_ISOCHRONOUS_gc : USB_EP_TYPE_BULK_gc)
-                                    | (type == EP_TYPE_BULK_OUT ? USB_EP_INTDSBL_bm : 0)      /* disable interrupt */
-                                    | (size == EP_DOUBLE_64 ? USB_EP_SIZE_64_gc :             // TODO:  set 'double buffer' flag?
-                                       size == EP_SINGLE_64 ? USB_EP_SIZE_64_gc : 0);         /* data size */
+    pEP->out.ctrl = (type == EP_TYPE_ISOCHRONOUS_OUT ? USB_EP_TYPE_ISOCHRONOUS_gc : USB_EP_TYPE_BULK_gc)
+//                  | (type == EP_TYPE_BULK_OUT ? USB_EP_INTDSBL_bm : 0)      /* disable interrupt */
+                  | (size == EP_DOUBLE_64 ? USB_EP_SIZE_64_gc :             // TODO:  set 'double buffer' flag?
+                     size == EP_SINGLE_64 ? USB_EP_SIZE_64_gc : 0);         /* data size */
 
-    epData.endpoint[index].out.status = 0; // this allows receive data
+    pEP->out.status = 0; // this allows receive data
 
     if(type != EP_TYPE_ISOCHRONOUS_OUT)
     {
@@ -2429,6 +2347,7 @@ int i1;
   // TODO:  anything else?
 }
 
+// this function consolidates queued packets - useful for receiving bulk data
 void consolidate_packets(INTERNAL_BUFFER *pHead)
 {
 INTERNAL_BUFFER *pX, *pX2;
@@ -2453,6 +2372,11 @@ INTERNAL_BUFFER *pX, *pX2;
     {
       return; // I am done
     }
+
+    error_printP_(F("Consolidating "));
+    error_printL(pX->iLen);
+    error_printP_(F(" left="));
+    error_printL(sizeof(pHead->aBuf) - pHead->iLen);
 
     do
     {
@@ -2485,6 +2409,9 @@ INTERNAL_BUFFER *pX, *pX2;
 
     } while(pHead->iLen < sizeof(pHead->aBuf));
 
+    error_printP_(F("new head length "));
+    error_printL(pHead->iLen);
+
     // get the next head, search for unconsolidated bufs (again)
     // slightly less efficient, but simpler algorithm
 
@@ -2492,64 +2419,7 @@ INTERNAL_BUFFER *pX, *pX2;
   }
 }
 
-void internal_do_endpoint_receive(char nEP, INTERNAL_BUFFER *pBuf)
-{
-//  error_printP_(F("internal_do_endpoint receive  USB ADDR="));
-//  error_printL_(USB_ADDR);
-//  error_printP_(F(" EP="));
-//  error_printL_(nEP);
-//  error_printP_(F(" count="));
-//  error_printL(pBuf->iLen);
-
-
-//  DumpBuffer(pBuf); // TEMPORARILY do this
-
-
-  // OK if I have a 'BULK OUT' endpoint that I'm working with, then consolidate
-  // all of the incoming data into the existing 'buffer chain'.  Otherwise, I
-  // will leave this as 'packet data' and just accumulate packets.
-
-//  if(internal_get_endpoint_type(nEP) == EP_TYPE_ISOCHRONOUS_OUT/*EP_TYPE_BULK_OUT*/
-//     && aRecvQ[(int)nEP] == pBuf)
-//  {
-//    // TEMPORARY debug out
-//
-//    char tbuf[65];
-//    memcpy(tbuf, pBuf->aBuf, pBuf->iLen + 1);
-//    tbuf[pBuf->iLen] = 0;
-//
-//    error_printP_(F("\""));
-//    error_print_(tbuf); // TEMPORARY
-//    error_printP(F("\""));
-//  }
-
-  if(internal_get_endpoint_type(nEP) == EP_TYPE_ISOCHRONOUS_OUT/*EP_TYPE_BULK_OUT*/
-     && aRecvQ[(int)nEP] != pBuf)
-  {
-    consolidate_packets(aRecvQ[(int)nEP]);
-
-    pBuf = NULL;
-  }
-  else
-  {
-    pBuf->iIndex = 0;  // always, to indicate where I am in the buffer [at the beginning]
-  }
-
-  // TODO:  notification callbacks [when needed]
-
-
-  if(pBuf && internal_get_endpoint_type(nEP) == EP_TYPE_INTERRUPT_IN)
-  {
-    error_printP(F("received packet on INTERRUPT IN endpoint"));
-    DumpBuffer(pBuf);
-
-    remove_from_queue(&(aRecvQ[(int)nEP]), pBuf);
-
-    free_buffer(pBuf);
-  }
-}
-
-uint8_t internal_get_endpoint_type(uint8_t nEP)
+uint8_t USB_GetEPType(uint8_t nEP)
 {
 uint8_t nRval = 0xff;
 
@@ -2696,7 +2566,7 @@ uint8_t requestType;
         if(pX)
         {
           pX->iLen = pX->iIndex = 1;
-          pX->aBuf[0] = 1; // always config #1???
+          pX->aBuf[0] = 1; // always config #1???  TODO:  see if I should return _usbConfiguration
 
           INTERNAL_BUFFER_MARK_SEND_READY(pX);
 
@@ -2710,15 +2580,21 @@ uint8_t requestType;
       }
       else if (SET_CONFIGURATION == r) // 9
       {
+#ifdef DEBUG_CONTROL
         error_printP(F("CONTROL: set config"));
+#endif // DEBUG_CONTROL
 
-        if (REQUEST_DEVICE == (requestType & REQUEST_RECIPIENT))
+        if(REQUEST_DEVICE == (requestType & REQUEST_RECIPIENT))
         {
+#ifdef DEBUG_CONTROL
           error_printP(F("CONTROL: request device"));
+#endif // DEBUG_CONTROL
 
           // SEE SECTION 20.3 in 'AU' manual for sequence of operation
 
+#ifdef DEBUG_CONTROL
           error_printP(F("USB InitEndpoints")); // was 'InitEndpoints()'
+#endif // DEBUG_CONTROL
 
           // init the first one as a control input
           for (uint8_t i = 1; i < sizeof(_initEndpoints); i++)
@@ -2733,8 +2609,10 @@ uint8_t requestType;
         }
         else
         {
+#ifdef DEBUG_CONTROL
           error_printP(F("CONTROL: other 'set config' request ="));
           error_printL(requestType);
+#endif // DEBUG_CONTROL
 
           ok = false;
         }
@@ -2767,12 +2645,12 @@ uint8_t requestType;
     }
     else
     {
+#ifdef DEBUG_CONTROL
       error_printP_(F("INTERFACE REQUEST "));
+
       if((requestType & REQUEST_TYPE) == REQUEST_CLASS)
       {
         error_printP_(F("(CLASS)"));
-
-//        DumpBuffer(pBuf); // for now
       }
       else if((requestType & REQUEST_TYPE) == REQUEST_VENDOR)
       {
@@ -2790,13 +2668,16 @@ uint8_t requestType;
       error_printL_(pSetup->wIndex);
       error_printP_(F(" len="));
       error_printL_(pSetup->wLength);
+#endif // DEBUG_CONTROL
 
       uint8_t idx = pSetup->wIndex;
 
 #ifdef CDC_ENABLED
       if(CDC_ACM_INTERFACE == idx)
       {
+#ifdef DEBUG_CONTROL
         error_printP(F(" (CDC)"));
+#endif // DEBUG_CONTROL
 
         ok = CDC_Setup(*pSetup); // sends 7 control bytes
       }
@@ -2807,7 +2688,9 @@ uint8_t requestType;
 #ifdef HID_ENABLED
       if(HID_INTERFACE == idx)
       {
+#ifdef DEBUG_CONTROL
         error_printP(F(" (HID)"));
+#endif // DEBUG_CONTROL
 
         ok = HID_Setup(*pSetup);
       }
@@ -2816,9 +2699,11 @@ uint8_t requestType;
       else
 #endif // defined(CDC_ENABLED) || defined(HID_ENABLED)
       {
+#ifdef DEBUG_CONTROL
         error_printP_(F(" (unknown dev index "));
         error_printL_(idx);
         error_printP(F(")"));
+#endif // DEBUG_CONTROL
 
         ok = ClassInterfaceRequest(*pSetup);
       }
@@ -2924,13 +2809,6 @@ int USB_SendControl(uint8_t flags, const void* d, int len)
   return internal_send(0, d, len, 1); // auto-flush packet
 }
 
-//// return -1 on error, 0 if all bytes read, 1 if more bytes remain
-//int USB_RecvControl(void* d, int len)
-//{
-//int iRval = internal_receive(0, d, len);
-//
-//  return iRval < 0 ? -1 : iRval == len ? 0 : 1;
-//}
 
 uint16_t USB_Available(uint8_t ep)
 {
@@ -2962,6 +2840,7 @@ uint16_t iRval = 0;
 
   return iRval;
 }
+
 
 bool USB_IsStalled(uint8_t index)
 {
@@ -3006,6 +2885,7 @@ the_end:
   return bRval;
 }
 
+
 bool USB_IsSendQFull(uint8_t ep)
 {
 INTERNAL_BUFFER *pB;
@@ -3041,6 +2921,7 @@ uint8_t nBuf = 0;
   return false;
 }
 
+
 uint16_t USB_SendQLength(uint8_t ep)
 {
 INTERNAL_BUFFER *pB;
@@ -3070,10 +2951,12 @@ uint16_t iRval = 0;
   return iRval;
 }
 
+
 void USB_Flush(uint8_t ep) // sends all pending data
 {
   internal_flush(ep);
 }
+
 
 int USB_Send(uint8_t ep, const void* data, int len, uint8_t bSendNow)
 {
@@ -3102,6 +2985,7 @@ uint16_t wProcessingMask = 1 << index;
   return internal_send(index, data, len, bSendNow) ? len : 0;
 }
 
+
 int USB_Recv(uint8_t ep, void* data, int len)
 {
 int iRval;
@@ -3109,15 +2993,31 @@ int iRval;
   // THIS ONLY WORKS FOR OUT ENDPOINTS - if it's not an 'OUT', then there will
   // be no buffered read data available.  Does NOT work for control endpoints.
 
+  if(!ep)
+  {
+    return -1; // can't use for the control endpoint
+  }
+
   iRval = internal_receive(ep, data, len);
 
-  return iRval < 0 ? -1 : iRval == len ? 0 : 1;
+  return iRval < 0 ? -1 : iRval;
+
+//  return iRval < 0 ? -1 : iRval == len ? 0 : 1;  // TODO:  is this right?
 }
+
 
 int USB_Recv(uint8_t ep)
 {
 static uint8_t a1;
 int iRval;
+
+  // THIS ONLY WORKS FOR OUT ENDPOINTS - if it's not an 'OUT', then there will
+  // be no buffered read data available.  Does NOT work for control endpoints.
+
+  if(!ep)
+  {
+    return -1; // can't use for the control endpoint
+  }
 
   iRval = internal_receive(ep, &a1, 1);
 
@@ -3159,7 +3059,7 @@ uint16_t GetFrameNumber(void)
 ISR(USB_BUSEVENT_vect) // USB_GEN_vect)
 {
 uint8_t udint;
-static bool bSOF = false;
+static bool bSOF = false; // use this to detect 'start of frame'
 
 
   udint = *((volatile uint8_t *)&(USB_INTFLAGSACLR));// UDINT;
@@ -3170,32 +3070,33 @@ static bool bSOF = false;
     // NOTE:  I have observed that when you power up the USB for the first time, you get an interrupt
     //        in which BOTH the RESUME and SUSPEND bits are set.  This may *not* be a documented behavior
     //        but it happens, and I'd like to do something maybe... ?
+#ifdef DEBUG_CODE
     error_printP(F("USB powerup"));
+#endif // DEBUG_CODE
 
     bSOF = false;
   }
   else if(udint & USB_SUSPENDIF_bm)
   {
     // NOTE:  I get several suspend/resume combos after pulling the USB cable out
-
-    // TODO:  use THIS to detect 'disconnected' - if the frame # has not changed,
-    //        then I'm no longer connected.
-
-//    error_printP(F("USB suspend IF"));  <-- noisy
   }
   else if(udint & USB_RESUMEIF_bm)
   {
     // NOTE:  I get several suspend/resume combos after pulling the USB cable out
 
-    // TODO:  use THIS to detect 'connected', along with frame # change.
-
-//    error_printP(F("USB resume IF"));  <-- noisy
-
-    if(!bSOF)
+    if(!bSOF) // did I get an SOF recently?
     {
-      if(_usbConfiguration)
+      // NOTE:  if this causes spurious misfires on 'disconnected', then use a counter of
+      //        the times I get 'resume IF' and set it to zero when I get an SOF.  If the
+      //        resume count happens enough times, call THAT "the disconnect".
+
+      if(_usbConfiguration) // if I didn't, and I'm configured, the device was UN-PLUGGED!
       {
+#ifdef DEBUG_CODE
         error_printP(F("USB Disconnected"));
+#endif // DEBUG_CODE
+
+        // TODO:  'On disconnect' handler??
 
         goto do_reset_interface;
       }
@@ -3207,13 +3108,16 @@ static bool bSOF = false;
   }
 
   //  End of Reset - happens when you first plug in, etc.
-  if(udint & USB_RSTIF_bm) //(1<<EORSTI))
+  //                 (typically a reset will do this several times in a row)
+  if(udint & USB_RSTIF_bm)
   {
+#ifdef DEBUG_CODE
     if(USB_ADDR != 0 || _usbConfiguration)
     {
       error_printP_(F("USB RESET: ADDR="));
       error_printL(USB_ADDR);
     }
+#endif // DEBUG_CODE
 
 do_reset_interface:
 
@@ -3236,12 +3140,26 @@ do_reset_interface:
 
     InitEP(0,EP_TYPE_CONTROL,EP_SINGLE_64);  // clear queues, init endpoints
 
-    // clear any 'stall' event this might cause
+    // clear any 'stall' event this might cause (it can happen)
     *((volatile uint8_t *)&(USB_INTFLAGSACLR)) = USB_STALLIF_bm; // clears the bit
+
+    goto the_end;
+  }
+
+  if(udint & USB_UNFIF_bm)
+  {
+    check_send_queue();  // getting an early start on this
+  }
+
+  if(udint & USB_OVFIF_bm)
+  {
+//    error_printP(F("OVF detected")); - note, seems to happen kinda often
+
+    check_recv_queue();  // getting an early start on this
   }
 
   //  Start of Frame - happens every millisecond so we use it for TX and RX LED one-shot timing, too
-  if(udint & USB_SOFIF_bm)//(1<<SOFI))
+  if(udint & USB_SOFIF_bm)
   {
     // every time I get a 'start of frame' I will assign 'true' to 'bSOF'.  If I
     // get a suspend/resume with no 'start of frame' in between, then I know that
@@ -3261,10 +3179,10 @@ do_reset_interface:
     }
 #endif // TX_RX_LED_INIT
 
-    // if anything needs to be sent or received, make it happen NOW
-
-    check_send_queue(); // check SEND queue first
-    check_recv_queue(); // check this too, just in case, probably nothing
+//    // if anything needs to be sent or received, make it happen NOW
+//
+//    check_send_queue(); // check SEND queue first
+//    check_recv_queue(); // check this too, just in case, probably nothing
 
     if(_usbConfiguration) // am I 'configured' ?
     {
@@ -3274,6 +3192,7 @@ do_reset_interface:
     }
   }
 
+the_end:
   // if any other flags were set during the ISR, I should get another interrupt
 
   *((volatile uint8_t *)&(USB_INTFLAGSACLR)) = udint; // clear whatever flags I processed this time
@@ -3289,11 +3208,13 @@ uint8_t udint;
 
   udint = *((volatile uint8_t *)&(USB_INTFLAGSBCLR));
 
+  // since I never know exactly why I was interrupted, I'll check all of the queues
+  // to see if anything was sent/received, then process it.
 
-  check_send_queue(); // do this always [for now] and do it FIRST
   check_recv_queue(); // NOTE:  this dispatches received packets for me
+  check_send_queue();
 
-  *((volatile uint8_t *)&(USB_INTFLAGSBCLR)) = udint;//0x3; //  now it's safe to clear interrupt flags (hopefully)
+  *((volatile uint8_t *)&(USB_INTFLAGSBCLR)) = udint; //  now it's safe to clear interrupt flags
     // NOTE:  only the 2 lower bits of INTFLAGSB are actually used
 
   return; // warning avoidance
@@ -3375,6 +3296,18 @@ int interfaces, total;
   //        the TRUE size of the response, but only send what I can.
 
   ConfigDescriptor config = D_CONFIG(total + sizeof(ConfigDescriptor),interfaces);
+
+  // this default config assignment consists of the following information:
+  //
+  // clen              total + sizeof(ConfigDescriptor)       total length of all info
+  // numInterfaces     interfaces                             total number of interfaces
+  // config            1                                      config number to assign
+  // iconfig           0                                      string description for config
+  // attributes        USB_CONFIG_BUS_POWERED                 attributes of config
+  // maxPower          USB_CONFIG_POWER_MA(500)               max bus power
+
+  // if I want a string index for my description I must assign it manually
+  config.iconfig = USB_STRING_INDEX_CONFIG;
 
   if(maxlen <= (int)sizeof(ConfigDescriptor))
   {
@@ -3492,24 +3425,16 @@ bool bRval;
   }
   else if (USB_STRING_DESCRIPTOR_TYPE == t) // 3
   {
-//    error_printP_(F("String Descriptor Type - "));
-
     if(rSetup.wValueL == USB_STRING_INDEX_LANGUAGE)
     {
-//      error_printP(F("Language"));
-
       desc_addr = (const u8*) USB_STRING_LANGUAGE; //&(USB_STRING_LANGUAGE[0]);
     }
     else if(rSetup.wValueL == USB_STRING_INDEX_PRODUCT)
     {
-//      error_printP(F("Product"));
-
       desc_addr = (const u8 *) USB_STRING_PRODUCT; // &(USB_STRING_PRODUCT[0]);
     }
     else if(rSetup.wValueL == USB_STRING_INDEX_MANUFACTURER)
     {
-//      error_printP(F("Manufacturer"));
-
       desc_addr = (const u8 *) USB_STRING_MANUFACTURER; // &(USB_STRING_MANUFACTURER[0]);
     }
     else if(rSetup.wValueL == USB_STRING_INDEX_DESCRIPTION)
@@ -3527,6 +3452,12 @@ bool bRval;
     else if(rSetup.wValueL == USB_STRING_INDEX_URL)
     {
       static const wchar_t szStr[] PROGMEM = L"\x0356" L"http://github.com/XMegaForArduino/arduino/"; // len=42
+
+      desc_addr = (const u8 *)szStr;
+    }
+    else if(rSetup.wValueL == USB_STRING_INDEX_CONFIG)
+    {
+      static const wchar_t szStr[] PROGMEM = L"\x034c" L"Default XMegaForArduino Configuration"; // len=37
 
       desc_addr = (const u8 *)szStr;
     }

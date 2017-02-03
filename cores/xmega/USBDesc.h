@@ -77,6 +77,7 @@
 #define USB_STRING_INDEX_VERSION       4
 #define USB_STRING_INDEX_URL           5
 #define USB_STRING_INDEX_SERIAL        6
+#define USB_STRING_INDEX_CONFIG        7
 
 
 

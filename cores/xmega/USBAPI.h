@@ -261,12 +261,13 @@ bool USB_IsSendQFull(uint8_t ep);          // this returns TRUE if there are too
 bool USB_IsStalled(uint8_t ep);            // this tells me I'm 'stalled' (BULK IN, INTERRUPT, CONTROL)
 int USB_Send(uint8_t ep, const void* data, // send endpoint data.  bSendNow marks it "to send"
              int len, uint8_t bSendNow);
-int USB_Recv(uint8_t ep, void* data,       // 'receive' data from endpoint receive queue.
+int USB_Recv(uint8_t ep, void* data,       // 'receive' data from endpoint receive queue.  returns < 0 on error, or # of bytes
              int len);
 int USB_Recv(uint8_t ep);                  // 'receive' one byte of data from endpoint receive queue
 void USB_Flush(uint8_t ep);                // 'sends' all pending data by marking the buffers "to send"
 
 uint16_t GetFrameNumber(void);             // a debug API to obtain the latest USB frame number
+uint8_t USB_GetEPType(uint8_t nEP);        // another debug API to return endpoint type by index
 
 #endif
 

@@ -410,9 +410,10 @@ typedef struct _XMegaEPDataStruct_
   volatile uint16_t       framenum;             // 1 word frame number
 } XMegaEPDataStruct /*__attribute__ ((packed))*/;   // note:  point EPPTR to &endpoint[0], word alignment needed
 
-uint16_t endpoint_data_pointer(void); // returns pointer assigned to EPPTR
-
+#ifdef DEBUG_CODE
+uint16_t endpoint_data_pointer(void);
 #define EP_DATA_STRUCT() ((XMegaEPDataStruct *)(endpoint_data_pointer() - (uint16_t)&(((XMegaEPDataStruct *)0)->endpoint[0])))
+#endif // DEBUG_CODE
 
 // this is the USB Device Descriptor
 #define D_DEVICE(_class,_subClass,_proto,_packetSize0,_vid,_pid,_version,_im,_ip,_is,_configs) \

@@ -88,7 +88,7 @@ const DeviceDescriptor _cdcDeviceDescriptor PROGMEM =
            64,                                  // packet size (64)
            USB_VID,                             // vendor ID for the USB device
            USB_PID,                             // product ID for the USB device
-           0x100,                               // this indicates USB version 1.0
+           0x100,                               // device release version as BCD (1.00)
            USB_STRING_INDEX_MANUFACTURER,       // string index for mfg
            USB_STRING_INDEX_PRODUCT,            // string index for product name
            USB_STRING_INDEX_SERIAL,             // string index for serial number (0 for 'none')
@@ -124,7 +124,7 @@ const CDCDescriptor _cdcInterface = // needs to be no more than 55 bytes in leng
   D_ENDPOINT(USB_ENDPOINT_IN (CDC_ENDPOINT_ACM),            // IN endpoint for CDC_ENDPOINT_ACM
              USB_ENDPOINT_TYPE_INTERRUPT,                   // INTERRUPT type
              0x10,                                          // max packet size 16
-             0x40),                                         // interval 64
+             0x40),                                         // interval 64 frames i.e. 64 msec (see USB spec table 9-13)
 
   //  SECOND INTERFACE
   //  CDC data interface (endpoints 1, 2)
@@ -137,12 +137,12 @@ const CDCDescriptor _cdcInterface = // needs to be no more than 55 bytes in leng
   D_ENDPOINT(USB_ENDPOINT_OUT(CDC_ENDPOINT_OUT),            // OUT endpoint, index 'CDC_ENDPOINT_OUT'
              USB_ENDPOINT_TYPE_BULK,                        // BULK data transfers
              0x40,                                          // max packet size 64
-             0),                                            // interval 0
+             1),                                            // interval 1 (was 0)
 
   D_ENDPOINT(USB_ENDPOINT_IN (CDC_ENDPOINT_IN),             // IN endpoint, index 'CDC_ENDPOINT_IN'
              USB_ENDPOINT_TYPE_BULK,                        // BULK data transfers
              0x40,                                          // max packet size 64
-             0)                                             // interval 0
+             0)                                             // interval 0 (apparently not needed)
 };
 
 void WEAK CDC_Reset(void)
