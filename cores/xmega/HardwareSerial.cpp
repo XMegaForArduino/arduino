@@ -1041,7 +1041,233 @@ void serialEventRun(void)
 //
 // Note that THESE values assume F_CPU==32000000
 
-uint16_t temp_get_baud(unsigned long baud, uint8_t use_u2x)
+// baud <= F_CPU / 16 for 1x, F_CPU / 8 for 2x - above that gives you a value of '1'
+//
+// X = clk_2x ? 8 : 16    bscale >= 0:  bsel = F_CPU / ( (2 ^ bscale) * X * baud) - 1
+//                                      baud = F_CPU / ( (2 ^ bscale) * X * (bsel + 1) )
+//                        bscale < 0:   bsel = (1 / (2 ^ (bscale))) * (F_CPU / (X * baud) - 1)
+//                                      baud = F_CPU / ( X * (((2 ^ bscale) * bsel) + 1) )
+//
+// NOTE:  if bsel is zero for a given bscale, then use bscale=0 and bsel=2^(bscale - 1)
+//        see section 19.3.1
+//
+// find 'best fit baud' by calculating the best 'bscale' and 'bsel' for a given baud
+// bscale is -7 through +7 so this can be done in a simple loop
+//
+// Note that I have managed to "nuke out" some accurate integer math to make this work
+// although the converging solutions tend to take up some time.  It's still fast, though
+// and you won't be calling this very often, now will ya?
+
+// calculating BSEL and BAUD correctly - this lets me select _ANY_ baud rate
+
+
+#if 1 // use NEW get_baud - it's about 810 bytes bigger, though
+
+// GetBSEL returns the BSEL value given the baud and BSCALE
+// this is more of an estimate.  to get the right answer, this is
+// merely a starting point.  you have to converge on the solution
+// by using a loop and picking the best 'nearby' value, up to '4' away
+static int GetBSEL(unsigned long lBaud, int nBSCALE, int b2X)
+{
+long l1, l3;
+unsigned char nFactor;
+
+
+  if(b2X)
+  {
+    nFactor = 8;
+  }
+  else
+  {
+    nFactor = 16;
+  }
+
+  if(nBSCALE >= 0)
+  {
+    l1 = nFactor * lBaud;
+
+    if(nBSCALE)
+    {
+      l1 = l1 << nBSCALE;
+    }
+
+    if(!l1)
+    {
+      return 0;
+    }
+
+    if((((long)F_CPU) % l1) < (l1 >> 1))
+    {
+      l1 = (((long)F_CPU) / l1) - 1;
+    }
+    else
+    {
+      l1 = (((long)F_CPU) / l1); // rounded off
+    }
+  }
+  else // nBSCALE < 0
+  {
+    l1 = nFactor * lBaud;
+
+    l3 = F_CPU;
+
+    if(nBSCALE > -4) // might overload if I use 32-bit integers and 32Mhz
+    {
+      l3 = l3 << (-nBSCALE);
+    }
+    else
+    {
+      l3 = l3 << 3;
+      l1 = l1 >> -(3 + nBSCALE);
+    }
+
+    if(l3 % l1 < (l1 >> 1))
+    {
+      l1 = l3 / l1 - 1;
+    }
+    else
+    {
+      l1 = l3 / l1; // round up
+    }
+  }
+
+  return (int)l1;
+}
+
+// GetBAUD calculates the actual baud rate based on nBSCALE and nBSEL
+// it is actually pretty accurate, matching what you seen in the manual
+static long GetBAUD(int nBSCALE, int nBSEL, int b2X)
+{
+long l1, l3;
+unsigned char nFactor;
+#define GET_BAUD_SCALE_FACTOR 4096 /* scaling the math so I can improve accuracy */
+
+  if(b2X)
+  {
+    nFactor = 8;
+  }
+  else
+  {
+    nFactor = 16;
+  }
+
+  if(nBSCALE >= 0)
+  {
+    l1 = (long)nFactor * (nBSEL + 1); // nBSEL can be 1-4095; 16 * 4k is ~64k; then it gets shifted.
+
+    if(nBSCALE)
+    {
+      l1 = l1 << nBSCALE;
+    }
+
+    if(!l1)
+    {
+      return 0;
+    }
+    
+    return ((long)F_CPU) / l1; // TODO:  roundoff correction?
+  }
+
+  // nBSCALE < 0
+
+  l3 = (long)nFactor * GET_BAUD_SCALE_FACTOR;  // scale factor improves precision
+
+  l1 = l3 * nBSEL;
+
+  if(nBSCALE)
+  {
+    l1 = l1 >> (-nBSCALE);
+  }
+
+  l1 += l3; // the '+ 1' multiplied by nFactor * GET_BAUD_SCALE_SCALE_FACTOR
+      
+  if(!l1)  // unlikely
+  {
+    return 0;
+  }
+
+  l3 = F_CPU % l1; // the remainder - this gives me better rounding with int math
+
+  return GET_BAUD_SCALE_FACTOR * (F_CPU / l1) // integer division, then mult by the scale
+         + (GET_BAUD_SCALE_FACTOR * l3) / l1; // the fractional remainder [scaled]
+}
+
+// 'get_baud' - the official baud rate number thingy
+// this returns (BSCALE << 12) | (BSEL & 0x3fff) for all practical purposes
+uint16_t get_baud(unsigned long baud, uint8_t use_u2x)
+{
+int i1;
+char i2;
+char iBSCALE, iBSCALERange;
+int iBSEL, iTemp;
+int iMinErr, iErr;
+
+
+
+  // NOTE:  2^ABS(BSCALE) must at most be one half of the minimum number
+  //        of clock cycles a frame requires
+
+  iBSCALERange = 7; // my initial maximum range
+
+  if(baud > (F_CPU / 1310720)) // so that the result fits in an integer
+  {
+    iTemp = (int)((F_CPU / 2) * 11L / baud); // half the # of clock cycles needed per 11-bits
+
+    while(iBSCALERange && (1 << iBSCALERange) >= iTemp)
+    {
+      iBSCALERange --;
+    }
+  }
+
+  iBSEL = 0;    // initially zero for 'not found'
+  iBSCALE = 0;
+  iMinErr = 0x7fff; // grossly over expected value of error
+
+  for(i2=-iBSCALERange; i2 <= iBSCALERange; i2++)
+  {
+    iTemp = GetBSEL(baud, i2, use_u2x);
+
+    if(!iTemp || iTemp >= 2048) // out of range? - note actual max is 4095
+    {
+      continue;  // don't even look at an invalid value
+    }
+
+    // derived experimentally, loop on range of iTemp - 4 to iTemp + 1
+    for(i1=iTemp > 4 ? iTemp - 4 : 0; i1 <= iTemp + 1; i1++)
+    {
+      iErr = (int)(GetBAUD(iBSCALE, i1, use_u2x) - baud); // my delta
+
+      if(iErr < 0) // smaller than call to 'abs()'
+      {
+        iErr = -iErr;
+      }
+
+      if(iErr < iMinErr)
+      {
+        // I shall keep the first one I find that is below the current min error
+        // and the first 'lowest' error is the one I return.  This favors lower
+        // values of BSCALE which I understand helps the baud rate generator
+        // work better overall.
+
+        iBSEL = i1;
+        iBSCALE = i2;
+        iMinErr = iErr; // new error to stay below, now
+      }
+    }
+  }
+
+  if(!iBSEL)
+  {
+    return 1; // highest possible baud rate
+  }
+
+  return ((uint16_t)((int)iBSCALE << 12)) | (uint16_t)(iBSEL & 0x3fff);
+}
+
+#else // OLD get_baud
+
+// the OLD version used baud rate values from a lookup table
+uint16_t get_baud(unsigned long baud, uint8_t use_u2x)
 {
 uint16_t i1;
 static const unsigned long aBaud[] PROGMEM = // standard baud rates
@@ -1104,25 +1330,10 @@ static const uint16_t a1x[] PROGMEM = // 1x constants for standard baud rates
     }
   }
 
-  // NOTE:  baud <= F_CPU / 16 for 1x, F_CPU / 8 for 2x
-  //
-  // X = clk_2x ? 8 : 16    bscale >= 0:  bsel = F_CPU / ( (2 ^ bscale) * X * baud) - 1
-  //                                      baud = F_CPU / ( (2 ^ bscale) * X * (bsel + 1) )
-  //                        bscale < 0:   bsel = (1 / (2 ^ (bscale))) * (F_CPU / (X * baud) - 1)
-  //                                      baud = F_CPU / ( X * (((2 ^ bscale) * bsel) + 1) )
-  //
-  // NOTE:  if bsel is zero for a given bscale, then use bscale=0 and bsel=2^(bscale - 1)
-  //        see section 19.3.1
-  //
-  // find 'best fit baud' by calculating the best 'bscale' and 'bsel' for a given baud
-  // bscale is -7 through +7 so this can be done in a simple loop
-  // I determined that using floating point is almost MANDATORY to make this work.  scaled ints
-  // would work too.  But it's likely to take up WAY TOO MUCH SPACE in the NVRAM to be practical.
-
   return 1; // for now [half the maximum baud rate]
 }
 
-
+#endif // 0,1
 
 
 /////////////////////////////////////////////////////////////////////////////////////////////
@@ -1221,8 +1432,10 @@ void HardwareSerial::begin(unsigned long baud, byte config)
   // baud rate calc - page 220 table 19-5 [for standard values]
   //                  table 19-1 (page 211) for calculation formulae
   // (also see theory discussion on page 219)
-  baud_setting = temp_get_baud(baud, use_u2x);
+  baud_setting = get_baud(baud, use_u2x);
 
+  // NOTE:  I had some difficulty getting 300 baud to work.  600 baud worked ok though
+  //        to get 300 baud to work, you might have to change things around a bit
 
   oldSREG = SREG; // save old to restore interrupts as they were
   cli(); // clear interrupt flag until I'm done assigning pin stuff

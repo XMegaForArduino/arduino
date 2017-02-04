@@ -106,7 +106,8 @@ class HardwareSerial : public Stream
   // NOTE:  'Serial1' will be the hardware serial and 'Serial' the USB serial
   //        whenever 'USBCON' is defined in pins_arduino.h
 
-  #include "USBAPI.h"
+  #include <USBAPI.h>
+
   extern HardwareSerial Serial1;
 #else // normal hardware serial
   extern HardwareSerial Serial;
