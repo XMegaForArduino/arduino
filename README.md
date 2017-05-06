@@ -1,6 +1,8 @@
 arduino
 =======
 
+(The XMegaForArduino project would not be possible without the <a href="https://www.arduino.cc/en/Main/Contribute">Arduino</a> IDE)
+
 This repository contains the files and other additions for the 
 'hardware/arduino' sub-directory in the arduino development environment 
 that are necessary for supporting specific ATXmega CPU's.
