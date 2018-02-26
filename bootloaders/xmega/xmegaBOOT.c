@@ -253,7 +253,7 @@ uint8_t readNVMData(uint8_t cmd, uint16_t iIndex);
 #define SERIAL_USART_BAUDCTRLA USARTD0_BAUDCTRLA
 #define SERIAL_USART_BAUDCTRLB USARTD0_BAUDCTRLB
 
-#endif 
+#endif
 
 
 
@@ -1279,7 +1279,7 @@ skip_clock:  // go here if clock cannot be assigned for some reason or is alread
     // use protocol 'wiring' in boards.txt (same as mega2560)
 
     // main loop  (executed when bootstate == 1 in original code)
-    // NOTE:  ch contains the last read-in character, and 'getch()' handles startup delay and blinking  
+    // NOTE:  ch contains the last read-in character, and 'getch()' handles startup delay and blinking
 
 #ifdef ENABLE_BANG
     if(ch == '!' && !firstchar) // TEMPORARY, for testing
@@ -1313,7 +1313,7 @@ skip_clock:  // go here if clock cannot be assigned for some reason or is alread
       error_count = MAX_ERROR_COUNT; // always bail out
 
       goto send_the_reply;
-    }    
+    }
 #endif // ENABLE_BANG
 
     {
@@ -1485,7 +1485,7 @@ error_flush_send_reply:
               msgBuffer[1 + w1] = 0; // zero everything else
             }
           }
-          else if ( msgBuffer[4] & 0x50 ) // that would be 4xH or 5xH or 1xH - 50 read fuse bits, 58 read lock bits 
+          else if ( msgBuffer[4] & 0x50 ) // that would be 4xH or 5xH or 1xH - 50 read fuse bits, 58 read lock bits
           {
           //*  Issue 544:   stk500v2 bootloader doesn't support reading fuses
           //*  I cant find the docs that say what these are supposed to be but this was figured out by trial and error
@@ -2179,7 +2179,7 @@ void flushin(void)
 
     count = 0; // restart counter
   }
-  
+
 }
 #endif // USE_STK500V2
 
@@ -2460,6 +2460,6 @@ void SP_WriteApplicationPage(uint32_t address)
 /* end of file ATmegaBOOT.c */
 
 // for reference, a command to test the flash process
-// /usr/local/arduino/hardware/tools/avr/bin/avrdude -C/usr/local/arduino/hardware/tools/avr/etc/avrdude.conf -v -v -v -v -patxmega64d4 -cwiring -P/dev/cuaU0 -b115200 -D -Uflash:w:/var/tmp//build1587155088328648934.tmp/Blink.cpp.hex:i 
+// /usr/local/arduino/hardware/tools/avr/bin/avrdude -C/usr/local/arduino/hardware/tools/avr/etc/avrdude.conf -v -v -v -v -patxmega64d4 -cwiring -P/dev/cuaU0 -b115200 -D -Uflash:w:/var/tmp//build1587155088328648934.tmp/Blink.cpp.hex:i
 
 

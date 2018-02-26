@@ -15,3 +15,8 @@ flashboot:
 	avrdude -C ../xmega/avrdude.conf -c avrispmkii -p at$(USE_TARGET) -P usb -Uboot:w:xmegaBOOT_xmega0_$(USE_TARGET).hex:i -Ulockbits:w:0xBF:m
 
 
+
+clean:
+	$(MAKE) -C ../xmega clean_$(USE_TARGET) TARGET=$(USE_TARGET)
+
+

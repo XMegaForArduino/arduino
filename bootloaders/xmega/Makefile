@@ -376,6 +376,12 @@ $(OBJ): $(PROGRAM).c
 	$(CC) $(CFLAGS) -c -o $@ $^
 
 
+clean_$(BOOTLOADER_SUFFIX): clean_fixhex
+	-rm $(PROGRAM)_$(BOOTLOADER_SUFFIX).o
+	-rm $(PROGRAM)_xmega_$(BOOTLOADER_SUFFIX).elf
+	-rm $(PROGRAM)_xmega_$(BOOTLOADER_SUFFIX).hex
+	-rm $(PROGRAM)_xmega0_$(BOOTLOADER_SUFFIX).hex
+
 #flashall: $(PROGRAM)_xmega_plus_image.hex fusesxmega
 #	avrdude -C $(ISPCONF) -c $(ISPTOOL) -p $(MCU_TARGET) -P $(ISPPORT) $(ISPSPEED) \
 #                -U flash:w:$(PROGRAM)_xmega_plus_image.hex -U lockbits:w:$(LOCKBITS_LOCK):m
@@ -387,13 +393,19 @@ $(PROGRAM)_xmega0_$(BOOTLOADER_SUFFIX).hex: $(PROGRAM)_xmega_$(BOOTLOADER_SUFFIX
 	grep -v $(GREP_LINE) $(PROGRAM)_xmega_$(BOOTLOADER_SUFFIX).hex \
                 >$(PROGRAM)_xmega0_$(BOOTLOADER_SUFFIX).hex
 
+clean_fixhex:
+
+
 else
 
 fixhex: fixhex.c
-	gcc -o fixhex fixhex.c
+	cc -o fixhex fixhex.c
 
 $(PROGRAM)_xmega0_$(BOOTLOADER_SUFFIX).hex: $(PROGRAM)_xmega_$(BOOTLOADER_SUFFIX).hex fixhex
 	./fixhex $(PROGRAM)_xmega_$(BOOTLOADER_SUFFIX).hex $(PROGRAM)_xmega0_$(BOOTLOADER_SUFFIX).hex
+
+clean_fixhex:
+	-rm fixhex
 
 endif
 
@@ -424,7 +436,8 @@ fusesxmega:
 	$(CC) $(CFLAGS) $(LDFLAGS) -o $@ $^ $(LIBS)
 
 clean:
-	rm -rf *.o *.elf *.lst *.map *.sym *.lss *.eep *.srec *.bin *.hex
+	-rm -rf *.o *.elf *.lst *.map *.sym *.lss *.eep *.srec *.bin *.hex
+	-rm -f fixhex
 
 %.lst: %.elf
 	$(OBJDUMP) -h -S $< > $@
