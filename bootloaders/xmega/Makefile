@@ -417,20 +417,26 @@ flashboot: xmega fusesxmega
 # TODO:  write a program to correctly manage this out of a combined file
 	avrdude -C $(ISPCONF) -c $(ISPTOOL) -p $(MCU_TARGET) -P $(ISPPORT) $(ISPSPEED) \
                 -Uboot:w:$(PROGRAM)_xmega0_$(BOOTLOADER_SUFFIX).hex:i \
-                -Ulockbits:w:$(LOCKBITS_LOCK):m
+                -Ulock:w:$(LOCKBITS_LOCK):m
+
+#                -Ulockbits:w:$(LOCKBITS_LOCK):m
 
 flashboot_cmd:
 	@echo avrdude -C $(ISPCONF) -c $(ISPTOOL) -p $(MCU_TARGET) -P $(ISPPORT) $(ISPSPEED) \
                 -Uboot:w:$(PROGRAM)_xmega0_$(BOOTLOADER_SUFFIX).hex:i \
-                -Ulockbits:w:$(LOCKBITS_LOCK):m
+                -Ulock:w:$(LOCKBITS_LOCK):m
+
+#                -Ulockbits:w:$(LOCKBITS_LOCK):m
 
 
 # this next target programs the fuses and leaves lock bits 'unlocked' for flashing
 # it also performs a chip erase which normally includes the EEPROM as well
 fusesxmega:
 	while ! avrdude -C $(ISPCONF) -c $(ISPTOOL) -p $(MCU_TARGET) -P $(ISPPORT) $(ISPSPEED) -e \
-                        -Ulockbits:w:${LOCKBITS_UNLOCK}:m -Ufuse1:w:${FUSE1}:m -Ufuse2:w:${FUSE2}:m \
+                        -Ulock:w:${LOCKBITS_UNLOCK}:m -Ufuse1:w:${FUSE1}:m -Ufuse2:w:${FUSE2}:m \
                         -Ufuse4:w:${FUSE4}:m -Ufuse5:w:${FUSE5}:m ; do sleep 1 ; done
+
+#                        -Ulockbits:w:${LOCKBITS_UNLOCK}:m -Ufuse1:w:${FUSE1}:m -Ufuse2:w:${FUSE2}:m \
 
 %.elf: $(OBJ)
 	$(CC) $(CFLAGS) $(LDFLAGS) -o $@ $^ $(LIBS)

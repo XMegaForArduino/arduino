@@ -138,7 +138,7 @@ bool Stream::findUntil(char *target, size_t targetLen, char *terminator, size_t 
   size_t index = 0;  // maximum target string length is 64k bytes!
   size_t termIndex = 0;
   int c;
-  
+
   if(!target || *target == 0) // update, allow NULL pointer
   {
     return true;   // return true if target is a null string
@@ -146,7 +146,7 @@ bool Stream::findUntil(char *target, size_t targetLen, char *terminator, size_t 
 
   while( (c = timedRead()) > 0)
   {
-    
+
     if(c != target[index])
     {
       index = 0; // reset index if any char does not match
@@ -161,7 +161,7 @@ bool Stream::findUntil(char *target, size_t targetLen, char *terminator, size_t 
       }
     }
 
-    // allow for NULL 'terminator'    
+    // allow for NULL 'terminator'
     if(terminator && termLen > 0 &&
        UNLIKELY(c == terminator[termIndex]))
     {

@@ -55,7 +55,7 @@ public:
 
       return *p1 == *p2;
     };
-  
+
     bool operator==(const uint8_t* addr);
 
     // Overloaded index operator to allow getting and setting individual octets of the address

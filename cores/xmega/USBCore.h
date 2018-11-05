@@ -48,8 +48,6 @@
 #endif // defined(USBCON)
 
 
-#define FAST_USB /* necessary for 'FULL' speed operation - this is 12Mbit, not 480Mbit USB 2 'HIGH' speed - 'LOW' may not work properly */
-
 #ifndef _PLATFORM_H_TYPES_DEFINED_ /* TEMPORARY FIX, SEE Platform.h */
 #define _PLATFORM_H_TYPES_DEFINED_
 typedef unsigned char u8;
@@ -363,13 +361,13 @@ typedef union _xmega_fifo_entry_
     uint8_t h, l;
   };
   uint16_t heW; // high endian word
-} XMegaFIFOEntry;
+} __attribute__(( packed )) XMegaFIFOEntry; // exactly 4 bytes
 
 typedef struct _xmega_fifo_
 {
   XMegaFIFOEntry in;
   XMegaFIFOEntry out;
-} XMegaFIFO;
+} __attribute__(( packed )) XMegaFIFO; // must be exactly 8 bytes long
 
 // see AU manual, pg 231 section 20.4
 typedef struct _xmega_endpoint_descriptor_
@@ -384,34 +382,41 @@ typedef struct _xmega_endpoint_descriptor_
   volatile uint16_t /*HLByteWord*/ dataptr; // pointer to data buffer.  max packet length assigned to CTRL [1:0] or [2:0]
                                // see table 20-5 in AU manual for max packet length.  may need 2 buffers "that long"
   volatile uint16_t /*HLByteWord*/ auxdata; // used for multi-packet transfers
-} XMegaEndpointDescriptor; // NOTE:  2 per channel (one 'out', one 'in') pointed by EPPTR
+} __attribute__((packed)) XMegaEndpointDescriptor; // NOTE:  2 per channel (one 'out', one 'in') pointed by EPPTR
 
 typedef struct _xmega_endpoint_channel_
 {
-  XMegaEndpointDescriptor out;
-  XMegaEndpointDescriptor in;
-} XMegaEndpointChannel
+  XMegaEndpointDescriptor out; // must be exactly 8 bytes
+  XMegaEndpointDescriptor in;  // must be exactly 8 bytes
+}
 #ifdef A1U_SERIES
- __attribute (( aligned (16) ));
+ __attribute (( aligned (16) ))
 #else // not an A1U series
- __attribute__ (( aligned (2) /*, packed*/));
+ __attribute__ (( aligned (2) ))
 #endif // A1U or not
+  XMegaEndpointChannel;
 
 // also section 20.4 in AU manual
 typedef struct _XMegaEPDataStruct_
 {
-#ifdef A1U_SERIES
-#if ((MAXEP+1)%4) != 0 // A1U needs 16-byte boundary, not merely word-aligned
-  uint8_t padding[sizeof(XMegaFIFO) * (4 - ((MAXEP+1)%4))]; // this should 16-byte align 'endpoint' as required
+#ifdef A1U_SERIES /* only for A1U - this was 'kind of' a bug */
+#if ((MAXEP+1)%2) != 0 // A1U needs 16-byte boundary, not merely word-aligned (and XMegaFIFO is 8 bytes long, currently)
+  uint8_t padding[sizeof(XMegaFIFO) * (2 - ((MAXEP+1)%2))] __attribute__ ((packed)); // this should 16-byte align 'endpoint' as required
 #endif // needs padding
 #endif // XMEGA A1U series
   XMegaFIFO               fifo[MAXEP + 1];
-  XMegaEndpointChannel    endpoint[MAXEP + 1];  // point EPPTR to THIS  (must be word boundary)
-  volatile uint16_t       framenum;             // 1 word frame number
-} XMegaEPDataStruct /*__attribute__ ((packed))*/;   // note:  point EPPTR to &endpoint[0], word alignment needed
+  XMegaEndpointChannel    endpoint[MAXEP + 1] __attribute__ ((packed));  // point EPPTR to THIS  (must be word boundary)
+  volatile uint16_t       framenum;             // 1 word frame number (so struct length NOT aligned, maybe)
+}
+#ifdef A1U_SERIES
+ __attribute (( aligned (16) ))
+#else // not an A1U series
+ __attribute__ (( aligned (2) ))
+#endif // A1U or not
+  XMegaEPDataStruct; ///*__attribute__ ((packed))*/;   // note:  point EPPTR to &endpoint[0], word alignment needed
 
+extern "C" uint16_t endpoint_data_pointer(void);
 #ifdef DEBUG_CODE
-uint16_t endpoint_data_pointer(void);
 #define EP_DATA_STRUCT() ((XMegaEPDataStruct *)(endpoint_data_pointer() - (uint16_t)&(((XMegaEPDataStruct *)0)->endpoint[0])))
 #endif // DEBUG_CODE
 
@@ -420,7 +425,7 @@ uint16_t endpoint_data_pointer(void);
   { 18, 1, 0x200, _class,_subClass,_proto,_packetSize0,_vid,_pid,_version,_im,_ip,_is,_configs }
 
 #define D_CONFIG(_totalLength,_interfaces) \
-  { 9, 2, _totalLength,_interfaces, 1, 0, USB_CONFIG_BUS_POWERED, USB_CONFIG_POWER_MA(500) }
+  { 9, 2, _totalLength, (uint8_t)_interfaces, 1, 0, USB_CONFIG_BUS_POWERED, USB_CONFIG_POWER_MA(500) }
 
 #define D_INTERFACE(_n,_numEndpoints,_class,_subClass,_protocol) \
   { 9, 4, _n, 0, _numEndpoints, _class,_subClass, _protocol, 0 }

@@ -50,6 +50,10 @@
 
 #endif // check for GNUC >= or < 4.6
 
+// interrupt levels - use int level 3 for RX, int level 2 for TX (TODO:  make them pins_arduino.h configurable?)
+#define USART_RXC_INTLEVEL (_BV(USART_RXCINTLVL1_bp) | _BV(USART_RXCINTLVL0_bp))
+#define USART_DRE_INTLEVEL (_BV(USART_DREINTLVL1_bp) /*| _BV(USART_DREINTLVL0_bp)*/)
+
 
 #ifndef SERIAL_0_PORT_NAME
 #define SERIAL_0_PORT_NAME PORTD
@@ -306,9 +310,11 @@ char bCTS = SERIAL_0_CTS_PORT->IN & SERIAL_0_CTS_PIN;
     // re-enable the DRE interrupt - this will cause transmission to
     // occur again without code duplication.  see HardwareSerial::write()
 
+    // NOTE:  use specified interrupt levels for serial ports. This allows 3 to be used
+    //        for the system timer and anything the user application deems as 'important'
     (&(SERIAL_0_USART_NAME))->CTRLA /*USARTD0_CTRLA*/
-      = _BV(USART_RXCINTLVL1_bp) | _BV(USART_RXCINTLVL0_bp)
-      | _BV(USART_DREINTLVL1_bp) | _BV(USART_DREINTLVL0_bp); // set int bits for rx and dre (sect 19.14.3)
+      = USART_RXC_INTLEVEL
+      | USART_DRE_INTLEVEL; // set int bits for rx and dre (sect 19.14.3)
   }
 
   SREG=oldSREG; // interrupts re-enabled
@@ -338,8 +344,10 @@ char bCTS = SERIAL_1_CTS_PORT->IN & SERIAL_1_CTS_PIN;
     // re-enable the DRE interrupt - this will cause transmission to
     // occur again without code duplication.  see HardwareSerial::write()
 
-    USARTC0_CTRLA = _BV(USART_RXCINTLVL1_bp) | _BV(USART_RXCINTLVL0_bp)
-                  | _BV(USART_DREINTLVL1_bp) | _BV(USART_DREINTLVL0_bp); // set int bits for rx and dre (sect 19.14.3)
+    // NOTE:  use specified interrupt levels for serial ports. This allows 3 to be used
+    //        for the system timer and anything the user application deems as 'important'
+    USARTC0_CTRLA = USART_RXC_INTLEVEL
+                  | USART_DRE_INTLEVEL; // set int bits for rx and dre (sect 19.14.3)
   }
 
   SREG=oldSREG; // interrupts re-enabled
@@ -600,8 +608,10 @@ char bCTS = SERIAL_0_CTS_PORT->IN & SERIAL_0_CTS_PIN;
 
     // Buffer empty, so disable interrupts
     // section 19.14.3 - the CTRLA register (interrupt stuff)
+    // NOTE:  use specified interrupt level for RX on serial ports. This allows 3 to be used
+    //        for the system timer and anything the user application deems as 'important'
     (&(SERIAL_0_USART_NAME))->CTRLA /*USARTD0_CTRLA*/
-      = _BV(USART_RXCINTLVL1_bp) | _BV(USART_RXCINTLVL0_bp); // only set these 2 (the DRE int is now OFF)
+      = USART_RXC_INTLEVEL; // only set these 2 (the DRE int is now OFF)
   }
   else
   {
@@ -647,8 +657,10 @@ char bCTS = SERIAL_1_CTS_PORT->IN & SERIAL_1_CTS_PIN;
 
     // Buffer empty, so disable interrupts
     // section 19.14.3 - the CTRLA register (interrupt stuff)
+    // NOTE:  use specified interrupt level for RX on serial ports. This allows 3 to be used
+    //        for the system timer and anything the user application deems as 'important'
     (&(SERIAL_1_USART_NAME))->CTRLA /*USARTC0_CTRLA*/
-      = _BV(USART_RXCINTLVL1_bp) | _BV(USART_RXCINTLVL0_bp); // only set these 2 (the DRE int is now OFF)
+      = USART_RXC_INTLEVEL; // only set these 2 (the DRE int is now OFF)
   }
   else
   {
@@ -667,8 +679,10 @@ SERIAL_2_DRE_ISR // ISR(USARTE0_DRE_vect)
   {
     // Buffer empty, so disable interrupts
     // section 19.14.3 - the CTRLA register (interrupt stuff)
+    // NOTE:  use specified interrupt level for RX on serial ports. This allows 3 to be used
+    //        for the system timer and anything the user application deems as 'important'
     (&(SERIAL_2_USART_NAME))->CTRLA /*USARTE0_CTRLA*/
-      = _BV(USART_RXCINTLVL1_bp) | _BV(USART_RXCINTLVL0_bp); // only set these 2 (the DRE int is now OFF)
+      = USART_RXC_INTLEVEL; // only set these 2 (the DRE int is now OFF)
   }
   else
   {
@@ -688,8 +702,10 @@ SERIAL_3_DRE_ISR // ISR(USARTF0_DRE_vect)
   {
     // Buffer empty, so disable interrupts
     // section 19.14.3 - the CTRLA register (interrupt stuff)
+    // NOTE:  use specified interrupt level for RX on serial ports. This allows 3 to be used
+    //        for the system timer and anything the user application deems as 'important'
     (&(SERIAL_3_USART_NAME))->CTRLA /*USARTF0_CTRLA*/
-      = _BV(USART_RXCINTLVL1_bp) | _BV(USART_RXCINTLVL0_bp); // only set these 2 (the DRE int is now OFF)
+      = USART_RXC_INTLEVEL; // only set these 2 (the DRE int is now OFF)
   }
   else
   {
@@ -709,8 +725,10 @@ SERIAL_4_DRE_ISR
   {
     // Buffer empty, so disable interrupts
     // section 19.14.3 - the CTRLA register (interrupt stuff)
+    // NOTE:  use specified interrupt level for RX on serial ports. This allows 3 to be used
+    //        for the system timer and anything the user application deems as 'important'
     (&(SERIAL_4_USART_NAME))->CTRLA
-      = _BV(USART_RXCINTLVL1_bp) | _BV(USART_RXCINTLVL0_bp); // only set these 2 (the DRE int is now OFF)
+      = USART_RXC_INTLEVEL; // only set these 2 (the DRE int is now OFF)
   }
   else
   {
@@ -730,8 +748,10 @@ SERIAL_5_DRE_ISR
   {
     // Buffer empty, so disable interrupts
     // section 19.14.3 - the CTRLA register (interrupt stuff)
+    // NOTE:  use specified interrupt level for RX on serial ports. This allows 3 to be used
+    //        for the system timer and anything the user application deems as 'important'
     (&(SERIAL_5_USART_NAME))->CTRLA
-      = _BV(USART_RXCINTLVL1_bp) | _BV(USART_RXCINTLVL0_bp); // only set these 2 (the DRE int is now OFF)
+      = USART_RXC_INTLEVEL; // only set these 2 (the DRE int is now OFF)
   }
   else
   {
@@ -751,8 +771,10 @@ SERIAL_6_DRE_ISR
   {
     // Buffer empty, so disable interrupts
     // section 19.14.3 - the CTRLA register (interrupt stuff)
+    // NOTE:  use specified interrupt level for RX on serial ports. This allows 3 to be used
+    //        for the system timer and anything the user application deems as 'important'
     (&(SERIAL_6_USART_NAME))->CTRLA
-      = _BV(USART_RXCINTLVL1_bp) | _BV(USART_RXCINTLVL0_bp); // only set these 2 (the DRE int is now OFF)
+      = USART_RXC_INTLEVEL; // only set these 2 (the DRE int is now OFF)
   }
   else
   {
@@ -772,8 +794,10 @@ SERIAL_7_DRE_ISR
   {
     // Buffer empty, so disable interrupts
     // section 19.14.3 - the CTRLA register (interrupt stuff)
+    // NOTE:  use specified interrupt level for RX on serial ports. This allows 3 to be used
+    //        for the system timer and anything the user application deems as 'important'
     (&(SERIAL_7_USART_NAME))->CTRLA
-      = _BV(USART_RXCINTLVL1_bp) | _BV(USART_RXCINTLVL0_bp); // only set these 2 (the DRE int is now OFF)
+      = USART_RXC_INTLEVEL; // only set these 2 (the DRE int is now OFF)
   }
   else
   {
@@ -1164,7 +1188,7 @@ unsigned char nFactor;
     {
       return 0;
     }
-    
+
     return ((long)F_CPU) / l1; // TODO:  roundoff correction?
   }
 
@@ -1180,7 +1204,7 @@ unsigned char nFactor;
   }
 
   l1 += l3; // the '+ 1' multiplied by nFactor * GET_BAUD_SCALE_SCALE_FACTOR
-      
+
   if(!l1)  // unlikely
   {
     return 0;
@@ -1623,8 +1647,10 @@ void HardwareSerial::begin(unsigned long baud, byte config)
   // enable RX, enable TX.  Bit 2 will be 1 or 0 based on clock 2x/1x.  multi-processor disabled.  bit 9 = 0
   _usart->CTRLB = use_u2x | _BV(USART_RXEN_bp) | _BV(USART_TXEN_bp);
 
-  // priority 3 for RX interrupts.  DRE and TX interrupts OFF (for now).
-  _usart->CTRLA = _BV(USART_RXCINTLVL1_bp) | _BV(USART_RXCINTLVL0_bp);
+  // priority 2 for RX interrupts.  DRE and TX interrupts OFF (for now).
+  // NOTE:  use specified interrupt level for RX on serial ports. This allows 3 to be used
+  //        for the system timer and anything the user application deems as 'important'
+  _usart->CTRLA = USART_RXC_INTLEVEL;
 
 exit_point:
   SREG = oldSREG; // restore interrupt flag (now that I'm done assigning things)
@@ -1769,8 +1795,10 @@ uint8_t oldSREG;
     if(oldSREG & CPU_I_bm) // interrupts were enabled
     {
       // make sure that the USART's RXC and DRE interupts are enabled
-      _usart->CTRLA = _BV(USART_RXCINTLVL1_bp) | _BV(USART_RXCINTLVL0_bp)
-                    | _BV(USART_DREINTLVL1_bp) | _BV(USART_DREINTLVL0_bp); // set int bits for rx and dre (sect 19.14.3)
+    // NOTE:  use specified interrupt levels for serial ports. This allows 3 to be used
+    //        for the system timer and anything the user application deems as 'important'
+      _usart->CTRLA = USART_RXC_INTLEVEL
+                    | USART_DRE_INTLEVEL; // set int bits for rx and dre (sect 19.14.3)
     }
 
     do
@@ -1798,9 +1826,10 @@ uint8_t oldSREG;
   _tx_buffer->head = i1; // I already incremented it earlier, assume nobody ELSE modifies this
 
   // NOTE:  this messes with flow control.  it will still work, however
-//  _usart->CTRLA |= _BV(1) | _BV(0); // make sure I (re)enable the DRE interrupt (sect 19.14.3)
-  _usart->CTRLA = _BV(USART_RXCINTLVL1_bp) | _BV(USART_RXCINTLVL0_bp)
-                | _BV(USART_DREINTLVL1_bp) | _BV(USART_DREINTLVL0_bp); // set int bits for rx and dre (sect 19.14.3)
+  // NOTE:  use specified interrupt levels for serial ports. This allows 3 to be used
+  //        for the system timer and anything the user application deems as 'important'
+  _usart->CTRLA = USART_RXC_INTLEVEL
+                | USART_DRE_INTLEVEL; // set int bits for rx and dre (sect 19.14.3)
 
   transmitting = true;
 //  sbi(_usart->STATUS,6);  // clear the TXCIF bit by writing a 1 to its location (sect 19.14.2)

@@ -61,6 +61,9 @@
 #define FRACT_INC ((MICROSECONDS_PER_TIMER0_OVERFLOW % 1000) >> 3)
 #define FRACT_MAX (1000 >> 3)
 
+#define UNLIKELY(x) (__builtin_expect (!!(x), 0))
+
+
 volatile unsigned long timer0_overflow_count = 0;
 volatile unsigned long timer0_millis = 0;
 static unsigned char timer0_fract = 0;
@@ -173,11 +176,19 @@ void delay(unsigned long ms)
 {
   uint16_t start = (uint16_t)micros();
 
-  while (ms > 0) /* BF - fixed K&R style to Allman for readability/consistency */
+  while(ms > 0) /* BF - fixed K&R style to Allman for readability/consistency */
   {
-    if (((uint16_t)micros() - start) >= 1000)
+    yield(); // added; was included in a newer version of the arduino IDE and board support
+
+    while(((uint16_t)micros() - start) >= 1000) // change from 'if' to 'while' due to 'yield'
     {
       ms--;
+
+      if(UNLIKELY(ms == 0))
+      {
+        return;
+      }
+
       start += 1000;
     }
   }
@@ -199,6 +210,8 @@ void wait_for_interrupt(void)
   sleep_disable(); // first thing to do out of sleep
 }
 
+// this one is an XMega specific - rather than calling 'yield()' it
+// calls 'wait_for_interrupt' to provide a very low power wait state
 void low_power_delay(unsigned long ms)
 {
   uint16_t start = (uint16_t)micros();
@@ -210,6 +223,12 @@ void low_power_delay(unsigned long ms)
     while (((uint16_t)micros() - start) >= 1000)
     {
       ms--;
+
+      if(UNLIKELY(ms == 0))
+      {
+        return;
+      }
+
       start += 1000;
     }
   }
@@ -242,8 +261,11 @@ void delayMicroseconds(unsigned int us)
     "nop" "\n\t"
     "nop" "\n\t"
     "nop"); //just waiting 12 cycle
-  if (--us == 0)
+
+  if(UNLIKELY((--us) == 0))
+  {
     return;
+  }
 
   // the following loop takes a 1/8 of a microsecond (4 cycles)
   // per iteration, so execute it five times for each microsecond of
@@ -450,7 +472,7 @@ register unsigned char c1;
 // this was derived from a message board post.  The function is public to make it easy to
 // use the 'Production Signature Row'.  There is a unique identifier for the CPU as well as
 // calibration data for the ADC available, and also USB settings (for USB-capable devices)
-// See sect. 4.14 "Production Signature Row" in 'D' manual.  
+// See sect. 4.14 "Production Signature Row" in 'D' manual.
 uint8_t readCalibrationData(uint16_t iIndex)
 {
   uint8_t rVal;
@@ -910,10 +932,10 @@ void init()
 
 #ifdef USARTC0_CTRLD
   USARTC0_CTRLD = 0;  // E5 has this register, must assign to zero
-#endif // USARTC0_CTRLD  
+#endif // USARTC0_CTRLD
 #ifdef USARTD0_CTRLD
   USARTD0_CTRLD = 0;  // E5 has this register, must assign to zero
-#endif // USARTC0_CTRLD  
+#endif // USARTC0_CTRLD
 
   // other serial ports found on A series
 #ifdef USARTDD1_CTRLA
@@ -1001,7 +1023,7 @@ void init()
   memset((void *)&(PORTC.PIN0CTRL), PORT_ISC_BOTHEDGES_gc | PORT_OPC_TOTEM_gc, 8);
   memset((void *)&(PORTD.PIN0CTRL), PORT_ISC_BOTHEDGES_gc | PORT_OPC_TOTEM_gc, 8);
 
-#ifdef PORTE 
+#ifdef PORTE
 #if NUM_DIGITAL_PINS > 22 /* meaning there is a PORT E available and it has 8 pins */
   memset((void *)&(PORTE.PIN0CTRL), PORT_ISC_BOTHEDGES_gc | PORT_OPC_TOTEM_gc, 8);
 #else // NUM_DIGITAL_PINS <= 22

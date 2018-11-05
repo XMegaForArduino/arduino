@@ -303,16 +303,16 @@
 // For atmega/Arduino shield compatibility, with DIGITAL_IO_PIN_SHIFT defined
 // typical board/pin layout might be like this:
 //
-//      
+//
 //                                                                 R I
 //                                                                 E O N
 //                    A A A A A A                        V G G 3   S R .
 //                    1 1 1 1 1 1 A A   A A A A A A A A  I N N V 5 E E C
 //                    5 4 3 2 1 0 9 8   7 6 5 4 3 2 1 0  n D D 3 V T F .
 //              {  } -o-o-o-o-o-o-o-o---o-o-o-o-o-o-o-o--o-o-o-o-o-o-o-o-----------
-//                    
-//      55 -o-o       
-//      53 -o-o       
+//
+//      55 -o-o
+//      53 -o-o
 //      51 -o-o
 //      49 -o-o 48
 //      47 -o-o 46
@@ -458,6 +458,14 @@ static const uint8_t A15 = 77;
 // on the xmega, PA2, PB2, PC2, PD2, and PE2 are asynchronous ints.  Others are 'synchronous' which means
 // that they must be held in their 'interrupt state' long enough for the system to detect them.  In any case
 // all digital input pins can be use as interrupts, synchronous or otherwise.
+
+// DIGITAL TO ANALOG CONVERTER DACA and DACB
+// DACA Output on pins A2 (CH0) and A3 (CH1), DACB on A9 (CH0) and A10 (CH1)
+
+#define DACA_CH0_PIN A2  /* check for #define to determine DACA, DACB support */
+#define DACA_CH1_PIN A3
+#define DACB_CH0_PIN A9
+#define DACB_CH1_PIN A10
 
 
 // this is the megaxxxx code

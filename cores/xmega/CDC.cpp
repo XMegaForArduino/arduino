@@ -36,6 +36,7 @@
 /////////////////////////////////////////////////////////////////////////////////
 
 
+//#define DEBUG_CODE
 
 #include "Platform.h"
 #include "USBAPI.h"
@@ -178,12 +179,17 @@ int WEAK CDC_GetInterfaceDataLength(void)
 
 int WEAK CDC_SendInterfaceData(void)
 {
-  return USB_SendControl(TRANSFER_PGM, &_cdcInterface, sizeof(_cdcInterface));
+  return USB_SendControl(TRANSFER_PGM | TRANSFER_RELEASE, &_cdcInterface, sizeof(_cdcInterface));
 }
 
-bool WEAK CDC_SendDeviceDescriptor(void)
+bool WEAK CDC_SendDeviceDescriptor(uint8_t nLen)
 {
-  return 0 != USB_SendControl(TRANSFER_PGM, &_cdcDeviceDescriptor, sizeof(_cdcDeviceDescriptor));
+  if(nLen < sizeof(_cdcDeviceDescriptor))
+  {
+    nLen = sizeof(_cdcDeviceDescriptor);
+  }
+
+  return 0 != USB_SendControl(TRANSFER_PGM | TRANSFER_RELEASE, &_cdcDeviceDescriptor, nLen);
 }
 
 bool WEAK CDC_Setup(Setup& setup)
@@ -195,7 +201,9 @@ bool WEAK CDC_Setup(Setup& setup)
   {
     if (CDC_GET_LINE_CODING == r)
     {
+#ifdef DEBUG_CODE
       error_printP(F("Get Line Coding"));
+#endif // DEBUG_CODE
 
 #if 1
       USB_SendControl(0,(void*)&_usbLineInfo, sizeof(_usbLineInfo)/*7*/);
@@ -208,11 +216,14 @@ bool WEAK CDC_Setup(Setup& setup)
   {
     if(CDC_SET_LINE_CODING == r)
     {
+#ifdef DEBUG_CODE
       error_printP_(F("CDC_SET_LINE_CODING"));
+#endif // DEBUG_CODE
 
       // setup packet is followed by data?
       memcpy((void *)&_usbLineInfo, (char *)&(setup) + sizeof(Setup), sizeof(_usbLineInfo));
 
+#ifdef DEBUG_CODE
       error_printP_(F("  rate:"));
       error_printL_(_usbLineInfo.dwDTERate);
       error_printP_(F("  fmt:"));
@@ -221,6 +232,7 @@ bool WEAK CDC_Setup(Setup& setup)
       error_printL_(_usbLineInfo.bParityType);
       error_printP_(F("  bit:"));
       error_printL(_usbLineInfo.bDataBits);
+#endif // DEBUG_CODE
 
       USB_SendControl(0, NULL, 0); // send a ZLP
 
@@ -234,8 +246,10 @@ bool WEAK CDC_Setup(Setup& setup)
     }
     else if(CDC_SET_CONTROL_LINE_STATE == r)
     {
+#ifdef DEBUG_CODE
       error_printP_(F("Set Control Line State: "));
       error_printL(setup.wValueL);
+#endif // DEBUG_CODE
 
       _cdcLineState = setup.wValueL;
 
@@ -296,14 +310,23 @@ bool WEAK CDC_Setup(Setup& setup)
 
       return true;
     }
+    else
+    {
+#ifdef DEBUG_CODE
+      error_printP_(F("CDC unknown type="));
+      error_printL(r);
+#endif // DEBUG_CODE
+    }
   }
 
   // unrecognized request - report it
 
+#ifdef DEBUG_CODE
   error_printP_(F("CDC request: type="));
   error_printL_(requestType);
   error_printP_(F(" request="));
-  error_printL(r);  
+  error_printL(r);
+#endif // DEBUG_CODE
   return false;
 }
 
@@ -462,7 +485,7 @@ size_t Serial_::write(const uint8_t *buffer, size_t size)
   if(USBDevice.configured() && // make sure I'm running
 //     !USB_IsStalled(CDC_TX) && // make sure I'm not stalled
      !USB_IsSendQFull(CDC_TX)) // make sure I'm not flooding the queue
-  {  
+  {
     if(_cdcLineState & CONTROL_LINE_STATE_DTR) // make sure DTR is set
     {
       if(size > 128)
@@ -515,19 +538,27 @@ Serial_::operator bool()
   {
     if(!USBDevice.configured())
     {
+#ifdef DEBUG_CODE
       error_printP(F("USB device not configured"));
+#endif // DEBUG_CODE
     }
     else if(!(_cdcLineState & CONTROL_LINE_STATE_DTR))
     {
+#ifdef DEBUG_CODE
       error_printP(F("DTR is off"));
+#endif // DEBUG_CODE
     }
     else if(USB_IsSendQFull(CDC_TX))
     {
+#ifdef DEBUG_CODE
       error_printP(F("Send Queue FULL"));
+#endif // DEBUG_CODE
     }
 //    else if(USB_IsStalled(CDC_TX))
 //    {
+//#ifdef DEBUG_CODE
 //      error_printP(F("USB is stalled"));
+//#endif // DEBUG_CODE
 //    }
   }
 

@@ -42,7 +42,7 @@ void pinMode(uint8_t pin, uint8_t mode)
 
   mode &= INPUT_OUTPUT_MASK; // remove 'sense' bits
 
-  if (port == NOT_A_PIN)
+  if(port == NOT_A_PIN)
   {
     return;
   }
@@ -84,61 +84,61 @@ void pinMode(uint8_t pin, uint8_t mode)
   uint8_t oldSREG = SREG;
   cli(); // clear interrupt flag until I'm done assigning pin stuff
 
-  if (mode == INPUT)
+  if(mode == INPUT)
   {
     *ctrl = sense | PORT_OPC_TOTEM_gc;
 
     *reg &= ~bit;
   }
-  else if (mode == INPUT_PULLUP)
+  else if(mode == INPUT_PULLUP)
   {
     *ctrl = sense | PORT_OPC_PULLUP_gc;         // input pullup
 
     *reg &= ~bit;
   }
-  else if (mode == INPUT_AND_PULLUP)
+  else if(mode == INPUT_AND_PULLUP)
   {
     *ctrl = sense | PORT_OPC_WIREDANDPULL_gc;   // wired 'and' (open drain) with pullup
 
     *reg &= ~bit;
   }
-  else if (mode == INPUT_PULLDOWN)
+  else if(mode == INPUT_PULLDOWN)
   {
     *ctrl = sense | PORT_OPC_PULLDOWN_gc;       // input pullDOWN
 
     *reg &= ~bit;
   }
-  else if (mode == INPUT_OR_PULLDOWN)
+  else if(mode == INPUT_OR_PULLDOWN)
   {
     *ctrl = sense | PORT_OPC_WIREDORPULL_gc;    // wired 'or' (open drain) with pulldown
 
     *reg &= ~bit;
   }
-  else if (mode == INPUT_BUS_KEEPER)
+  else if(mode == INPUT_BUS_KEEPER)
   {
     *ctrl = sense | PORT_OPC_BUSKEEPER_gc;      // bus keeper
 
     *reg &= ~bit;
   }
-  else if (mode == OUTPUT_OR)
+  else if(mode == OUTPUT_OR)
   {
     *ctrl = sense | PORT_OPC_WIREDOR_gc;        // wired 'or' (open drain)
 
     *reg |= bit;
   }
-  else if (mode == OUTPUT_AND)
+  else if(mode == OUTPUT_AND)
   {
     *ctrl = sense | PORT_OPC_WIREDAND_gc;       // wired 'and' (open drain)
 
     *reg |= bit;
   }
-  else if (mode == OUTPUT_OR_PULLDOWN)
+  else if(mode == OUTPUT_OR_PULLDOWN)
   {
     *ctrl = sense | PORT_OPC_WIREDORPULL_gc;    // wired 'or' (open drain) with pulldown
 
     *reg |= bit;
   }
-  else if (mode == OUTPUT_AND_PULLUP)
+  else if(mode == OUTPUT_AND_PULLUP)
   {
     *ctrl = sense | PORT_OPC_WIREDANDPULL_gc;   // wired 'and' (open drain) with pullup
 
@@ -179,160 +179,154 @@ static void turnOffPWM(uint8_t timer, uint8_t bit)
 register uint8_t mode;
 #endif // TCC4
 
-  switch (timer)
-  {
 #ifdef TCC4 /* 'E' series and later that have TCC4 */
-      case TIMERC4:
+  if(timer == TIMERC4)
+  {
+    if(bit == 1)
+    {
+      mode = (TCC4_CTRLE & ~TC4_LCCAMODE_gm);
+    }
+    else if(bit == 2)
+    {
+      mode = (TCC4_CTRLE & ~TC4_LCCBMODE_gm);
+    }
+    else if(bit == 4)
+    {
+      mode = (TCC4_CTRLE & ~TC4_LCCCMODE_gm);
+    }
+    else if(bit == 8)
+    {
+      mode = (TCC4_CTRLE & ~TC4_LCCDMODE_gm);
+    }
+    else if(bit == 16)
+    {
+      mode = (TCC4_CTRLF & ~TC4_HCCAMODE_gm);
+    }
+    else if(bit == 32)
+    {
+      mode = (TCC4_CTRLF & ~TC4_HCCBMODE_gm);
+    }
+    else if(bit == 64)
+    {
+      mode = (TCC4_CTRLF & ~TC4_HCCCMODE_gm);
+    }
+    else if(bit == 128)
+    {
+      mode = (TCC4_CTRLF & ~TC4_HCCDMODE_gm);
+    }
+    else
+    {
+      return;
+    }
 
-        if(bit == 1)
-        {
-          mode = (TCC4_CTRLE & ~TC4_LCCAMODE_gm);
-        }
-        else if(bit == 2)
-        {
-          mode = (TCC4_CTRLE & ~TC4_LCCBMODE_gm);
-        }
-        else if(bit == 4)
-        {
-          mode = (TCC4_CTRLE & ~TC4_LCCCMODE_gm);
-        }
-        else if(bit == 8)
-        {
-          mode = (TCC4_CTRLE & ~TC4_LCCDMODE_gm);
-        }
-        else if(bit == 16)
-        {
-          mode = (TCC4_CTRLF & ~TC4_HCCAMODE_gm);
-        }
-        else if(bit == 32)
-        {
-          mode = (TCC4_CTRLF & ~TC4_HCCBMODE_gm);
-        }
-        else if(bit == 64)
-        {
-          mode = (TCC4_CTRLF & ~TC4_HCCCMODE_gm);
-        }
-        else if(bit == 128)
-        {
-          mode = (TCC4_CTRLF & ~TC4_HCCDMODE_gm);
-        }
-        else
-        {
-          break;
-        }
+    if(bit <= 8)
+    {
+      TCC4_CTRLE = mode;
+    }
+    else
+    {
+      TCC4_CTRLF = mode;
+    }
+  }
+  else if(timer == TIMERD5)
+  {
+    if(bit == 1 || bit == 16)
+    {
+      mode = (TCD5_CTRLE & ~TC5_LCCAMODE_gm);
+    }
+    else if(bit == 2 || bit == 32)
+    {
+      mode = (TCD5_CTRLE & ~TC5_LCCBMODE_gm);
+    }
+    else if(bit == 4 || bit == 64)
+    {
+      mode = (TCD5_CTRLF & ~TC5_HCCAMODE_gm);
+    }
+    else if(bit == 8 || bit == 128)
+    {
+      mode = (TCD5_CTRLF & ~TC5_HCCBMODE_gm);
+    }
+    else
+    {
+      return;
+    }
 
-        if(bit <= 8)
-        {
-          TCC4_CTRLE = mode;
-        }
-        else
-        {
-          TCC4_CTRLF = mode;
-        }
-
-        break;
-
-      case TIMERD5:
-
-        if(bit == 1 || bit == 16)
-        {
-          mode = (TCD5_CTRLE & ~TC5_LCCAMODE_gm);
-        }
-        else if(bit == 2 || bit == 32)
-        {
-          mode = (TCD5_CTRLE & ~TC5_LCCBMODE_gm);
-        }
-        else if(bit == 4 || bit == 64)
-        {
-          mode = (TCD5_CTRLF & ~TC5_HCCAMODE_gm);
-        }
-        else if(bit == 8 || bit == 128)
-        {
-          mode = (TCD5_CTRLF & ~TC5_HCCBMODE_gm);
-        }
-        else
-        {
-          break;
-        }
-
-        // TODO:  check to see if it was enabled AND the bit was configured properly for PWM
-        //        AND was properly mapped (L vs H, REMAP register?)
-        if(bit == 1 || bit == 2 ||  bit == 16 || bit == 32)
-        {
-          TCD5_CTRLE = mode;
-        }
-        else
-        {
-          TCD5_CTRLF = mode;
-        }
-
-        break;
-
+    // TODO:  check to see if it was enabled AND the bit was configured properly for PWM
+    //        AND was properly mapped (L vs H, REMAP register?)
+    if(bit == 1 || bit == 2 ||  bit == 16 || bit == 32)
+    {
+      TCD5_CTRLE = mode;
+    }
+    else
+    {
+      TCD5_CTRLF = mode;
+    }
+  }
 #else // everything else NOT an 'E' series
 
 #ifndef TCC2 /* A1 series does not define this and I need TC0 */
-
-    case TIMERD2:
-      TCD0_CTRLB &= ~bit; // DISables PWM output
-      break;
-
-    case TIMERC2:
-      TCC0_CTRLB &= ~bit; // DISables PWM output
-      break;
-
+  if(timer == TIMERD2)
+  {
+    TCD0_CTRLB &= ~bit; // DISables PWM output
+  }
+  else if(timer == TIMERC2)
+  {
+    TCC0_CTRLB &= ~bit; // DISables PWM output
+  }
 #if NUM_DIGITAL_PINS > 22 /* which means we have PORT E but with 8 pins, not 4 */
-
-    case TIMERE2:
-      TCE0_CTRLB &= ~bit; // DISables PWM output
-      break;
-
+  else if(timer == TIMERE2)
+  {
+    TCE0_CTRLB &= ~bit; // DISables PWM output
+  }
 #if NUM_DIGITAL_PINS > 30 /* which means we have PORT F */
-
-    case TIMERF2:
-      TCF0_CTRLB &= ~bit; // DISables PWM output
-      break;
+  else if(timer == TIMERF2)
+  {
+    TCF0_CTRLB &= ~bit; // DISables PWM output
+  }
 #endif // NUM_DIGITAL_PINS > 30
 
 #elif NUM_DIGITAL_PINS > 18 /* which means we have PORT E but only with 4 pins */
-    case TIMERE0:
-      TCE0_CTRLB &= ~(bit << 4); // DISables PWM output
-                                 // note that the 'enable' bits are in CTRLB and in upper nybble
-      break;
+  else if(timer == TIMERE0)
+  {
+    TCE0_CTRLB &= ~(bit << 4); // DISables PWM output
+                               // note that the 'enable' bits are in CTRLB and in upper nybble
+  }
 #endif // NUM_DIGITAL_PINS > 18, 22
 
 #else // TCC2
-    case TIMERD2:
-      TCD2_CTRLB &= ~bit; // DISables PWM output
-      break;
-
-    case TIMERC2:
-      TCC2_CTRLB &= ~bit; // DISables PWM output
-      break;
-
+  if(timer == TIMERD2)
+  {
+    TCD2_CTRLB &= ~bit; // DISables PWM output
+  }
+  else if(timer == TIMERC2)
+  {
+    TCC2_CTRLB &= ~bit; // DISables PWM output
+  }
 #if NUM_DIGITAL_PINS > 22 /* which means we have PORT E but with 8 pins, not 4 */
-
-    case TIMERE2:
-      TCE2_CTRLB &= ~bit; // DISables PWM output
-      break;
-
+  else if(timer == TIMERE2)
+  {
+    // 128A1 has 8 pins on PORT E.
+    TCE2_CTRLB &= ~bit; // DISables PWM output
+  }
 #if NUM_DIGITAL_PINS > 30 /* which means we have PORT F */
-
-    case TIMERF2:
-      TCF2_CTRLB &= ~bit; // DISables PWM output
-      break;
+  else if(timer == TIMERF2)
+  {
+    TCF2_CTRLB &= ~bit; // DISables PWM output
+  }
 #endif // NUM_DIGITAL_PINS > 30
 
 #elif NUM_DIGITAL_PINS > 18 /* which means we have PORT E but only with 4 pins */
-// TODO:  64d4 has 4 pins on PORT E.  128A1 has 8 pins on PORT E.  determine which to use?
-    case TIMERE0:
-      TCE0_CTRLB &= ~(bit << 4); // DISables PWM output
-                                 // note that the 'enable' bits are in CTRLB and in upper nybble
-      break;
+  else if(timer == TIMERE0)
+  {
+    // 64d4 and 128a4 have 4 pins on PORT E, as implemented here
+    TCE0_CTRLB &= ~(bit << 4); // DISables PWM output
+                               // note that the 'enable' bits are in CTRLB and in upper nybble
+  }
 #endif // NUM_DIGITAL_PINS > 18, 22
 
 #endif // TCC2
 #endif // TCC4
-  }
+
 }
 
 void digitalWrite(uint8_t pin, uint8_t val)
@@ -342,7 +336,7 @@ void digitalWrite(uint8_t pin, uint8_t val)
   uint8_t port = digitalPinToPort(pin);
   volatile uint8_t *out, *ctrl;
 
-  if (port == NOT_A_PIN)
+  if(port == NOT_A_PIN)
   {
     return;
   }
@@ -354,14 +348,14 @@ void digitalWrite(uint8_t pin, uint8_t val)
     val = !val; // invert the value (so it's consistent with the pin)
   }
 
-  // If the pin that support PWM output, we need to turn it off
+  // If it's a pin that supports PWM output, we need to turn it off
   // before doing a digital write.
 
   // TODO:  move this feature to pinMode() like it should be
   //        or set a flag to be used with analogWrite()
   // (for now it's probably faster just to call it)
 
-  if (timer != NOT_ON_TIMER)
+  if(timer != NOT_ON_TIMER)
   {
     turnOffPWM(timer, bit);
   }
@@ -371,7 +365,7 @@ void digitalWrite(uint8_t pin, uint8_t val)
   uint8_t oldSREG = SREG;
   cli();
 
-  if (val == LOW)
+  if(val == LOW)
   {
     *out &= ~bit;
   }
@@ -391,7 +385,7 @@ int digitalRead(uint8_t pin)
   volatile uint8_t *ctrl;
   uint8_t bSet;
 
-  if (port == NOT_A_PIN)
+  if(port == NOT_A_PIN)
   {
     return LOW;
   }
@@ -403,7 +397,7 @@ int digitalRead(uint8_t pin)
   //        or set a flag to be used with analogWrite()
   // (for now it's probably faster just to call it)
 
-  if (timer != NOT_ON_TIMER)
+  if(timer != NOT_ON_TIMER)
   {
     turnOffPWM(timer, bit);
   }

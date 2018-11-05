@@ -197,11 +197,21 @@ int WEAK HID_SendInterfaceData(void)
   return USB_SendControl(TRANSFER_PGM, &_hidInterface, sizeof(_hidInterface));
 }
 
-int WEAK HID_GetDescriptor(int i)
-{
-  // NOTE:  'i' is the max size for the request.  Should I pay attention to it?
+//int WEAK HID_GetDescriptor(int i)
+//{
+//  // NOTE:  'i' is the max size for the request.  Should I pay attention to it?
+//
+//  return USB_SendControl(TRANSFER_PGM,_hidReportDescriptor,sizeof(_hidReportDescriptor));
+//}
 
-  return USB_SendControl(TRANSFER_PGM,_hidReportDescriptor,sizeof(_hidReportDescriptor));
+bool WEAK HID_SendDeviceDescriptor(uint8_t nLen)
+{
+  if(nLen < sizeof(_hidReportDescriptor))
+  {
+    nLen = sizeof(_hidReportDescriptor);
+  }
+
+  return 0 != USB_SendControl(TRANSFER_PGM | TRANSFER_RELEASE, &_hidReportDescriptor, nLen);
 }
 
 void WEAK HID_SendReport(u8 id, const void* data, int len)

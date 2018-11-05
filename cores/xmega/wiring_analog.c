@@ -106,6 +106,145 @@ void adc_setup(void)
 // ADCA.CALH = readCalibrationData(&PRODSIGNATURES_ADCACAL1);
 }
 
+#if (defined(DACA) || defined(DACB)) && (defined(DACA_CH0_PIN) || defined(DACA_CH1_PIN) || defined(DACB_CH0_PIN) || defined(DACB_CH1_PIN)) /* device has DACA */
+void dac_setup(void)
+{
+#if defined(DACA) && (defined(DACA_CH0_PIN) || defined(DACA_CH1_PIN))
+  // configure the D:A converter
+
+  DACA.CTRLA = 0; // initially (it's all shut down)
+
+  DACA.CTRLB = DAC_CHSEL_DUAL_gc
+             | 0; // no auto-trigger based on an event
+
+  DACA.CTRLC = DAC_REFSEL_INT1V_gc // use internal 1V for reference
+             | 0; // not left-justified
+
+  DACA.EVCTRL = 0; // for now, no events
+  DACA.CH0DATA = 0x800; // mid value
+  DACA.CH1DATA = 0x800; // mid value
+
+  // calibration registers
+
+  // NOTE:  some series use 'GAINCAL' and 'OFFSETCAL' (like 128a1); others use 'CHnGAINCAL' and 'CHnOFFSETCAL'
+
+#ifdef DACA_GAINCAL /* 128a1 and similar */
+  DACA.GAINCAL = (uint8_t)readCalibrationData((uint8_t)(uint16_t)&PRODSIGNATURES_DACA0GAINCAL); // TODO:  verify this is right
+  DACA.OFFSETCAL = (uint8_t)readCalibrationData((uint8_t)(uint16_t)&PRODSIGNATURES_DACA0OFFCAL);
+#else // DACA_GAINCAL
+  DACA.CH0GAINCAL = (uint8_t)readCalibrationData((uint8_t)(uint16_t)&PRODSIGNATURES_DACA0GAINCAL);
+  DACA.CH1GAINCAL = (uint8_t)readCalibrationData((uint8_t)(uint16_t)&PRODSIGNATURES_DACA1GAINCAL);
+
+  DACA.CH0OFFSETCAL = (uint8_t)readCalibrationData((uint8_t)(uint16_t)&PRODSIGNATURES_DACA0OFFCAL);
+  DACA.CH1OFFSETCAL = (uint8_t)readCalibrationData((uint8_t)(uint16_t)&PRODSIGNATURES_DACA1OFFCAL);
+#endif // DACA_GAINCAL
+#endif // defined(DACA) && (defined(DACA_CH0_PIN) || defined(DACA_CH1_PIN))
+
+#if defined(DACB) && (defined(DACB_CH0_PIN) || defined(DACB_CH1_PIN))
+
+  DACB.CTRLA = 0; // initially (it's all shut down)
+
+  DACB.CTRLB = DAC_CHSEL_DUAL_gc
+             | 0; // no auto-trigger based on an event
+
+  DACB.CTRLC = DAC_REFSEL_INT1V_gc // use internal 1V for reference
+             | 0; // not left-justified
+
+  DACB.EVCTRL = 0; // for now, no events
+  DACB.CH0DATA = 0x800; // mid value
+  DACB.CH1DATA = 0x800; // mid value
+
+  // calibration registers
+
+#ifdef DACB_GAINCAL /* 128a1 and similar */
+  DACB.GAINCAL = (uint8_t)readCalibrationData((uint8_t)(uint16_t)&PRODSIGNATURES_DACB0GAINCAL); // TODO:  verify this is right
+  DACB.OFFSETCAL = (uint8_t)readCalibrationData((uint8_t)(uint16_t)&PRODSIGNATURES_DACB0OFFCAL);
+#else //  // DACB_GAINCAL
+  DACB.CH0GAINCAL = (uint8_t)readCalibrationData((uint8_t)(uint16_t)&PRODSIGNATURES_DACA0GAINCAL);
+  DACB.CH1GAINCAL = (uint8_t)readCalibrationData((uint8_t)(uint16_t)&PRODSIGNATURES_DACA1GAINCAL);
+
+  DACB.CH0OFFSETCAL = (uint8_t)readCalibrationData((uint8_t)(uint16_t)&PRODSIGNATURES_DACA0OFFCAL);
+  DACB.CH1OFFSETCAL = (uint8_t)readCalibrationData((uint8_t)(uint16_t)&PRODSIGNATURES_DACA1OFFCAL);
+#endif // DACB_GAINCAL
+#endif // defined(DACB) && (defined(DACB_CH0_PIN) || defined(DACB_CH1_PIN))
+
+  PR.PRPA &= ~PR_DAC_bm; // disables "turning off the clock" for the DAC
+
+  // DACA D:A output is on Port A pins 2 (CH0) and 3 (CH1)
+  // DACB D:A output (A1U) is on port B pins 2 (CH0) and 3 (CH1) (A series only)
+
+#if defined(DACA) && (defined(DACA_CH0_PIN) || defined(DACA_CH1_PIN))
+
+  DACA.CTRLA = DAC_CH1EN_bm | DAC_CH0EN_bm
+             | DAC_ENABLE_bm;
+
+#endif // defined(DACA_CH0_PIN) || defined(DACA_CH1_PIN)
+
+#if defined(DACB) && (defined(DACB_CH0_PIN) || defined(DACB_CH1_PIN))
+
+  DACB.CTRLA = DAC_CH1EN_bm | DAC_CH0EN_bm
+             | DAC_ENABLE_bm;
+
+#endif // defined(DACB_CH0_PIN) || defined(DACB_CH1_PIN)
+}
+
+void analogWriteDAC(uint8_t pin, unsigned int val)
+{
+#ifdef DACA
+#if defined(DACA_CH0_PIN)
+  if(pin == DACA_CH0_PIN || pin == 0)
+  {
+    while(!(DACA.STATUS & DAC_CH0DRE_bm)) { }
+
+    DACA.CH0DATA = val & 0xfff; // starts a new conversion
+  }
+#endif // defined(DACA_CH0_PIN)
+
+#if defined(DACA_CH0_PIN) && defined(DACA_CH1_PIN)
+  else
+#endif // defined(DACA_CH0_PIN) && defined(DACA_CH1_PIN)
+
+#if defined(DACA_CH1_PIN)
+  if(pin == DACA_CH1_PIN || pin == 1)
+  {
+    while(!(DACA.STATUS & DAC_CH1DRE_bm)) { }
+
+    DACA.CH1DATA = val & 0xfff;
+  }
+#endif // defined(DACA_CH1_PIN)
+#endif // DACA
+
+#if defined(DACA) && defined(DACB) && (defined(DACA_CH0_PIN) || defined(DACA_CH1_PIN)) && (defined(DACB_CH0_PIN) || defined(DACB_CH1_PIN))
+  else
+#endif // defined(DACA) && defined(DACB) && (defined(DACA_CH0_PIN) || defined(DACA_CH1_PIN)) && (defined(DACB_CH0_PIN) || defined(DACB_CH1_PIN))
+
+#ifdef DACB
+#if defined(DACB_CH0_PIN)
+  if(pin == DACB_CH0_PIN || pin == 2)
+  {
+    while(!(DACB.STATUS & DAC_CH0DRE_bm)) { }
+
+    DACB.CH0DATA = val & 0xfff;
+  }
+#endif // defined(DACB_CH0_PIN)
+
+#if defined(DACB_CH0_PIN) && defined(DACB_CH1_PIN)
+  else
+#endif // defined(DACA_CH0_PIN) && defined(DACA_CH1_PIN)
+
+#if defined(DACB_CH1_PIN)
+  if(pin == DACB_CH1_PIN || pin == 3)
+  {
+    while(!(DACB.STATUS & DAC_CH1DRE_bm)) { }
+
+    DACB.CH1DATA = val & 0xfff;
+  }
+#endif // defined(DACB_CH1_PIN)
+#endif // DACB
+
+}
+#endif // DACA, DACA_CH0_PIN, etc.
+
 
 // see _analogReference_ enum
 

@@ -152,8 +152,20 @@ uint8_t readNVMData(uint8_t cmd, uint16_t iIndex);
 
 
 //#define OLD_BLINK_METHOD /* old way */
+//#ifdef USE_STK500V2
+//#define BLINK_PERIOD (F_CPU / 160) /* slower blink for STK500V2 and slightly longer delay results */
+//#else // USE_STK500V2
+#define BLINK_PERIOD (F_CPU / 320) /* faster blink for everyone else, around 0.1 seconds */
+//#endif
 
 /* Use the F_CPU and MAX_TIME_COUNT as defined in Makefile */
+#ifndef F_CPU
+#error you need to define F_CPU and indicate the value with '-D'
+#endif // F_CPU
+#ifndef MAX_TIME_COUNT
+#error you need to define MAX_TIME_COUNT and indicate the value with '-D'
+#endif // MAX_TIME_COUNT
+
 
 /* 20070707: hacked by David A. Mellis - after this many errors give up and launch application */
 #define MAX_ERROR_COUNT 5
@@ -803,7 +815,7 @@ skip_clock:  // go here if clock cannot be assigned for some reason or is alread
       LED_PORT &= ~LED_PIN_BIT;
     }
 
-    if(smart_delay_ms(100))
+    if(smart_delay_ms(100)) // 0.1 second period for blink
     {
       break;
     }
@@ -1977,12 +1989,16 @@ static uint32_t count = 0;
 register char rVal;
 
 #ifndef OLD_BLINK_METHOD
-  if(!blink_mode)
+  if(!blink_mode)              // making sure the LED is off if I'm not blinking
 #endif // OLD_BLINK_METHOD
   {
-    LED_PORT &= ~LED_PIN_BIT;          // turn off the LED to indicate receiving data
+    LED_PORT &= ~LED_PIN_BIT;  // turn off the LED to indicate receiving data
     count = 0;
   }
+
+  // wait for serial input, and return if I get it.  Blink the LED while waiting,
+  // until the total number of blinks has been used up.
+  // If I don't get input within the 'flash timeout' period, start the application.
 
   while(!((SERIAL_USART_STATUS) & USART_RXCIF_bm)) // wait for RX data
   {
@@ -1993,7 +2009,10 @@ register char rVal;
 #ifndef OLD_BLINK_METHOD
     if(blink_mode > 0)
     {
-      if(count > (uint32_t)(F_CPU / 160))
+      // NOTE:  'BLINK_PERIOD' is derived with the assumption that it will take
+      //        around 32 instruction cycles per loop.
+
+      if(count > (uint32_t)BLINK_PERIOD)
       {
         blink_mode--;
 
@@ -2006,18 +2025,18 @@ register char rVal;
           LED_PORT |= LED_PIN_BIT;          // turn on the LED to indicate receiving data
         }
 
-        count = 0;
+        count = 0; // reset count whenever I blink
       }
 
       // NOTE:  by the time blink_mode is zero, the count will be
-      //        (NUM_LED_FLASHES << 1) * (F_CPU / 160)
+      //        (NUM_LED_FLASHES << 1) * BLINK_PERIOD
     }
-    else if (count > (uint32_t)((MAX_TIME_COUNT)         // delay period for firmware flashing
-                                + (NUM_LED_FLASHES << 1) // twice # of LED flashes
-                                * (F_CPU / 160)))        // per-flash period (each half)
-#else
-    if (count > (uint32_t)(MAX_TIME_COUNT)) // delay period for firmware flashing
+    else
+//    else if (count > (uint32_t)((MAX_TIME_COUNT)         // delay period for firmware flashing
+//                                + (NUM_LED_FLASHES << 1) // twice # of LED flashes
+//                                * BLINK_PERIOD))         // per-flash period (each half)
 #endif // OLD_BLINK_METHOD
+    if (count > (uint32_t)(MAX_TIME_COUNT)) // delay period for firmware flashing
     {
       app_start();
       soft_boot();

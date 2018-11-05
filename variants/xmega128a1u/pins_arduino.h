@@ -96,7 +96,7 @@
 //
 #define DIGITAL_IO_PIN_SHIFT /* UNCOMMENT THIS to shift digital pin assignments for Arduino shield compatibility */
 
-//#define USE_AREF analogReference_PORTA0 /* see 28.16.3 in 'AU' manual - this is the REFCTRL bits for the reference select, AREF on PORTA (PA0) */
+#define USE_AREF analogReference_PORTA0 /* see 28.16.3 in 'AU' manual - this is the REFCTRL bits for the reference select, AREF on PORTA (PA0) */
 
 #define NUM_DIGITAL_PINS            62
 
@@ -305,16 +305,17 @@
 // --------------------------------------------
 
 
-// TWI ports - default is TWIE
-#define DEFAULT_TWI TWIE
+// TWI ports - default is TWIC
+#define DEFAULT_TWI TWIC
 
-// the XMega128a1u has four TWI ports
-#define TWI_PORT0 TWIE
-#define TWI_VECTOR_S0 TWIE_TWIS_vect
-#define TWI_VECTOR_M0 TWIE_TWIM_vect
-#define TWI_PORT1 TWIC
-#define TWI_VECTOR_S1 TWIC_TWIS_vect
-#define TWI_VECTOR_M1 TWIC_TWIM_vect
+// the XMega128a1u has four TWI ports:  TWI0=TWIC; TWI1=TWIE; TWI2=TWID; TWI3=TWIF
+// (note that TWIE is 'TWI1' for some compatibility with other xmega implementations)
+#define TWI_PORT0 TWIC
+#define TWI_VECTOR_S0 TWIC_TWIS_vect
+#define TWI_VECTOR_M0 TWIC_TWIM_vect
+#define TWI_PORT1 TWIE
+#define TWI_VECTOR_S1 TWIE_TWIS_vect
+#define TWI_VECTOR_M1 TWIE_TWIM_vect
 #define TWI_PORT2 TWID
 #define TWI_VECTOR_S2 TWID_TWIS_vect
 #define TWI_VECTOR_M2 TWID_TWIM_vect
@@ -324,17 +325,12 @@
 #define TWI_INTERFACE_COUNT 4
 
 
-// obsolete - consider removal in all of them
-//#define TWIC_VECT_ENABLE /* use this to select the correct interrupt vectors for default */
-
 // serial port 0
 #define SERIAL_0_PORT_NAME PORTD
 #define SERIAL_0_USART_NAME USARTD0
 #define SERIAL_0_USART_DATA USARTD0_DATA
 #define SERIAL_0_RXC_ISR ISR(USARTD0_RXC_vect)
 #define SERIAL_0_DRE_ISR ISR(USARTD0_DRE_vect)
-//#define SERIAL_0_REMAP PORTD_REMAP /* define THIS to re-map the pins from 0-3 to 4-7 on serial port 0 */
-#define SERIAL_0_REMAP_BIT 4    /* the bit needed to remap the port if SERIAL_0_REMAP is defined */
 #define SERIAL_0_RX_PIN_INDEX 2 /* the pin number on the port, not the mapped digital pin number */
 #define SERIAL_0_TX_PIN_INDEX 3 /* the pin number on the port, not the mapped digital pin number */
 #define USARTD0_VECTOR_EXISTS
@@ -345,8 +341,6 @@
 #define SERIAL_1_USART_DATA USARTC0_DATA
 #define SERIAL_1_RXC_ISR ISR(USARTC0_RXC_vect)
 #define SERIAL_1_DRE_ISR ISR(USARTC0_DRE_vect)
-//#define SERIAL_1_REMAP PORTC_REMAP /* define THIS to re-map the pins from 0-3 to 4-7 on serial port 1 */
-#define SERIAL_1_REMAP_BIT 4    /* the bit needed to remap the port if SERIAL_1_REMAP is defined */
 #define SERIAL_1_RX_PIN_INDEX 2 /* the pin number on the port, not the mapped digital pin number */
 #define SERIAL_1_TX_PIN_INDEX 3 /* the pin number on the port, not the mapped digital pin number */
 #define USARTC0_VECTOR_EXISTS
@@ -357,8 +351,6 @@
 #define SERIAL_2_USART_DATA USARTE0_DATA
 #define SERIAL_2_RXC_ISR ISR(USARTE0_RXC_vect)
 #define SERIAL_2_DRE_ISR ISR(USARTE0_DRE_vect)
-//#define SERIAL_2_REMAP PORTE_REMAP /* define THIS to re-map the pins from 0-3 to 4-7 on serial port 2 */
-#define SERIAL_2_REMAP_BIT 4    /* the bit needed to remap the port if SERIAL_1_REMAP is defined */
 #define SERIAL_2_RX_PIN_INDEX 2 /* the pin number on the port, not the mapped digital pin number */
 #define SERIAL_2_TX_PIN_INDEX 3 /* the pin number on the port, not the mapped digital pin number */
 #define USARTE0_VECTOR_EXISTS
@@ -369,27 +361,65 @@
 #define SERIAL_3_USART_DATA USARTF0_DATA
 #define SERIAL_3_RXC_ISR ISR(USARTF0_RXC_vect)
 #define SERIAL_3_DRE_ISR ISR(USARTF0_DRE_vect)
-//#define SERIAL_3_REMAP PORTF_REMAP /* define THIS to re-map the pins from 0-3 to 4-7 on serial port 3 */
-#define SERIAL_3_REMAP_BIT 4    /* the bit needed to remap the port if SERIAL_1_REMAP is defined */
 #define SERIAL_3_RX_PIN_INDEX 2 /* the pin number on the port, not the mapped digital pin number */
 #define SERIAL_3_TX_PIN_INDEX 3 /* the pin number on the port, not the mapped digital pin number */
 #define USARTF0_VECTOR_EXISTS
 
+// NOTE:  because it's got USB on port D pins 6,7 I can't have a serial port there
+//// serial port 4
+//#define SERIAL_4_PORT_NAME PORTD
+//#define SERIAL_4_USART_NAME USARTD1
+//#define SERIAL_4_USART_DATA USARTD1_DATA
+//#define SERIAL_4_RXC_ISR ISR(USARTD1_RXC_vect)
+//#define SERIAL_4_DRE_ISR ISR(USARTD1_DRE_vect)
+//#define SERIAL_4_RX_PIN_INDEX 6 /* the pin number on the port, not the mapped digital pin number */
+//#define SERIAL_4_TX_PIN_INDEX 7 /* the pin number on the port, not the mapped digital pin number */
+//#define USARTD1_VECTOR_EXISTS
+
+// serial port 4
+#define SERIAL_4_PORT_NAME PORTC
+#define SERIAL_4_USART_NAME USARTC1
+#define SERIAL_4_USART_DATA USARTC1_DATA
+#define SERIAL_4_RXC_ISR ISR(USARTC1_RXC_vect)
+#define SERIAL_4_DRE_ISR ISR(USARTC1_DRE_vect)
+#define SERIAL_4_RX_PIN_INDEX 6 /* the pin number on the port, not the mapped digital pin number */
+#define SERIAL_4_TX_PIN_INDEX 7 /* the pin number on the port, not the mapped digital pin number */
+#define USARTC1_VECTOR_EXISTS
+
+// serial port 5
+#define SERIAL_5_PORT_NAME PORTE
+#define SERIAL_5_USART_NAME USARTE1
+#define SERIAL_5_USART_DATA USARTE1_DATA
+#define SERIAL_5_RXC_ISR ISR(USARTE1_RXC_vect)
+#define SERIAL_5_DRE_ISR ISR(USARTE1_DRE_vect)
+#define SERIAL_5_RX_PIN_INDEX 6 /* the pin number on the port, not the mapped digital pin number */
+#define SERIAL_5_TX_PIN_INDEX 7 /* the pin number on the port, not the mapped digital pin number */
+#define USARTE1_VECTOR_EXISTS
+
+// serial port 6
+#define SERIAL_6_PORT_NAME PORTF
+#define SERIAL_6_USART_NAME USARTF1
+#define SERIAL_6_USART_DATA USARTF1_DATA
+#define SERIAL_6_RXC_ISR ISR(USARTF1_RXC_vect)
+#define SERIAL_6_DRE_ISR ISR(USARTF1_DRE_vect)
+#define SERIAL_6_RX_PIN_INDEX 6 /* the pin number on the port, not the mapped digital pin number */
+#define SERIAL_6_TX_PIN_INDEX 7 /* the pin number on the port, not the mapped digital pin number */
+#define USARTF1_VECTOR_EXISTS
 
 
 // For atmega/Arduino shield compatibility, with DIGITAL_IO_PIN_SHIFT defined
 // typical board/pin layout might be like this:
 //
-//      
+//
 //                                                                 R I
 //                                                                 E O N
 //                    A A A A A A                        V G G 3   S R .
 //                    1 1 1 1 1 1 A A   A A A A A A A A  I N N V 5 E E C
 //                    5 4 3 2 1 0 9 8   7 6 5 4 3 2 1 0  n D D 3 V T F .
 //              {  } -o-o-o-o-o-o-o-o---o-o-o-o-o-o-o-o--o-o-o-o-o-o-o-o-----------
-//                    
-//      55 -o-o       
-//      53 -o-o       
+//                    P P P P P P P P   P P P P P P P P        3 5   3
+//      55 -o-o       A B B B B B B B   B A A A A A A A        V V   V
+//      53 -o-o       0 7 6 5 4 3 2 1   0 7 6 5 4 3 2 1        3     3
 //      51 -o-o
 //      49 -o-o 48
 //      47 -o-o 46
@@ -402,9 +432,9 @@
 //      33 -o-o 32
 //      31 -o-o 30
 //      29 -o-o 28
-//      27 -o-o
-//      25 -o-o
-//      23 -o-o
+//      27 -o-o                             P P                             P P P
+//      25 -o-o                             D D                             A C C
+//      23 -o-o                             2 3                             0 1 0
 //         -o-o {  } -----o-o-o-o-o-o-o-o---o-o-o-o-o-o---o-o-o-o-o-o-o-o-o-o-o-o---
 //          5 5           2 2 1 1 1 1 1 1                         1 1 1 1 G A S S
 //          V V           1 0 9 8 7 6 5 4   0 1 2 3 4 5   6 7 8 9 0 1 2 3 N R C D
@@ -422,6 +452,10 @@
 // it DOES! NOT! WORK! THE! SAME! as it does on the ATmegaXXX and so you would need to
 // (literally) steal one of the additional analog input pins to implement it. It's not
 // impossible, or even THAT difficult.  I'm just not doing it here.
+//
+// NOTE 2:  'AREF' must either be A0 or B0, no compromise otherwise.  It *could* be
+//          dual-connected to either pin, however.  In that case, the AREF pin should
+//          be moved in the pin order to correspond to A15
 
 
 
@@ -535,6 +569,14 @@ static const uint8_t A15 = 77;
 // on the xmega, PA2, PB2, PC2, PD2, and PE2 are asynchronous ints.  Others are 'synchronous' which means
 // that they must be held in their 'interrupt state' long enough for the system to detect them.  In any case
 // all digital input pins can be use as interrupts, synchronous or otherwise.
+
+// DIGITAL TO ANALOG CONVERTER DACA and DACB
+// DACA Output on pins A2 (CH0) and A3 (CH1), DACB on A9 (CH0) and A10 (CH1)
+
+#define DACA_CH0_PIN A2  /* check for #define to determine DACA, DACB support */
+#define DACA_CH1_PIN A3
+#define DACB_CH0_PIN A9
+#define DACB_CH1_PIN A10
 
 
 // this is the megaxxxx code
@@ -723,7 +765,10 @@ const uint16_t PROGMEM digital_pin_to_control_PGM[] = {
   (uint16_t) &PORTD_PIN0CTRL,  // PD 0 ** the new 60 ** SDA2
   (uint16_t) &PORTD_PIN1CTRL,  // PD 1 ** the new 61 ** SCL2
 #endif // DIGITAL_IO_PIN_SHIFT
+
+#ifndef USE_AREF
   (uint16_t) &PORTA_PIN0CTRL,  // PA 0 ** 62 ** A0
+#endif // USE_AREF
   (uint16_t) &PORTA_PIN1CTRL,  // PA 1 ** 63 ** A1
   (uint16_t) &PORTA_PIN2CTRL,  // PA 2 ** 64 ** A2           ASYNC
   (uint16_t) &PORTA_PIN3CTRL,  // PA 3 ** 65 ** A3
@@ -739,6 +784,9 @@ const uint16_t PROGMEM digital_pin_to_control_PGM[] = {
   (uint16_t) &PORTB_PIN5CTRL,  // PB 5 ** 75 ** A13
   (uint16_t) &PORTB_PIN6CTRL,  // PB 6 ** 76 ** A14
   (uint16_t) &PORTB_PIN7CTRL,  // PB 7 ** 77 ** A15
+#ifdef USE_AREF
+  (uint16_t) &PORTA_PIN0CTRL,  // PA 0 ** 77 ** A15 (when USE_AREF is defined)
+#endif // USE_AREF
 };
 
 const uint8_t PROGMEM digital_pin_to_port_PGM[] = {
@@ -819,7 +867,10 @@ const uint8_t PROGMEM digital_pin_to_port_PGM[] = {
   _PD,  // PD 0 ** the new 60 **
   _PD,  // PD 1 ** the new 61 **
 #endif // DIGITAL_IO_PIN_SHIFT
+
+#ifndef USE_AREF
   _PA,  // PA 0 ** 62 ** A0
+#endif // USE_AREF
   _PA,  // PA 1 ** 63 ** A1
   _PA,  // PA 2 ** 64 ** A2
   _PA,  // PA 3 ** 65 ** A3
@@ -835,6 +886,9 @@ const uint8_t PROGMEM digital_pin_to_port_PGM[] = {
   _PB,  // PB 5 ** 75 ** A13
   _PB,  // PB 6 ** 76 ** A14
   _PB,  // PB 7 ** 77 ** A15
+#ifdef USE_AREF
+  _PA,  // PA 0 ** 77 ** A15 (when USE_AREF is defined)
+#endif // USE_AREF
 };
 
 const uint8_t PROGMEM digital_pin_to_bit_mask_PGM[] = {
@@ -914,22 +968,28 @@ const uint8_t PROGMEM digital_pin_to_bit_mask_PGM[] = {
   _BV( 0 ),  // PD 0 ** the new 60 **
   _BV( 1 ),  // PD 1 ** the new 61 **
 #endif // DIGITAL_IO_PIN_SHIFT
-  _BV( 0 ),  // PA 0 ** 22 ** A0
-  _BV( 1 ),  // PA 1 ** 23 ** A1
-  _BV( 2 ),  // PA 2 ** 24 ** A2
-  _BV( 3 ),  // PA 3 ** 25 ** A3
-  _BV( 4 ),  // PA 4 ** 26 ** A4
-  _BV( 5 ),  // PA 5 ** 27 ** A5
-  _BV( 6 ),  // PA 6 ** 28 ** A6
-  _BV( 7 ),  // PA 7 ** 29 ** A7
-  _BV( 0 ),  // PB 0 ** 30 ** A8
-  _BV( 1 ),  // PB 1 ** 31 ** A9
-  _BV( 2 ),  // PB 2 ** 32 ** A10
-  _BV( 3 ),  // PB 3 ** 33 ** A11
-  _BV( 4 ),  // PB 4 ** 26 ** A12
-  _BV( 5 ),  // PB 5 ** 27 ** A13
-  _BV( 6 ),  // PB 6 ** 28 ** A14
-  _BV( 7 ),  // PB 7 ** 29 ** A15
+
+#ifndef USE_AREF
+  _BV( 0 ),  // PA 0 ** 62 ** A0
+#endif // USE_AREF
+  _BV( 1 ),  // PA 1 ** 63 ** A1
+  _BV( 2 ),  // PA 2 ** 64 ** A2
+  _BV( 3 ),  // PA 3 ** 65 ** A3
+  _BV( 4 ),  // PA 4 ** 66 ** A4
+  _BV( 5 ),  // PA 5 ** 67 ** A5
+  _BV( 6 ),  // PA 6 ** 68 ** A6
+  _BV( 7 ),  // PA 7 ** 69 ** A7
+  _BV( 0 ),  // PB 0 ** 70 ** A8
+  _BV( 1 ),  // PB 1 ** 71 ** A9
+  _BV( 2 ),  // PB 2 ** 72 ** A10
+  _BV( 3 ),  // PB 3 ** 73 ** A11
+  _BV( 4 ),  // PB 4 ** 74 ** A12
+  _BV( 5 ),  // PB 5 ** 75 ** A13
+  _BV( 6 ),  // PB 6 ** 76 ** A14
+  _BV( 7 ),  // PB 7 ** 77 ** A15
+#ifdef USE_AREF
+  _BV( 0 ),  // PA 0 ** 77 ** A15 (when USE_AREF is defined)
+#endif // USE_AREF
 };
 
 const uint8_t PROGMEM digital_pin_to_timer_PGM[] = {
@@ -1018,7 +1078,10 @@ const uint8_t PROGMEM digital_pin_to_timer_PGM[] = {
   TIMERD2,       // PD 0 ** the new 60 **
   TIMERD2,       // PD 1 ** the new 61 **
 #endif // DIGITAL_IO_PIN_SHIFT
+
+#ifndef USE_AREF
   NOT_ON_TIMER,  // PA 0 ** 62 ** A0
+#endif // USE_AREF
   NOT_ON_TIMER,  // PA 1 ** 63 ** A1
   NOT_ON_TIMER,  // PA 2 ** 64 ** A2
   NOT_ON_TIMER,  // PA 3 ** 65 ** A3
@@ -1034,6 +1097,9 @@ const uint8_t PROGMEM digital_pin_to_timer_PGM[] = {
   NOT_ON_TIMER,  // PB 5 ** 75 ** A13
   NOT_ON_TIMER,  // PB 6 ** 76 ** A14
   NOT_ON_TIMER,  // PB 7 ** 77 ** A15
+#ifdef USE_AREF
+  NOT_ON_TIMER   // PA 0 ** 77 ** A15 (when USE_AREF is defined)
+#endif // USE_AREF
 
 };
 

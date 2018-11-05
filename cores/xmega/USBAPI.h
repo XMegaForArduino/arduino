@@ -64,8 +64,14 @@ public:
     void detach();  // Serial port goes down too...
     void poll();
 
+    // assign speed - FAST (12Mbit) or LOW - 'true' for FAST, 'false' for LOW (default)
+    static void SetSpeed(bool bFast) { bSpeed = bFast; }
+    static inline bool GetSpeed(void) { return bSpeed; }
+
 protected:
   static XMegaEPDataStruct *GetEPData(); // necessary
+
+  static bool bSpeed;
 };
 
 extern USBDevice_ USBDevice;
@@ -209,7 +215,7 @@ typedef struct
 int   HID_GetNumInterfaces(void);
 int   HID_GetInterfaceDataLength(void);
 int   HID_SendInterfaceData(void);
-bool  HID_SendDeviceDescriptor(void);
+bool  HID_SendDeviceDescriptor(uint8_t nLen);
 
 int   HID_GetDescriptor(int i); // handles the 'GET DESCRIPTOR' control packet
 bool  HID_Setup(Setup& setup);  // handles a 'SETUP' control packet
@@ -226,7 +232,7 @@ bool  CDC_SendIAD(void);
 int   CDC_GetNumInterfaces(void);
 int   CDC_GetInterfaceDataLength(void);
 int   CDC_SendInterfaceData(void);
-bool  CDC_SendDeviceDescriptor(void);
+bool  CDC_SendDeviceDescriptor(uint8_t nLen);
 
 int   CDC_GetDescriptor(int i); // handles the 'GET DESCRIPTOR' control packet
 bool  CDC_Setup(Setup& setup);  // handles a 'SETUP' control packet

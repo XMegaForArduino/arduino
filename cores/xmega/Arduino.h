@@ -45,6 +45,8 @@
 extern "C"{
 #endif // __cplusplus
 
+void yield(void); // added with newer IDE/core
+
 #define HIGH 0x1
 #define LOW  0x0
 
@@ -149,6 +151,8 @@ void adc_setup(void); // implemented in wiring_analog.c - configures ADC for ana
 // adc_setup must be called whenever exiting SLEEP MODE or ADC will malfunction
 // It is automatically called from 'init()' but sleep mode typically resets the controller
 
+
+// GPIO pin related (standard) APIs
 void pinMode(uint8_t, uint8_t);
 void digitalWrite(uint8_t, uint8_t);
 int digitalRead(uint8_t);
@@ -156,6 +160,7 @@ int analogRead(uint8_t);
 void analogReference(uint8_t mode); // somewhat different for xmega (default is Vcc/2) - see 'enum _analogReference_', below
                                     // pass only one of THOSE values as 'mode'
 void analogWrite(uint8_t, int);
+
 
 // special XMEGA-specific functions for the analog inputs
 
@@ -194,7 +199,7 @@ enum _analogReference_ // pass to 'analogReference' function - see D manual sect
   // NOTE that for some processor headers, ADC_REFSEL_VCCDIV2_gc is not properly defined
   // this definition '(0x04<<4)' is taken from the 64d4 header.  it's also THE DEFAULT for max compatibility
 #endif // processors that define ADC_REFSEL_VCCDIV2_gc correctly
-};  
+};
 
 // NOTE: this constant isn't always defined, either
 #ifndef ADC_CH_GAIN_gm
@@ -407,10 +412,49 @@ long map(long, long, long, long, long);
 
 #include "pins_arduino.h"
 
+// ----------------------------------------------------------------------------------------------
+// DAC support - must have the DACA (and possibly DACB) pin definitions set up in pins_arduino.h
+//
+// Call 'dac_setup()' to configure the DACs on your CPU (when applicable).  This function is
+// not automatically called for 'Arduino' compatibility.
+//
+// Call 'analogWriteDAC(pin, val)' to write the DAC pin's value.
+//   'pin' can be 0-n or one of the DACm_CHn_PIN constants (example 'DACA_CH0_PIN')
+//   'val' can be an unsigned int between 0 and 4095, inclusive.
+//
+// Prior to writing, the appropriate pin (DACm_CHn_PIN) must have been configured
+// as an OUTPUT with pinMode().
+//
+// dac_setup must also be called whenever existing SLEEP MODE if you use the DAC
+// ----------------------------------------------------------------------------------------------
+
+#if defined(DACA_CH0_PIN) || defined(DACA_CH1_PIN) || defined(DACB_CH0_PIN) || defined(DACB_CH1_PIN) /* device has DACA */
+
+#ifdef __cplusplus
+extern "C"{
+#endif // __cplusplus
+
+void dac_setup(void);
+void analogWriteDAC(uint8_t pin, unsigned int val);
+
+#ifdef __cplusplus
+} // extern "C"
+#endif // __cplusplus
+
+#endif // defind(DACA_CH0_PIN) || defined(DACA_CH1_PIN) || defined(DACB_CH0_PIN) || defined(DACB_CH1_PIN) /* device has DACA */
+
+// ----------------------------------------------------------------------------------------------
+// SPI support
+// ----------------------------------------------------------------------------------------------
+
 // The default SPI interface is SPIC if not already defined
 #ifndef DEFAULT_SPI
 #define DEFAULT_SPI SPIC
 #endif // DEFAULT_SPI
+
+// ----------------------------------------------------------------------------------------------
+// TWI support
+// ----------------------------------------------------------------------------------------------
 
 // the default TWI interface is TWIC if not already defined
 #ifndef DEFAULT_TWI
@@ -418,7 +462,10 @@ long map(long, long, long, long, long);
 #endif // DEFAULT_TWI
 
 
+// ----------------------------------------------------------------------------------------------
 // added support for hardware serial flow control - spans multiple files
+// For this to work it must be set up in pins_arduino.h (the GPIO pins will become dedicated)
+// ----------------------------------------------------------------------------------------------
 
 #if defined(SERIAL_0_RTS_PORT_NAME) && defined(SERIAL_0_RTS_PIN_INDEX)
 #define SERIAL_0_RTS_ENABLED

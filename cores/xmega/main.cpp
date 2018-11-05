@@ -47,22 +47,22 @@ void initVariant() { }
 int main(void)
 {
 
-	init();
+    init();
 
-	initVariant();
+    initVariant();
 
 // TEMPORARY - moved [so I can debug it]
 //#if defined(USBCON)
 //  USBDevice.attach();
 //#endif
-	
-	setup();
 
-	for (;;) {
-		loop();
-		if (serialEventRun) serialEventRun();
-	}
-        
-	return 0;
+    setup();
+
+    for (;;) {
+        loop();
+        if (serialEventRun) serialEventRun();
+    }
+
+    return 0;
 }
 
