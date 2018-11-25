@@ -12,12 +12,20 @@ xmega:
 	cp -p ../xmega/xmegaBOOT_xmega_$(USE_TARGET).hex .
 	cp -p ../xmega/xmegaBOOT_xmega0_$(USE_TARGET).hex .
 
+usb:
+	$(MAKE) -C ../xmega xmega TARGET=$(USE_TARGET) USE_CATERINA=1 LED_BUILTIN_PORT=$(LED_BUILTIN_PORT) LED_BUILTIN_PIN=$(LED_BUILTIN_PIN)
+	cp -p ../xmega/xmegaBOOT_xmega_$(USE_TARGET)_U.hex .
+	cp -p ../xmega/xmegaBOOT_xmega0_$(USE_TARGET)_U.hex .
+
 flashboot:
 	$(MAKE) -C ../xmega fusesxmega TARGET=$(USE_TARGET)
 	avrdude -C ../xmega/avrdude.conf -c avrispmkii -p $(CPU_TARGET) -P usb -Uboot:w:xmegaBOOT_xmega0_$(USE_TARGET).hex:i -Ulock:w:0xBF:m
 
 #	avrdude -C ../xmega/avrdude.conf -c avrispmkii -p $(CPU_TARGET) -P usb -Uboot:w:xmegaBOOT_xmega0_$(USE_TARGET).hex:i -Ulockbits:w:0xBF:m
 
+flashbootusb:
+	$(MAKE) -C ../xmega fusesxmega TARGET=$(USE_TARGET)
+	avrdude -C ../xmega/avrdude.conf -c avrispmkii -p $(CPU_TARGET) -P usb -Uboot:w:xmegaBOOT_xmega0_$(USE_TARGET)_U.hex:i -Ulock:w:0xBF:m
 
 
 clean:

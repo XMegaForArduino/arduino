@@ -145,25 +145,32 @@
 #endif // USB_PID==null
 #endif // USB_PID
 
-#ifndef USB_VID
-// NOTE:  you can eliminate the warnings by making a copy of this for your own variant
-//        but REMEMBER! YOU! MUST! CHANGE! THE! IDS!
+#if !defined(USB_VID) || !defined(USB_PID)
 
-#warning using Arduino Mega2560 USB Vendor ID - do NOT ship product with these IDs
-#define USB_VID 0x2341 /* this is the Arduino vendor ID - you should probably get your own */
-#warning using Arduino Mega2560 USB Vendor ID - do NOT ship product with these IDs
+#ifdef USB_VID
+#undef USB_VID
 #endif // USB_VID
 
-#ifndef USB_PID
-// NOTE:  you can eliminate the warnings by making a copy of this for your own variant
-//        but REMEMBER! YOU! MUST! CHANGE! THE! IDS!
-
-#warning using Arduino Mega2560 USB Product ID - do NOT ship product with these IDs
-#define USB_PID 0x0010 /* this is the Arduino Mega2560 R3 product ID - you should probably use your own */
-#warning using Arduino Mega2560 USB Product ID - do NOT ship product with these IDs
+#ifdef USB_PID
+#undef USB_PID
 #endif // USB_PID
 
-#define CDC_ENABLED    /* this switches to device class 2, useful for serial I/O implementations */
+#define USB_VID 0x16c0  /* Van Ooijen Technische Informatica */
+#define USB_PID 0x05e1  /* name-based CDC/ACM device */
+
+// Configuring default product name and vendor
+// If you use the project defaults, it will result in a name-based device descriptor based on
+//   https://raw.githubusercontent.com/arduino/ArduinoISP/master/usbdrv/USB-IDs-for-free.txt
+
+
+// NOTE:  If you want a unique VID/PID for your project, you can make a copy of this for your own variant
+//        and alter the default VID or PID as appropriate or your project.  You can also put an entry into
+//        'boards.txt' that identifies the correct VID/PID for your specific device entry.
+//        Re-use of the vendor ID 'VID' 0x2341 is expressly "not allowed", so don't ship product with this VID without permission
+
+#endif // !defined(USB_VID) || !defined(USB_PID)
+
+#define CDC_ENABLED    /* this enables support for device class 2, useful for serial I/O implementations */
 
 
 

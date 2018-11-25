@@ -24,6 +24,7 @@ ISPCONF ?= ./avrdude.conf
 TARGET ?=
 BOOTLOADER_SUFFIX ?=
 USE_STK500V2 ?=
+USE_CATERINA ?=
 GREP_LINE ?=
 
 # some defaults
@@ -73,26 +74,34 @@ GREP_LINE := ":020000021000EC"
 endif
 ifeq ($(strip $(TRGMEM)),128)
 START_ADDR := 0x20000
+ifeq ($(strip $(USE_CATERINA)),)
 USE_STK500V2 := 1
+endif
 GREP_LINE := ":020000022000DC"
 # decrease the maximum timeout
 MAX_TIME_COUNT := F_CPU>>4
 endif
 ifeq ($(strip $(TRGMEM)),192)
 START_ADDR := 0x30000
+ifeq ($(strip $(USE_CATERINA)),)
 USE_STK500V2 := 1
+endif
 # decrease the maximum timeout
 MAX_TIME_COUNT := F_CPU>>4
 endif
 ifeq ($(strip $(TRGMEM)),256)
 START_ADDR := 0x40000
+ifeq ($(strip $(USE_CATERINA)),)
 USE_STK500V2 := 1
+endif
 # decrease the maximum timeout
 MAX_TIME_COUNT := F_CPU>>4
 endif
 ifeq ($(strip $(TRGMEM)),384)
 START_ADDR := 0x60000
+ifeq ($(strip $(USE_CATERINA)),)
 USE_STK500V2 := 1
+endif
 # decrease the maximum timeout
 MAX_TIME_COUNT := F_CPU>>4
 endif
@@ -121,8 +130,6 @@ SERIAL_PORT_REMAP := yes
 LED_BUILTIN_PORT := PORTR
 LED_BUILTIN_PIN := 1
 
-#BOOTLOADER_SUFFIX=$(TARGET)
-
 endif
 
 ifeq ($(TARGET),RockSolid128A)
@@ -139,8 +146,6 @@ USE_STK500V2 := 1
 GREP_LINE := ":020000022000DC"
 # increase the maximum timeout
 MAX_TIME_COUNT := F_CPU>>2
-
-#BOOTLOADER_SUFFIX=$(TARGET)
 
 endif
 
@@ -208,11 +213,37 @@ endif
 # suffix for boot image file name assigned here
 
 ifeq ($(strip $(BOOTLOADER_SUFFIX)),)
+# blank bootloader suffix at this time - create one using build options
 ifeq ($(strip $(TARGET)),)
-BOOTLOADER_SUFFIX := $(MCU_TARGET)_$(SERIAL_PORT)_$(SERIAL_PORT_REMAP)_$(LED_BUILTIN_PORT)_$(LED_BUILTIN_PIN)
+# target is blank
+ifneq ($(strip $(USE_CATERINA)),)
+# exclude serial port info, add '_U' at the end
+BOOTLDR_SUFFIX := $(MCU_TARGET)_$(LED_BUILTIN_PORT)_$(LED_BUILTIN_PIN)_U
 else
-BOOTLOADER_SUFFIX := $(TARGET)
+# serial port info is part of the bootloader suffix
+BOOTLDR_SUFFIX := $(MCU_TARGET)_$(SERIAL_PORT)_$(SERIAL_PORT_REMAP)_$(LED_BUILTIN_PORT)_$(LED_BUILTIN_PIN)
 endif
+else
+# target is not blank
+ifneq ($(strip $(USE_CATERINA)),)
+# add '_U' to TARGET for suffix
+BOOTLDR_SUFFIX := $(TARGET)_U
+else
+# just TARGET for suffix
+BOOTLDR_SUFFIX := $(TARGET)
+endif
+endif
+# end of 'bootloader suffix was blank'
+else
+# bootloader suffix NOT blank
+
+ifneq ($(strip $(USE_CATERINA)),)
+# for USB, add a '_U' suffix
+BOOTLDR_SUFFIX := $(BOOTLOADER_SUFFIX)_U
+else
+BOOTLDR_SUFFIX := $(BOOTLOADER_SUFFIX)
+endif
+
 endif
 
 
@@ -278,7 +309,7 @@ FUSE5=0xEA
 #  -Uflash:w:${hex_file}:i -Ulockbits:w:${LOCKBITS_LOCK}:m
 
 
-OBJ        = $(PROGRAM)_$(BOOTLOADER_SUFFIX).o
+OBJ        = $(PROGRAM)_$(BOOTLDR_SUFFIX).o
 OPTIMIZE   = -O2
 
 DEFS       = 
@@ -304,8 +335,12 @@ CFLAGS += '-DMAX_TIME_COUNT=$(MAX_TIME_COUNT)' '-DNUM_LED_FLASHES=$(NUM_LED_FLAS
           '-DWATCHDOG_MODS' '-DDOUBLE_SPEED'
 
 # stk500v2 protocol
+ifneq ($(strip $(USE_CATERINA)),)
+CFLAGS += '-DUSE_CATERINA'
+else
 ifneq ($(strip $(USE_STK500V2)),)
 CFLAGS += '-DUSE_STK500V2'
+endif
 endif
 
 # change this next part for a different baud rate (but why would you?)
@@ -360,15 +395,15 @@ endif
 all:
 	echo $(CFLAGS)
 
-xmega: $(PROGRAM)_xmega0_$(BOOTLOADER_SUFFIX).hex
+xmega: $(PROGRAM)_xmega0_$(BOOTLDR_SUFFIX).hex
 	@echo building xmega image for $(TARGET)
 
 
-$(PROGRAM)_xmega_$(BOOTLOADER_SUFFIX).hex: $(PROGRAM)_xmega_$(BOOTLOADER_SUFFIX).elf
+$(PROGRAM)_xmega_$(BOOTLDR_SUFFIX).hex: $(PROGRAM)_xmega_$(BOOTLDR_SUFFIX).elf
 	$(OBJCOPY) -j .text -j .data -O ihex $< $@
 
 
-$(PROGRAM)_xmega_$(BOOTLOADER_SUFFIX).elf: $(OBJ)
+$(PROGRAM)_xmega_$(BOOTLDR_SUFFIX).elf: $(OBJ)
 	$(CC) $(CFLAGS) $(LDFLAGS) -o $@ $^ $(LIBS)
 
 
@@ -376,11 +411,11 @@ $(OBJ): $(PROGRAM).c
 	$(CC) $(CFLAGS) -c -o $@ $^
 
 
-clean_$(BOOTLOADER_SUFFIX): clean_fixhex
-	-rm $(PROGRAM)_$(BOOTLOADER_SUFFIX).o
-	-rm $(PROGRAM)_xmega_$(BOOTLOADER_SUFFIX).elf
-	-rm $(PROGRAM)_xmega_$(BOOTLOADER_SUFFIX).hex
-	-rm $(PROGRAM)_xmega0_$(BOOTLOADER_SUFFIX).hex
+clean_$(BOOTLDR_SUFFIX): clean_fixhex
+	-rm $(PROGRAM)_$(BOOTLDR_SUFFIX).o
+	-rm $(PROGRAM)_xmega_$(BOOTLDR_SUFFIX).elf
+	-rm $(PROGRAM)_xmega_$(BOOTLDR_SUFFIX).hex
+	-rm $(PROGRAM)_xmega0_$(BOOTLDR_SUFFIX).hex
 
 #flashall: $(PROGRAM)_xmega_plus_image.hex fusesxmega
 #	avrdude -C $(ISPCONF) -c $(ISPTOOL) -p $(MCU_TARGET) -P $(ISPPORT) $(ISPSPEED) \
@@ -389,9 +424,9 @@ clean_$(BOOTLOADER_SUFFIX): clean_fixhex
 
 ifneq ($(strip $(GREP_LINE)),)
 
-$(PROGRAM)_xmega0_$(BOOTLOADER_SUFFIX).hex: $(PROGRAM)_xmega_$(BOOTLOADER_SUFFIX).hex
-	grep -v $(GREP_LINE) $(PROGRAM)_xmega_$(BOOTLOADER_SUFFIX).hex \
-                >$(PROGRAM)_xmega0_$(BOOTLOADER_SUFFIX).hex
+$(PROGRAM)_xmega0_$(BOOTLDR_SUFFIX).hex: $(PROGRAM)_xmega_$(BOOTLDR_SUFFIX).hex
+	grep -v $(GREP_LINE) $(PROGRAM)_xmega_$(BOOTLDR_SUFFIX).hex \
+                >$(PROGRAM)_xmega0_$(BOOTLDR_SUFFIX).hex
 
 clean_fixhex:
 
@@ -401,8 +436,8 @@ else
 fixhex: fixhex.c
 	cc -o fixhex fixhex.c
 
-$(PROGRAM)_xmega0_$(BOOTLOADER_SUFFIX).hex: $(PROGRAM)_xmega_$(BOOTLOADER_SUFFIX).hex fixhex
-	./fixhex $(PROGRAM)_xmega_$(BOOTLOADER_SUFFIX).hex $(PROGRAM)_xmega0_$(BOOTLOADER_SUFFIX).hex
+$(PROGRAM)_xmega0_$(BOOTLDR_SUFFIX).hex: $(PROGRAM)_xmega_$(BOOTLDR_SUFFIX).hex fixhex
+	./fixhex $(PROGRAM)_xmega_$(BOOTLDR_SUFFIX).hex $(PROGRAM)_xmega0_$(BOOTLDR_SUFFIX).hex
 
 clean_fixhex:
 	-rm fixhex
@@ -416,14 +451,14 @@ flashboot: xmega fusesxmega
 # then the atxmega64d4 will flash the bootloader correctly.
 # TODO:  write a program to correctly manage this out of a combined file
 	avrdude -C $(ISPCONF) -c $(ISPTOOL) -p $(MCU_TARGET) -P $(ISPPORT) $(ISPSPEED) \
-                -Uboot:w:$(PROGRAM)_xmega0_$(BOOTLOADER_SUFFIX).hex:i \
+                -Uboot:w:$(PROGRAM)_xmega0_$(BOOTLDR_SUFFIX).hex:i \
                 -Ulock:w:$(LOCKBITS_LOCK):m
 
 #                -Ulockbits:w:$(LOCKBITS_LOCK):m
 
 flashboot_cmd:
 	@echo avrdude -C $(ISPCONF) -c $(ISPTOOL) -p $(MCU_TARGET) -P $(ISPPORT) $(ISPSPEED) \
-                -Uboot:w:$(PROGRAM)_xmega0_$(BOOTLOADER_SUFFIX).hex:i \
+                -Uboot:w:$(PROGRAM)_xmega0_$(BOOTLDR_SUFFIX).hex:i \
                 -Ulock:w:$(LOCKBITS_LOCK):m
 
 #                -Ulockbits:w:$(LOCKBITS_LOCK):m
