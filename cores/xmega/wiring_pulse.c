@@ -29,6 +29,11 @@
  * or LOW, the type of pulse to measure.  Works on pulses from 2-3 microseconds
  * to 3 minutes in length, but must be called at least a few dozen microseconds
  * before the start of the pulse. */
+
+// NOTE:  Arduino code now has a wiring_pulse.S that implements this function
+//        as assembly code.  For now, the C code will stay in the xmega version
+//        but at some point the assembly version should be implemented.
+
 unsigned long pulseIn(uint8_t pin, uint8_t state, unsigned long timeout)
 {
   // cache the port and bit of the pin in order to speed up the
@@ -45,19 +50,31 @@ unsigned long pulseIn(uint8_t pin, uint8_t state, unsigned long timeout)
   unsigned long maxloops = microsecondsToClockCycles(timeout) / 16;
 
   // wait for any previous pulse to end
-  while ((*portInputRegister(port) & bit) == stateMask)
-    if (numloops++ == maxloops)
+  while((*portInputRegister(port) & bit) == stateMask)
+  {
+    if(numloops++ == maxloops)
+    {
       return 0;
+    }
+  }
 
   // wait for the pulse to start
-  while ((*portInputRegister(port) & bit) != stateMask)
-    if (numloops++ == maxloops)
+  while((*portInputRegister(port) & bit) != stateMask)
+  {
+    if(numloops++ == maxloops)
+    {
       return 0;
+    }
+  }
 
   // wait for the pulse to stop
-  while ((*portInputRegister(port) & bit) == stateMask) {
-    if (numloops++ == maxloops)
+  while((*portInputRegister(port) & bit) == stateMask)
+  {
+    if(numloops++ == maxloops)
+    {
       return 0;
+    }
+
     width++;
   }
 
@@ -67,3 +84,56 @@ unsigned long pulseIn(uint8_t pin, uint8_t state, unsigned long timeout)
   // the interrupt handlers.
   return clockCyclesToMicroseconds(width * 21 + 16);
 }
+
+// Added 11/10/2018 to bring it up to latest Arduino code
+
+/* Measures the length (in microseconds) of a pulse on the pin; state is HIGH
+ * or LOW, the type of pulse to measure.  Works on pulses from 2-3 microseconds
+ * to 3 minutes in length, but must be called at least a few dozen microseconds
+ * before the start of the pulse.
+ *
+ * ATTENTION:
+ * this function relies on micros() so cannot be used in noInterrupt() context
+ */
+unsigned long pulseInLong(uint8_t pin, uint8_t state, unsigned long timeout)
+{
+  // cache the port and bit of the pin in order to speed up the
+  // pulse width measuring loop and achieve finer resolution.  calling
+  // digitalRead() instead yields much coarser resolution.
+  uint8_t bit = digitalPinToBitMask(pin);
+  uint8_t port = digitalPinToPort(pin);
+  uint8_t stateMask = (state ? bit : 0);
+
+  unsigned long startMicros = micros();
+
+  // wait for any previous pulse to end
+  while((*portInputRegister(port) & bit) == stateMask)
+  {
+    if(micros() - startMicros > timeout)
+    {
+      return 0;
+    }
+  }
+
+  // wait for the pulse to start
+  while((*portInputRegister(port) & bit) != stateMask)
+  {
+    if(micros() - startMicros > timeout)
+    {
+      return 0;
+    }
+  }
+
+  unsigned long start = micros();
+  // wait for the pulse to stop
+  while((*portInputRegister(port) & bit) == stateMask)
+  {
+    if(micros() - startMicros > timeout)
+    {
+      return 0;
+    }
+  }
+
+  return micros() - start;
+}
+

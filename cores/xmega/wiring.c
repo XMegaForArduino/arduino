@@ -435,8 +435,15 @@ register unsigned char c1;
     // enable DFLL auto-calibration of the 32Mhz internal oscillator
     // (it uses the reasonably precise 32.768KHz clock to do it)
 
-    OSC_DFLLCTRL = 0; // sect 6.10.7 - select 32.768KHz osc for everything, basically
-    DFLLRC32M_CTRL = 1; // set the bit to enable DFLL calibration - section 6.11.1
+#ifdef OSC_RC32MCREF_gm /* if this is present, the enum for OSC_RC32MCREF_enum is also present */
+    OSC_DFLLCTRL = OSC_RC32MCREF_RC32K_gc; // sect 6.10.7 - select 32.768KHz osc for everything, basically
+    // use the enumeration/constant if it's present
+#else // OSC_RC32MCREF_gm not present
+    OSC_DFLLCTRL = 0;                      // sect 6.10.7 - select 32.768KHz osc for everything, basically
+    // for header files that do not have the enumeration/constant defined, this will have to do
+#endif // OSC_RC32MCREF_gm
+
+    DFLLRC32M_CTRL = DFLL_ENABLE_bm; // set the bit to enable DFLL calibration - section 6.11.1
   }
 
   // I'll be using the 1.024khz clock (from the 32.768KHz clock) for the real-time counter
