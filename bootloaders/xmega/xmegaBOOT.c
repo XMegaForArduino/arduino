@@ -8,6 +8,9 @@
 // This bootloader has been tested with the following processors:
 //
 //   ATxmega64D4
+//   ATxmega32E5
+//   ATxmega128A1
+//   ATxmega128A4U (non-USB mode)
 //
 /////////////////////////////////////////////////////////////////////////////////
 
@@ -140,6 +143,56 @@ SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE
 #include <avr/eeprom.h>
 #include <util/delay.h>
 
+
+#ifdef USE_CATERINA
+///////////////////////////////////////////////////////////////////////////////////////////////
+//  For Caterina, this requires a USB VID and PID
+//
+//  They are defined via DEVICE_VID and DEVICE_PID definitions. Makefile uses VID and PID
+//  in order to be compatible with the way that the Caterina bootloader (part of the Arduino
+//  Core files, see github.com/arduino/ArduinoCore-avr ) is set up.
+//
+//  The Arduino build uses a VID of 0x2341 - reuse of this VID by others is forbidden by USB-IF
+//  The PID assigned for Caterina bootloaders identifies the device.
+//
+//  The best solution is probably here:
+//    https://raw.githubusercontent.com/arduino/ArduinoISP/master/usbdrv/USB-IDs-for-free.txt
+//
+//  The VID and PID used by the default pins_arduino.h files for USB-capable xmega's make use
+//  of these and respond to queries with a proper description of the implementation.
+//
+//  This MAY still create driver problems with Windows(tm), especially Windows 10.
+//  (Blame Microsoft(r) for that, it's their decision to make life harder for makers)
+//
+//  one solution to the driver problem on Windows has been described (in an online forum)
+//     "Edited standard Arduino driver for Leonardo, the INF file, editing it to suit our
+//      requirements.
+//      Microsoft Inf2Cat to create a CAT file from the INF file, then got a certificate
+//      from DigiCert.com for code signing. I then used the certificate to sign the CAT
+//      file, and installed the driver and all is good."
+//
+// source:  https://forum.arduino.cc/index.php?topic=415917.0
+//
+// Since the VID/PID merely identifies a product, normally with a class driver for USB serial,
+// on systems like Linux and FreeBSD this isn't a problem.  HOWEVER, Windows isn't very "nice"
+// when it comes to implementing class drivers.
+//
+// However, the Arduino IDE appears to install a CDC/ACM class driver for you, it should be
+// possible to use the Arduino drivers if the device class is recognized by Windows.
+
+
+#if !defined(DEVICE_VID) && !defined(DEVICE_PID)
+
+// see https://raw.githubusercontent.com/arduino/ArduinoISP/master/usbdrv/USB-IDs-for-free.txt
+
+#define DEVICE_VID 0x16c0  /* Van Ooijen Technische Informatica */
+#define DEVICE_PID 0x05e1  /* name-based CDC/ACM device */
+
+#endif !defined(DEVICE_VID) && !defined(DEVICE_PID)
+
+#endif // USE_CATERINA
+
+
 // These function names were derived from equivalent functions supplied
 // by ATmel in the 'SPM driver' sample for flashing the xmega
 void SP_WaitForSPM(void);
@@ -151,7 +204,6 @@ void SP_WriteApplicationPage(uint32_t address);
 uint8_t readNVMData(uint8_t cmd, uint16_t iIndex);
 
 
-//#define OLD_BLINK_METHOD /* old way */
 //#ifdef USE_STK500V2
 //#define BLINK_PERIOD (F_CPU / 160) /* slower blink for STK500V2 and slightly longer delay results */
 //#else // USE_STK500V2
@@ -336,7 +388,7 @@ void do_putch_and_checksum(uint8_t chPut);
 
 
 /* some variables */
-#ifdef USE_STK500V2
+#if defined(USE_STK500V2) || defined(USE_CATERINA)
 
 #if defined(RAMPZ)
 typedef uint32_t address_t;
@@ -351,6 +403,7 @@ static uint8_t checksum; // used by 'do_XXXch_and_checksum'
 
 volatile union address_union
 {
+  // the original 'Arduino' bootloader protocol defined it *this* way
 #ifdef RAMPZ
   uint32_t dword;
 #endif // RAMPZ
@@ -381,7 +434,7 @@ volatile struct flags_struct
 #endif // __AVR_XMEGA__
 
 
-#ifdef USE_STK500V2
+#if defined(USE_STK500V2) || defined(USE_CATERINA)
 
 #if PAGE_SIZE < 256
 static unsigned char msgBuffer[288]; // the stk500boot.c defined it as 285
@@ -405,18 +458,19 @@ uint8_t buff[PAGE_SIZE + 2]; // was 512 - largest page size 0x200 on XMEGA
 #endif // USE_STK500V2
 
 uint8_t error_count;
-#ifndef OLD_BLINK_METHOD
 uint8_t blink_mode;
-#endif // OLD_BLINK_METHOD
+
 
 /////////////////////////////////////////////////////////////////////////////////////////////////////
 // APP START - different definitions for >64K NVRAM and <=64K
 
 #if defined(EIND) && defined(__AVR_3_BYTE_PC__) // need to re-do the way we call the application
 
+// basically this is a 3 byte 'retpoline' which is easier than doing it any other way
+
 void app_start(void)
 {
-  // first, assign 0 to EIND (I'm jumping to 128k-page 0)
+  // first, assign 0 to EIND (I'm jumping to page 0, always)
   __asm volatile ("ldi r24,0\n\t"
                   "out %i0,r24" :: "n" (&EIND) : "memory");
 
@@ -428,7 +482,7 @@ void app_start(void)
                   "push r30\n\t"
                   "ret\r\n" ::: "memory");
 
-  // NOTE:  the ret address for the function that called THIS one should be ok on the stack
+  // NOTE:  the ret address for the function that called THIS one should be ok to have on the stack
 }
 
 // NOTE:  this is in main.c now, in the core
@@ -441,12 +495,49 @@ void app_start(void)
 
 #else // no EIND or 3-byte PC, we're fine
 
+// when I don't have a 3-byte program counter, I can safely call via a function pointer
+
 void (*app_start)(void) = 0x0000; // here it's a function pointer with an address of 0000H
 
-#endif // EIND+3-byte PC vs "not"
+#endif // EIND+3-byte PC vs "not that"
 
 /////////////////////////////////////////////////////////////////////////////////////////////////////
 
+
+// implementation-specific utilities
+
+#ifdef USE_CATERINA
+// this was derived from a message board post.  The function is public to make it easy to
+// use the 'Production Signature Row'.  There is a unique identifier for the CPU as well as
+// calibration data for the ADC available, and also USB settings (for USB-capable devices)
+// See sect. 4.14 "Production Signature Row" in 'D' manual.
+uint8_t readCalibrationData(uint16_t iIndex)
+{
+  uint8_t rVal;
+
+  /* Load the NVM Command register to read the calibration row. */
+  NVM_CMD = NVM_CMD_READ_CALIB_ROW_gc; // see the section on NVM operations and lpm instruction
+
+//  rVal = pgm_read_byte_near(iIndex); // effectively the same thing as the inline assembler
+  __asm__ ("lpm %0, Z\n" : "=r" (rVal) : "z" (iIndex)); // do it THIS way instead
+
+  /* Clean up NVM Command register. */
+  NVM_CMD = NVM_CMD_NO_OPERATION_gc;
+
+  return(rVal);
+}
+#endif // USE_CATERINA
+
+
+
+////////////////////////////////////////////
+//                     _          ____    //
+//   _ __ ___    __ _ (_) _ __   / /\ \   //
+//  | '_ ` _ \  / _` || || '_ \ | |  | |  //
+//  | | | | | || (_| || || | | || |  | |  //
+//  |_| |_| |_| \__,_||_||_| |_|| |  | |  //
+//                               \_\/_/   //
+////////////////////////////////////////////
 
 /* main program starts here */
 int main(void)
@@ -455,7 +546,7 @@ uint8_t ch, ch2, bod;
 register  uint8_t bootflags;
 uint16_t w1;
 uint8_t firstchar;
-#ifdef USE_STK500V2
+#if defined(USE_STK500V2) || defined(USE_CATERINA)
 unsigned char *p1;
 #endif // USE_STK500V2
 
@@ -479,7 +570,9 @@ unsigned char *p1;
   RST_STATUS = 0x3f; // write 1 bits to clear everything (so I don't loop)
 #endif // RST_SDRF_bm
 
+  // --------------------------
   // disable watchdog timer NOW
+  // --------------------------
 
   CCP = CCP_IOREG_gc;        // 0xd8 - see D manual, sect 3.14.1 (protected I/O)
   WDT_CTRL = WDT_CEN_bm;     // sets watchdog timer "enable" bit to zero - bit 0 must be set to change bit 1 - section 9.7.1
@@ -586,7 +679,7 @@ unsigned char *p1;
 
     OSC_CTRL &= ~(OSC_PLLEN_bm | OSC_XOSCEN_bm // exclude OSC_RC2MEN_bm (don't disable 2M oscillator in bootloader)
 #ifdef OSC_RC8MCAL // only present in 'E' series
-                  | OSC_RC8MEN_bm
+                  | OSC_RC8MEN_bm /* disables 8Mhz oscillator */
 #endif // OSC_RC8MCAL
                   );
 
@@ -612,11 +705,70 @@ done_waiting_for_osc_status: // at this point the 32.768khz oscillator should be
 
 #ifdef OSC_RC32MCREF_gm /* if this is present, the enum for OSC_RC32MCREF_enum is also present */
     OSC_DFLLCTRL = OSC_RC32MCREF_RC32K_gc; // sect 6.10.7 - select 32.768KHz osc for everything, basically
+    // use the enumeration/constant if it's present
 #else // OSC_RC32MCREF_gm not present
-    OSC_DFLLCTRL = 0; // for header files that do not have the enumeration, this will have to do
+    OSC_DFLLCTRL = 0;                      // sect 6.10.7 - select 32.768KHz osc for everything, basically
+    // for header files that do not have the enumeration/constant defined, this will have to do
 #endif // OSC_RC32MCREF_gm
 
     DFLLRC32M_CTRL = DFLL_ENABLE_bm; // set the bit to enable DFLL calibration - section 6.11.1
+
+    // NOTE:  for Caterina (USB) it is important to have a calibrated clock
+
+#ifdef USE_CATERINA
+
+#ifndef CLK_USBEN_bm
+#define CLK_USBEN_bm CLK_USBSEN_bm /* name change of definition from previous header */
+#endif // CLK_USBEN_bm
+
+    // caterina bootloader needs to set up the USB clock, which will take a few
+    // extra things to set up.
+
+    USB_CTRLA = 0; // shut down USB (should already be, but make sure)
+    USB_CTRLB = 0; // detach D- and D+
+
+    CLK_USBCTRL = 0; // shut off USB clock - section 7.9.5 in AU manual
+
+    OSC_CTRL &= ~(OSC_PLLEN_bm); // disable PLL osc - section 7.9.1 in AU manual
+
+    // 32Mhz (divided by 4, so it's 8Mhz) as the source
+    // multiplication factor of 6 - result = 48Mhz
+    OSC_PLLCTRL = OSC_PLLSRC_RC32M_gc | 6; // 6 times the 8Mhz frequency - section 7.10.6 in AU manual
+
+    OSC_CTRL |= OSC_PLLEN_bm; // re-enable PLL - section 7.9.5 in AU manual
+
+    while(!(OSC_STATUS & OSC_PLLRDY_bm)) // wait for PLL to be 'ready'
+    {
+      // TODO:  timeout?  I need to wait until it's stable
+    }
+
+#ifdef USB_FAST
+    CLK_USBCTRL = CLK_USBSRC_PLL_gc; // use PLL (divide by 1, no division) - section 7.9.5 in AU manual
+#else // USB_FAST
+    CLK_USBCTRL = CLK_USBSRC_PLL_gc  // use PLL - section 7.9.5 in AU manual
+                | CLK_USBPSDIV_8_gc; // divide by 8 for 6mhz operation (12Mhz?  see 7.3.6 which says 12Mhz or 48Mhz)
+#endif // USB_FAST
+
+    CLK_USBCTRL |= CLK_USBEN_bm;     // enable bit - section 7.9.5 in AU manual
+
+    // assign CAL register from product signatures (4.17.17,18)
+    USB_CAL0 = readCalibrationData((uint8_t)(uint16_t)&PRODSIGNATURES_USBCAL0); // docs say 'CALL'
+    USB_CAL1 = readCalibrationData((uint8_t)(uint16_t)&PRODSIGNATURES_USBCAL1); // docs say 'CALH'
+
+    // at this point the USB clock is running with USB disabled.
+    // For the rest of the potential startup code on the USB, not clock related,
+    // see USBCore.cpp, 'USBDevice_::attach()'
+
+//#ifdef USB_FAST
+//    USB_CTRLA = MAXEP // max # of endpoints minus 1 - section 20.14.1 in AU manual
+//              | USB_SPEED_bm        // FAST USB - all ahead 'FULL' - aka 'FULL' speed ahead! - ok bad PUNishment
+//              | USB_STFRNUM_bm;     // store the frame number (mostly for debugging)
+//#else // USB_FAST
+//    USB_CTRLA = MAXEP // max # of endpoints minus 1 - section 20.14.1 in AU manual
+//              | USB_STFRNUM_bm;     // store the frame number (mostly for debugging)
+//#endif // USB_FAST
+
+#endif // USE_CATERINA
   }
 
   // I'll be using the 1.024khz clock (from the 32.768KHz clock) for the real-time counter
@@ -664,6 +816,8 @@ skip_clock:  // go here if clock cannot be assigned for some reason or is alread
     // TODO:  handle differently if programmed?
   }
 
+#ifndef USE_CATERINA
+
   //------------------------------
   // UARTD0 config using HIGH pins
   //------------------------------
@@ -706,6 +860,14 @@ skip_clock:  // go here if clock cannot be assigned for some reason or is alread
 
 #endif // REMAP
 
+  /////////////////////////////////////////////////////////////////////
+  //   ____               _         _   ____                     _   //
+  //  / ___|   ___  _ __ (_)  __ _ | | | __ )   __ _  _   _   __| |  //
+  //  \___ \  / _ \| '__|| | / _` || | |  _ \  / _` || | | | / _` |  //
+  //   ___) ||  __/| |   | || (_| || | | |_) || (_| || |_| || (_| |  //
+  //  |____/  \___||_|   |_| \__,_||_| |____/  \__,_| \__,_| \__,_|  //
+  //                                                                 //
+  /////////////////////////////////////////////////////////////////////
 
 // set the CORRECT baud rate NOW.  normally just use 115k baud
 
@@ -761,23 +923,42 @@ skip_clock:  // go here if clock cannot be assigned for some reason or is alread
 #ifdef USE_STK500V2
   __builtin_avr_delay_cycles(F_CPU / 200); // delay approximately 5 msec before enabling serial port for STK500V2
                                            // this is to allow things to settle a bit beforehand
+#elif defined(USE_CATERINA)
+
+#warning - do I need to do the up-front delay for caterina?
+
 #endif // USE_STK500V2
 
-  // section 19.4.4
+  ////////////////////////////
+  // ENABLE THE SERIAL PORT //
+  ////////////////////////////
+
+  // See 'D' manual section 19.4.4
+
 #ifdef DOUBLE_SPEED
   SERIAL_USART_CTRLB = USART_RXEN_bm | USART_TXEN_bm | USART_CLK2X_bm; // enable double-speed, RX, TX, and disable other stuff
 #else   // DOUBLE_SPEED
   SERIAL_USART_CTRLB = USART_RXEN_bm | USART_TXEN_bm;  // enable RX, TX, disable other stuff
 #endif  // DOUBLE_SPEED
+#endif  // !USE_CATERINA
 
 
   // before globally enabling interrupts, make sure that 'certain hardware' isn't possibly messing things up
+  // This is especially true for non-USB boot when USB support is in the CPU+peripherals
 
 #ifdef USB_INTCTRLA
   USB_INTCTRLA = 0;
   USB_INTCTRLB = 0;
 #endif // USB_INTCTRLA
 
+  ///////////////////////////////////////////////////////////////
+  //   _____                _      _         ___         _     //
+  //  | ____| _ __    __ _ | |__  | |  ___  |_ _| _ __  | |_   //
+  //  |  _|  | '_ \  / _` || '_ \ | | / _ \  | | | '_ \ | __|  //
+  //  | |___ | | | || (_| || |_) || ||  __/  | | | | | || |_   //
+  //  |_____||_| |_| \__,_||_.__/ |_| \___| |___||_| |_| \__|  //
+  //                                                           //
+  ///////////////////////////////////////////////////////////////
 
   sei();  // ok to globally enable interrupts now
 
@@ -801,52 +982,33 @@ skip_clock:  // go here if clock cannot be assigned for some reason or is alread
   // and before anything else, zero out the error counter
   error_count = 0;
 
-
-#ifdef OLD_BLINK_METHOD
-  while (ch2--) // inlined, may be smaller this way
-  {
-    // this requires ch2 to be twice the loop count
-    if(!(ch2 & 1))
-    {
-      LED_PORT |= LED_PIN_BIT;
-    }
-    else
-    {
-      LED_PORT &= ~LED_PIN_BIT;
-    }
-
-    if(smart_delay_ms(100)) // 0.1 second period for blink
-    {
-      break;
-    }
-  }
-#else // OLD_BLINK_METHOD
+  // ----------------
+  // BLINK MODE SETUP
+  // ----------------
 
   blink_mode = ch2;          // this causes 'getch' to do the blinking
   LED_PORT |= LED_PIN_BIT;   // turn on the LED to indicate receiving data
 
-#endif // OLD_BLINK_METHOD
 
   /* forever loop */
   for (;;)
   {
-#ifndef USE_STK500V2
+#if !defined(USE_STK500V2) && !defined(USE_CATERINA)
     /* get character from UART */
     ch = getch();
 
+    // ------------------------------------
+    // 'Arduino' flash protocol, aka stk500
+    // ------------------------------------
 
-    //////////////////////////////////////////////////////////////////////////////
-    //                                                                          //
-    //                                 _         _                              //
-    //                  __ _  _ __  __| | _   _ (_) _ __    ___                 //
-    //                 / _` || '__|/ _` || | | || || '_ \  / _ \                //
-    //                | (_| || |  | (_| || |_| || || | | || (_) |               //
-    //                 \__,_||_|   \__,_| \__,_||_||_| |_| \___/                //
-    //                                                                          //
-    //                                                                          //
-    //////////////////////////////////////////////////////////////////////////////
-
-    // 'arduino' flash protocol, aka stk500
+    /////////////////////////////////////////////////////
+    //      _              _         _                 //
+    //     / \    _ __  __| | _   _ (_) _ __    ___    //
+    //    / _ \  | '__|/ _` || | | || || '_ \  / _ \   //
+    //   / ___ \ | |  | (_| || |_| || || | | || (_) |  //
+    //  /_/   \_\|_|   \__,_| \__,_||_||_| |_| \___/   //
+    //                                                 //
+    /////////////////////////////////////////////////////
 
     /* NOTE:  A bunch of if...else if... gives smaller code than switch...case ! */
 
@@ -857,9 +1019,9 @@ skip_clock:  // go here if clock cannot be assigned for some reason or is alread
       firstchar = 1; // we got an appropriate bootloader instruction
       nothing_response();
     }
-    else if (firstchar == 0) // 1st char is NOT a '0'
+    else if (firstchar == 0) // 1st char is NOT a '0' if I'm programming
     {
-      // the first character we got is not '0', lets bail!
+      // the first character we got is a '0', lets bail!
 
       app_start(); // start the app (NOTE:  this is WAY smaller than using a goto)
       soft_boot(); // it's what I do when/if the application returns - soft boot
@@ -1220,19 +1382,19 @@ skip_clock:  // go here if clock cannot be assigned for some reason or is alread
       soft_boot(); // it's what I do when the application returns - soft boot
     }
 
-#else // USE_STK500V2
+#elif defined(USE_STK500V2)
 
+    // STK500v2 protocol, aka 'Wiring' protocol
 
-    //////////////////////////////////////////////////////////////////////////////
-    //                                                                          //
-    //                  _    _     ____    ___    ___          ____             //
-    //             ___ | |_ | | __| ___|  / _ \  / _ \ __   __|___ \            //
-    //            / __|| __|| |/ /|___ \ | | | || | | |\ \ / /  __) |           //
-    //            \__ \| |_ |   <  ___) || |_| || |_| | \ V /  / __/            //
-    //            |___/ \__||_|\_\|____/  \___/  \___/   \_/  |_____|           //
-    //                                                                          //
-    //                                                                          //
-    //////////////////////////////////////////////////////////////////////////////
+    //////////////////////////////////////////////
+    //  __        __ _        _                 //
+    //  \ \      / /(_) _ __ (_) _ __    __ _   //
+    //   \ \ /\ / / | || '__|| || '_ \  / _` |  //
+    //    \ V  V /  | || |   | || | | || (_| |  //
+    //     \_/\_/   |_||_|   |_||_| |_| \__, |  //
+    //                                  |___/   //
+    //////////////////////////////////////////////
+
 
 /*
  * States used in the receive state machine (from stk500boot.c)
@@ -1946,6 +2108,67 @@ send_the_reply:
 
     // if no error, just loop again using original 'main loop' code
 
+#elif defined(USE_CATERINA)
+
+    //////////////////////////////////////////////////////
+    //    ____        _               _                 //
+    //   / ___| __ _ | |_  ___  _ __ (_) _ __    __ _   //
+    //  | |    / _` || __|/ _ \| '__|| || '_ \  / _` |  //
+    //  | |___| (_| || |_|  __/| |   | || | | || (_| |  //
+    //   \____|\__,_| \__|\___||_|   |_||_| |_| \__,_|  //
+    //                                                  //
+    //////////////////////////////////////////////////////
+
+    //---------------------------------------------------------------
+    // NVRAM limited to 8k for 128a*u and up; 4k for 64a*u and below
+    //
+    // It is important to implement this so it fits in 4k on 64a*u
+    //---------------------------------------------------------------
+
+    // portions of this code may have (in part) been derived from:
+    //
+    //  Arduino Project:  hardware/arduino/avr/bootloaders/caterina/Caterina.c
+    //
+    // The abovementioned file contains the following copyrights and notice:
+        /*
+                     LUFA Library
+             Copyright (C) Dean Camera, 2011.
+          dean [at] fourwalledcubicle [dot] com
+                   www.lufa-lib.org
+        */
+        /*
+          Copyright 2011  Dean Camera (dean [at] fourwalledcubicle [dot] com)
+
+          Permission to use, copy, modify, distribute, and sell this
+          software and its documentation for any purpose is hereby granted
+          without fee, provided that the above copyright notice appear in
+          all copies and that both that the copyright notice and this
+          permission notice and warranty disclaimer appear in supporting
+          documentation, and that the name of the author not be used in
+          advertising or publicity pertaining to distribution of the
+          software without specific, written prior permission.
+
+          The author disclaim all warranties with regard to this
+          software, including all implied warranties of merchantability
+          and fitness.  In no event shall the author be liable for any
+          special, indirect or consequential damages or any damages
+          whatsoever resulting from loss of use, data or profits, whether
+          in an action of contract, negligence or other tortious action,
+          arising out of or in connection with the use or performance of
+          this software.
+        */
+    // The abovementioned source code, and its associated header file(s), were
+    // used as a reference, but not as the basis for the implementation per se;
+    // however, to respect the intent of the reference software's author, the full
+    // text (as requested) for the copyright and notice are included here anyway.
+
+
+#error this has not been implemented (yet)
+
+
+    firstchar = firstchar; // TODO:  remove variable or make use of it as a flag someplace
+
+
 #endif // USE_STK500V2
 
   } /* end of forever loop */
@@ -1982,15 +2205,19 @@ char smart_delay_ms(uint16_t ms)
   return 0; // was not early-terminated
 }
 
+//--------------------------------
+// LOW LEVEL SERIAL I/O FUNCTIONS
+//--------------------------------
+
+#ifndef USE_CATERINA
+
 // 'getch()' and 'putch()' - basic serial I/O functions
 char getch(void)
 {
 static uint32_t count = 0;
 register char rVal;
 
-#ifndef OLD_BLINK_METHOD
   if(!blink_mode)              // making sure the LED is off if I'm not blinking
-#endif // OLD_BLINK_METHOD
   {
     LED_PORT &= ~LED_PIN_BIT;  // turn off the LED to indicate receiving data
     count = 0;
@@ -2006,7 +2233,6 @@ register char rVal;
     /* HACKME:: here is a good place to count times*/
     count++;
 
-#ifndef OLD_BLINK_METHOD
     if(blink_mode > 0)
     {
       // NOTE:  'BLINK_PERIOD' is derived with the assumption that it will take
@@ -2014,15 +2240,16 @@ register char rVal;
 
       if(count > (uint32_t)BLINK_PERIOD)
       {
-        blink_mode--;
+        blink_mode--; // if it hits zero or is odd I blink OFF; else blink ON
+                      // it becomes a countdown of 'BLINK_PERIOD' times in the loop
 
         if(!blink_mode || (blink_mode & 1))
         {
-          LED_PORT &= ~LED_PIN_BIT;          // turn off the LED to indicate receiving data
+          LED_PORT &= ~LED_PIN_BIT;          // turn off the LED to indicate NOT receiving data
         }
         else
         {
-          LED_PORT |= LED_PIN_BIT;          // turn on the LED to indicate receiving data
+          LED_PORT |= LED_PIN_BIT;          // turn on the LED to indicate NOT receiving data
         }
 
         count = 0; // reset count whenever I blink
@@ -2031,24 +2258,27 @@ register char rVal;
       // NOTE:  by the time blink_mode is zero, the count will be
       //        (NUM_LED_FLASHES << 1) * BLINK_PERIOD
     }
-    else
+    else if (count > (uint32_t)(MAX_TIME_COUNT)) // delay period for firmware flashing
+    {
+      // blink mode has dropped to zero, and I timed out
+      // Therefore I must start the application and reboot if it returns.
+      // The calls will not return to this function
+
+      app_start();
+      soft_boot(); // does not return
+    }
+// some old code left for reference
 //    else if (count > (uint32_t)((MAX_TIME_COUNT)         // delay period for firmware flashing
 //                                + (NUM_LED_FLASHES << 1) // twice # of LED flashes
 //                                * BLINK_PERIOD))         // per-flash period (each half)
-#endif // OLD_BLINK_METHOD
-    if (count > (uint32_t)(MAX_TIME_COUNT)) // delay period for firmware flashing
-    {
-      app_start();
-      soft_boot();
-    }
+
   }
 
-  SERIAL_USART_STATUS = USART_RXCIF_bm; // forcibly clear the bit
-  rVal = SERIAL_USART_DATA;
+  SERIAL_USART_STATUS = USART_RXCIF_bm; // forcibly clear the bit (if on)
+  rVal = SERIAL_USART_DATA; // zero if nothing received
 
-#ifndef OLD_BLINK_METHOD
-  if(!blink_mode)
-#endif // OLD_BLINK_METHOD
+  if(!blink_mode) // I turned off the LED when I came in, or else ran out of counts
+//  if(!blink_mode || (blink_mode & 1)) should I use this instead??  or maybe do it every time?
   {
     LED_PORT |= LED_PIN_BIT;          // turn on the LED to indicate receiving data
   }
@@ -2172,8 +2402,13 @@ void flush(void)
   SERIAL_USART_STATUS = USART_TXCIF_bm | USART_DREIF_bm; // set the bits to clear them (oxymoronic, but true)
 }
 
+#endif // !USE_CATERINA
 
 #ifdef USE_STK500V2
+
+// disable the warning since I'm deliberately assigning x1 but not using it
+#pragma GCC diagnostic ignored "-Wunused-but-set-variable"
+
 void flushin(void)
 {
   uint32_t count = 0;
@@ -2195,6 +2430,8 @@ void flushin(void)
 
     SERIAL_USART_STATUS = USART_RXCIF_bm; // clear the bit
     x1 = SERIAL_USART_DATA; // burn the data
+
+//    x1 = x1; // so that I don't get the warning
 
     count = 0; // restart counter
   }
